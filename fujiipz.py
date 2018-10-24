@@ -118,7 +118,7 @@ def plot_hydro(
         time.value_in(unitsystem.time), unitsystem.time
     )
 
-    fig.title(title_label, fontdict=None, loc='center', pad=None,)
+    fig.suptitle(title_label)
 
     color_map = pyplot.cm.get_cmap('RdBu')
     # cm = pyplot.cm.jet #gist_ncar

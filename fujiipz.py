@@ -474,7 +474,7 @@ class Cluster(object):
 
             self.merge_stars()
 
-            if not self.star_particles.is_empty() > 0:
+            if not self.star_particles.is_empty():
                 sinks = new_sink_particles(self.star_particles)
                 sinks.accrete(self.gas_particles)
                 for sink_i in range(len(self.star_particles)):

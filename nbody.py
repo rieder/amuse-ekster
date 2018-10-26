@@ -14,10 +14,10 @@ from amuse.ic.salpeter import new_salpeter_mass_distribution
 from amuse.units import units, nbody_system
 # from amuse.community.ph4.interface import ph4
 # from amuse.community.bhtree.interface import BHTree
-from amuse.community.hermite0.interface import Hermite
+# from amuse.community.hermite0.interface import Hermite
 # from amuse.community.huayno.interface import Huayno
-# from amuse.community.mi6.interface import MI6
-
+from amuse.community.mi6.interface import MI6
+from fujiipz import merge_two_stars
 
 if __name__ == "__main__":
     numpy.random.seed(11)
@@ -33,9 +33,12 @@ if __name__ == "__main__":
 
     particles.e_loc = e_loc
     particles[numpy.where(particles.e_loc > 1)].e_loc = 1
+    dense_region_particles = particles.select_array(
+            lambda x: x > 1000 | units.MSun * units.parsec**-3,
+            ["rho"])
     print(
         "Mean sfe: ", particles.e_loc.mean(),
-        "Max sfe: ", particles.e_loc.max(),
+        "Mean sfe (dense): ", dense_region_particles.e_loc.mean(),
     )
 
     selection_chance = numpy.random.random(len(particles))
@@ -74,14 +77,17 @@ if __name__ == "__main__":
     converter = nbody_system.nbody_to_si(rvir, mtot)
     write_set_to_file(stars, "stars.hdf5", "amuse", append_to_file=False)
     # exit()
-    # gravity = ph4(converter)
+    # gravity = ph4(converter, number_of_workers=1, redirection="none")
     # gravity = BHTree(converter)
-    gravity = Hermite(converter)
+    # gravity = Hermite(converter)
     # gravity = Huayno(converter, mode="SHARED6_COLLISIONS")
     # gravity = Huayno(converter, mode="PASS_KDK")
-    # gravity = MI6(converter)
+    gravity = MI6(converter, redirection="none")
     gravity.parameters.maximum_timestep = 0.0005 | units.Myr
+    gravity.parameters.calculate_postnewtonian = False
+    gravity.parameters.epsilon_squared = (100 | units.AU)**2
     print(gravity.parameters)
+    # exit()
     gravity.particles.add_particles(stars)
     energy_error_cumulative = 0.0
     tzero_total_energy = (gravity.kinetic_energy - gravity.potential_energy)

@@ -1007,7 +1007,7 @@ def main():
                 base_grid=body_centered_grid_unit_cube,  # default
             ).result
         else:
-            gas_particles = read_set_from_file(filename, "amuse")
+            gas_particles = read_set_from_file(filename, "amuse").history[0]
 
         t_ff = gas_particles.dynamical_timescale()
         # t_ff = 0.5427/numpy.sqrt(constants.G*rho_cloud)
@@ -1052,7 +1052,10 @@ def main():
     if mode == "stars" or mode == "both":
         if mode == "stars":
             try:
-                stars = read_set_from_file(filename, "amuse")
+                stars = read_set_from_file(
+                    filename,
+                    "amuse",
+                ).history[0]
             except IoException:
                 print("Could not read file %s, exiting" % filename)
                 exit()

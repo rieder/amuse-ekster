@@ -494,7 +494,6 @@ class Cluster(object):
                 "softening length: ",
                 (code.parameters.epsilon_squared**0.5).value_in(units.AU),
                 "AU")
-            code = ph4(self.converter)
             return code
         elif code_name == "BHTree":
             from amuse.community.bhtree.interface import BHTree

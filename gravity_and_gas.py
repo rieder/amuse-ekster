@@ -13,7 +13,8 @@ from amuse.units import (nbody_system, units, constants)
 from amuse.datamodel import (Particles, ParticlesSuperset)
 from amuse.support.console import set_printing_strategy
 
-from amuse.io import write_set_to_file
+from amuse.io import write_set_to_file, read_set_from_file
+from amuse.io.base import IoException
 
 from amuse.ic.salpeter import new_salpeter_mass_distribution
 # from amuse.ic.gasplummer import new_plummer_gas_model
@@ -21,6 +22,7 @@ from amuse.ic.salpeter import new_salpeter_mass_distribution
 from amuse.ext.molecular_cloud import molecular_cloud
 # from amuse.ext.sink import new_sink_particles
 from amuse.ext.evrard_test import body_centered_grid_unit_cube
+from amuse.ext.LagrangianRadii import LagrangianRadii
 
 from amuse.community.fastkick.interface import FastKick
 
@@ -28,6 +30,8 @@ from amuse.community.fastkick.interface import FastKick
 
 from cooling_class import SimplifiedThermalModelEvolver
 from prepare_figure import single_frame
+# from diagnostics import identify_subgroups
+
 # Initialise environment
 # include:
 # - Gravity for stars
@@ -153,13 +157,13 @@ def plot_stars(
         logx=False, logy=False,
         xsize=15, ysize=15)
 
-    ax = fig.add_subplot(111)
+    axes = fig.add_subplot(111)
     xmin = (-length_scaling/2)
     xmax = (length_scaling/2)
     ymin = (-length_scaling/2)
     ymax = (length_scaling/2)
-    ax.set_xlim((xmin, xmax))
-    ax.set_ylim((ymin, ymax))
+    axes.set_xlim((xmin, xmax))
+    axes.set_ylim((ymin, ymax))
 
     stars = gravity.particles
 
@@ -352,7 +356,7 @@ class Cluster(object):
         self.tzero_mass = self.code.particles.mass.sum()
 
         print(
-            "# Virial ratio |Ek|/|Ep| = %s" % (
+            "Virial ratio |Ek|/|Ep| = %s" % (
                 abs(self.code.kinetic_energy)
                 / abs(self.code.potential_energy)
             )
@@ -478,9 +482,15 @@ class Cluster(object):
             return code
         elif code_name == "ph4":
             from amuse.community.ph4.interface import ph4
-            code = ph4(self.converter, number_of_processes=8)
+            code = ph4(self.converter, number_of_processes=4)
             code.parameters.timestep_parameter = 0.01
-            code.parameters.epsilon_squared = (100.0 | units.AU)**2
+            # code.parameters.epsilon_squared = (100.0 | units.AU)**2
+            code.parameters.epsilon_squared = (
+                self.converter.to_si(
+                    (4 | nbody_system.length) / len(self.star_particles)
+                )**2
+            )
+            print(code.parameters.epsilon_squared)
             code = ph4(self.converter)
             return code
         elif code_name == "BHTree":
@@ -777,19 +787,6 @@ class Cluster(object):
             self.code.particles.mass.sum()
             - self.tzero_mass
         ) / self.tzero_mass
-        if "gas" in self.mode:
-            length_scaling = 30
-            # length_scaling = self.converter.to_si(
-            #     3.1 | nbody_system.length).value_in(units.parsec)
-            plot_hydro(
-                self.model_time, self.fig_num, self.code,
-                length_scaling=length_scaling,)
-        if "stars" in self.mode:
-            length_scaling = 30
-            plot_stars(
-                self.model_time, self.fig_num, self.code,
-                length_scaling=length_scaling,)
-        self.fig_num += 1
 
         print(
             "# Time: ",
@@ -807,6 +804,32 @@ class Cluster(object):
             "Mass error: ",
             mass_error,
         )
+
+        if "gas" in self.mode:
+            length_scaling = 30
+            # length_scaling = self.converter.to_si(
+            #     3.1 | nbody_system.length).value_in(units.parsec)
+            plot_hydro(
+                self.model_time, self.fig_num, self.code,
+                length_scaling=length_scaling,)
+        if "stars" in self.mode:
+            # subgroups = identify_subgroups(
+            #     self.converter,
+            #     self.star_particles)
+            lagrangian_radii = LagrangianRadii(self.star_particles)
+            length_scaling = 30
+            plot_stars(
+                self.model_time, self.fig_num, self.code,
+                length_scaling=length_scaling,)
+            print(
+                "# ",
+                "LR01: ", lagrangian_radii[1],
+                "LR05: ", lagrangian_radii[3],
+                "LR25: ", lagrangian_radii[5],
+                "LR50: ", lagrangian_radii[6],
+                "LR75: ", lagrangian_radii[7],
+            )
+        self.fig_num += 1
 
     def reset(self):
         # This will currently not work, as it needs new particle sets...
@@ -868,8 +891,12 @@ class Cluster(object):
 def new_option_parser():
     from amuse.units.optparse import OptionParser
     result = OptionParser()
-    result.add_option("-i", dest="filename", default="gas.hdf5",
-                      help="Input filename [%default]")
+    result.add_option(
+        "-i", dest="filename", default="none",
+        help="Input filename [%default]")
+    result.add_option(
+        "--mode", dest="mode", default="both",
+        help="simulation mode (gas, stars, both) [%default]")
     result.add_option(
         "-N", dest="number_of_gas_particles", type="int", default=10000,
         help="number of gas particles [%default]")
@@ -879,17 +906,17 @@ def new_option_parser():
     result.add_option(
         "-M", unit=units.MSun, dest="max_stellar_mass", type="float",
         default=100,
-        help="maximal stellar mass [%default.value_in(units.MSun))]")
+        help="maximal stellar mass [%default] (MSun)")
     result.add_option(
         "-m", unit=units.MSun, dest="min_stellar_mass", type="float",
         default=0.3,
-        help="minimal stellar mass [%default.value_in(units.MSun)]")
+        help="minimal stellar mass [%default] (MSun)")
     result.add_option(
         "-T", unit=units.K, dest="temperature", type="float", default=30,
         help="gas temperature")
     result.add_option(
         "-t", unit=units.Myr, dest="t_end", type="float", default=10.0,
-        help="end time of the simulation [%default.value_in(units.Myr]")
+        help="end time of the simulation [%default] (Myr)")
     result.add_option(
         "-z", dest="metallicity", type="float", default=0.02,
         help="metalicity [%default]")
@@ -901,7 +928,7 @@ def new_option_parser():
         help="initial gas cloud density")
     result.add_option(
         "--cloud-weight", unit=units.amu, dest="cloud_weight", default=2.33,
-        help="average molecular weight [%default.value_in(units.amu)]")
+        help="average molecular weight [%default] (amu)")
     return result
 
 
@@ -912,6 +939,8 @@ def main():
     """
     # pylint: disable=too-many-locals
     o, arguments = new_option_parser().parse_args()
+    mode = o.mode
+    filename = o.filename
     seed = o.seed
     cloud_weight = o.cloud_weight
     cloud_density = o.cloud_density
@@ -923,106 +952,129 @@ def main():
     numpy.random.seed(seed)
     # temperature = 30 | units.K
 
-    # mass_scale = 400000 | units.MSun
-    mass_scale = number_of_gas_particles * (1 | units.MSun)
-    # mass_scale = 40000 | units.MSun
+    if mode == "gas" or mode == "both":
+        # mass_scale = 400000 | units.MSun
+        mass_scale = number_of_gas_particles * (1 | units.MSun)
+        # mass_scale = 40000 | units.MSun
 
-    # length_scale = 9.8 | units.parsec
-    # length_scale = 13.3 | units.parsec
-    # length_scale = 21. | units.parsec
-    # length_scale = 6.2 | units.parsec
+        # length_scale = 9.8 | units.parsec
+        # length_scale = 13.3 | units.parsec
+        # length_scale = 21. | units.parsec
+        # length_scale = 6.2 | units.parsec
 
-    rho_cloud = cloud_weight * cloud_density
-    length_scale = (3.*mass_scale / (4.*numpy.pi*rho_cloud))**(1/3)
-    # rho_cloud = 3.*mass_scale/(4.*numpy.pi*length_scale**3)
+        rho_cloud = cloud_weight * cloud_density
+        length_scale = (3.*mass_scale / (4.*numpy.pi*rho_cloud))**(1/3)
+        # rho_cloud = 3.*mass_scale/(4.*numpy.pi*length_scale**3)
 
-    print("# Mass scale=", mass_scale.in_(units.MSun))
-    print("# Length scale=", length_scale.in_(units.parsec))
-    print("# Cloud density=", (rho_cloud).in_(units.MSun * units.parsec**-3))
-    print("# Cloud density=", (rho_cloud/cloud_weight).in_(units.cm**-3))
-    number_of_gas_particles = int(mass_scale / (1 | units.MSun))
-    print(
-        "# Mass per particle=",
-        (mass_scale/number_of_gas_particles).in_(units.MSun)
-    )
+        print("# Mass scale=", mass_scale.in_(units.MSun))
+        print("# Length scale=", length_scale.in_(units.parsec))
+        print(
+            "# Cloud density=",
+            (rho_cloud).in_(units.MSun * units.parsec**-3)
+        )
+        print(
+            "# Cloud density= %s [cm**-3]" % (
+                (rho_cloud/cloud_weight).value_in(units.cm**-3),
+            )
+        )
+        number_of_gas_particles = int(mass_scale / (1 | units.MSun))
+        print(
+            "# Mass per particle=",
+            (mass_scale/number_of_gas_particles).in_(units.MSun)
+        )
 
-    converter = nbody_system.nbody_to_si(
-        length_scale,
-        mass_scale,
-    )
+        converter = nbody_system.nbody_to_si(
+            length_scale,
+            mass_scale,
+        )
 
-    # print("# Cloud density=", (rho_cloud).in_(units.MSun * units.parsec**-3))
+        # print(
+        #     "# Cloud density=",
+        #     (rho_cloud).in_(units.MSun * units.parsec**-3)
+        # )
+        if o.filename is not "none":
+            gas_particles = molecular_cloud(
+                nf=32,  # default
+                power=-4.,  # spectral index as in FPZ2016
+                targetN=number_of_gas_particles,
+                # ethep_ratio=0.01*0.828,  # 0.01*1.53 for 30K?
+                ekep_ratio=1.,  # as in FPZ2016
+                seed=seed,  # change this for other realisations
+                convert_nbody=converter,  # set scale
+                base_grid=body_centered_grid_unit_cube,  # default
+            ).result
+        else:
+            gas_particles = read_set_from_file(filename, "amuse")
 
-    gas_particles = molecular_cloud(
-        nf=32,  # default
-        power=-4.,  # spectral index as in FPZ2016
-        targetN=number_of_gas_particles,
-        # ethep_ratio=0.01*0.828,  # 0.01*1.53 for 30K?
-        ekep_ratio=1.,  # as in FPZ2016
-        seed=seed,  # change this for other realisations
-        convert_nbody=converter,  # set scale
-        base_grid=body_centered_grid_unit_cube,  # default
-    ).result
+        t_ff = gas_particles.dynamical_timescale()
+        # t_ff = 0.5427/numpy.sqrt(constants.G*rho_cloud)
+        print("# Freefall timescale=", t_ff.in_(units.Myr))
 
-    t_ff = gas_particles.dynamical_timescale()
-    # t_ff = 0.5427/numpy.sqrt(constants.G*rho_cloud)
-    print("# Freefall timescale=", t_ff.in_(units.Myr))
+        internal_energy = (
+            3.0 * constants.kB * temperature
+            / (2.0 * cloud_weight)
+        )
+        gas_particles.u = internal_energy
 
-    internal_energy = (
-        3.0 * constants.kB * temperature
-        / (2.0 * cloud_weight)
-    )
-    gas_particles.u = internal_energy
+        print(
+            "# Velocity dispersion: %s [kms]" % (
+                gas_particles.velocity.lengths().mean().value_in(units.kms),
+            )
+        )
+        gas_particles.name = "gas"
 
-    print(
-        "# Velocity dispersion:",
-        gas_particles.velocity.lengths().mean().in_(units.kms),
-    )
-    gas_particles.name = "gas"
+        cluster = Cluster(
+            (gas_particles, Particles()),
+            convert_nbody=converter,
+            mode="gas"
+        )
+        cluster.save_gas()
 
-    cluster = Cluster(
-        (gas_particles, Particles()),
-        convert_nbody=converter,
-        mode="gas"
-    )
-    cluster.save_gas()
+        print(
+            "# Hydro timesteps:",
+            cluster.gas_code.parameters.timestep.in_(units.yr),
+            "number of gas particles=", number_of_gas_particles)
 
-    print(
-        "# Hydro timesteps:",
-        cluster.gas_code.parameters.timestep.in_(units.yr),
-        "number of gas particles=", number_of_gas_particles)
+        print("# gas center-of-mass: ", cluster.gas_particles.center_of_mass())
+        print("# time: ", cluster.model_time.in_(units.yr))
+        t_end = 0.9 * t_ff
+        cluster.evolve_model(t_end)
 
-    print("# gas center-of-mass: ", cluster.gas_particles.center_of_mass())
-    t_end = 0.9 * t_ff
-    cluster.evolve_model(t_end)
+        stars = cluster.generate_stars(
+            mass_min=min_stellar_mass, mass_max=max_stellar_mass,)
 
-    stars = cluster.generate_stars(
-        mass_min=min_stellar_mass, mass_max=max_stellar_mass,)
+        cluster.stop()
+        del cluster
 
-    cluster.stop()
-    del cluster
+    if mode == "stars" or mode == "both":
+        if mode == "stars":
+            try:
+                stars = read_set_from_file(filename, "amuse")
+            except IoException:
+                print("Could not read file %s, exiting" % filename)
+                exit()
 
-    print("Number of stars: ", len(stars))
-    if stars.is_empty():
-        exit()
+        print("Number of stars: ", len(stars))
+        if stars.is_empty():
+            exit()
 
-    scale_length = stars.virial_radius().in_(units.parsec)
-    scale_mass = stars.mass.sum()
-    print("Scale length: %s" % scale_length.in_(units.parsec))
-    print("Scale mass: %s" % scale_mass.in_(units.MSun))
-    converter = nbody_system.nbody_to_si(
-        scale_length,
-        scale_mass,
-    )
+        scale_length = stars.virial_radius().in_(units.parsec)
+        scale_mass = stars.mass.sum()
+        print("Scale length: %s" % scale_length.in_(units.parsec))
+        print("Scale mass: %s" % scale_mass.in_(units.MSun))
+        converter = nbody_system.nbody_to_si(
+            scale_length,
+            scale_mass,
+        )
 
-    cluster = Cluster(
-        (Particles(), stars),
-        convert_nbody=converter,
-        mode="stars"
-    )
-    cluster.save_stars()
+        cluster = Cluster(
+            (Particles(), stars),
+            convert_nbody=converter,
+            mode="stars"
+        )
+        cluster.save_stars()
 
-    cluster.evolve_model(10 | units.Myr)
+        cluster.evolve_model(10 | units.Myr)
 
 
 if __name__ == "__main__":

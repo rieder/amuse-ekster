@@ -487,10 +487,12 @@ class Cluster(object):
             # code.parameters.epsilon_squared = (100.0 | units.AU)**2
             code.parameters.epsilon_squared = (
                 self.converter.to_si(
-                    (4 | nbody_system.length) / len(self.star_particles)
+                    (10 | nbody_system.length) / len(self.star_particles)
                 )**2
             )
-            print(code.parameters.epsilon_squared)
+            print(
+                "softening length: ",
+                code.parameters.epsilon_squared.value_in(units.AU), "AU")
             code = ph4(self.converter)
             return code
         elif code_name == "BHTree":

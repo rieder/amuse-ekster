@@ -1045,6 +1045,7 @@ def main():
 
         stars = cluster.generate_stars(
             mass_min=min_stellar_mass, mass_max=max_stellar_mass,)
+        write_set_to_file(stars, "stars_initial.hdf5", "amuse")
 
         cluster.stop()
         del cluster

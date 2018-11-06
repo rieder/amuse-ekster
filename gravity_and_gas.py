@@ -995,7 +995,7 @@ def main():
         #     "# Cloud density=",
         #     (rho_cloud).in_(units.MSun * units.parsec**-3)
         # )
-        if o.filename is not "none":
+        if o.filename is "none":
             gas_particles = molecular_cloud(
                 nf=32,  # default
                 power=-4.,  # spectral index as in FPZ2016

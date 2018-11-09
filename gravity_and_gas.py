@@ -7,18 +7,14 @@ from __future__ import division, print_function
 
 import numpy
 
-import matplotlib.pyplot as pyplot
-
-from amuse.units import (nbody_system, units, constants)
-from amuse.datamodel import (Particles, ParticlesSuperset)
+from amuse.units import nbody_system, units, constants
+from amuse.datamodel import Particles, ParticlesSuperset
 from amuse.support.console import set_printing_strategy
 
 from amuse.io import write_set_to_file, read_set_from_file
 from amuse.io.base import IoException
 
 from amuse.ic.salpeter import new_salpeter_mass_distribution
-# from amuse.ic.gasplummer import new_plummer_gas_model
-# from amuse.ic.plummer import new_plummer_model
 from amuse.ext.molecular_cloud import molecular_cloud
 # from amuse.ext.sink import new_sink_particles
 from amuse.ext.evrard_test import body_centered_grid_unit_cube
@@ -26,10 +22,10 @@ from amuse.ext.LagrangianRadii import LagrangianRadii
 
 from amuse.community.fastkick.interface import FastKick
 
-# import matplotlib.pyplot as plt
-
 from cooling_class import SimplifiedThermalModelEvolver
-from prepare_figure import single_frame
+from plot import plot_hydro, plot_stars
+from stellar_interactions import merge_two_stars, new_multiples_code
+
 # from diagnostics import identify_subgroups
 
 # Initialise environment
@@ -39,198 +35,6 @@ from prepare_figure import single_frame
 # - Stellar evolution
 # - Feedback
 # - Binary stars
-
-
-def make_map(sph, number_of_cells=100, length_scaling=1):
-    """
-    create a density map
-    """
-    x, y = numpy.indices((number_of_cells+1, number_of_cells+1))
-    x = length_scaling*(x.flatten()-number_of_cells/2.)/number_of_cells
-    y = length_scaling*(y.flatten()-number_of_cells/2.)/number_of_cells
-    z = x*0.
-    vx = 0.*x
-    vy = 0.*x
-    vz = 0.*x
-
-    x = units.parsec(x)
-    y = units.parsec(y)
-    z = units.parsec(z)
-    vx = units.kms(vx)
-    vy = units.kms(vy)
-    vz = units.kms(vz)
-
-    rho, rhovx, rhovy, rhovz, rhoe = sph.get_hydro_state_at_point(
-        x, y, z, vx, vy, vz,
-    )
-    del(rhovx, rhovy, rhovz, rhoe)
-    rho = rho.reshape((number_of_cells+1, number_of_cells+1))
-    return rho
-
-
-class DefaultUnits(object):
-    """
-    Set units to be used
-    """
-    def __init__(self):
-        self.mass = units.MSun
-        self.length = units.parsec
-        self.time = units.Myr
-        self.speed = units.kms
-
-    def use_physical(self):
-        """Use physical units"""
-        self.mass = units.MSun
-        self.length = units.parsec
-        self.time = units.Myr
-        self.speed = units.kms
-
-    def use_nbody(self):
-        """Use n-body (H'enon) units"""
-        self.mass = nbody_system.mass
-        self.length = nbody_system.length
-        self.time = nbody_system.time
-        self.speed = nbody_system.speed
-
-
-def plot_hydro(
-        time, i, sph, length_scaling=10,):
-    """
-    make a plot of the current gas densities in a hydro code
-    """
-    # pylint: disable=too-many-locals
-    unitsystem = DefaultUnits()
-    x_label = "x [%s]" % unitsystem.length
-    y_label = "y [%s]" % unitsystem.length
-    fig = single_frame(
-        x_label, y_label,
-        logx=False, logy=False,
-        xsize=15, ysize=15)
-
-    # gas = sph.gas_particles
-    dm_particles = sph.dm_particles
-    rho = make_map(sph, number_of_cells=400, length_scaling=length_scaling)
-    cax = pyplot.imshow(
-        numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
-        extent=[
-            -length_scaling/2, length_scaling/2,
-            -length_scaling/2, length_scaling/2],
-        vmin=1, vmax=5, origin="lower")
-
-    cbar = fig.colorbar(cax, orientation='vertical', fraction=0.045)
-    cbar.set_label('projected density [$amu/cm^3$]', rotation=270)
-
-    title_label = "time: %08.2f %s" % (
-        time.value_in(unitsystem.time), unitsystem.time
-    )
-
-    fig.suptitle(title_label)
-
-    color_map = pyplot.cm.get_cmap('RdBu')
-    # cm = pyplot.cm.jet #gist_ncar
-    if not dm_particles.is_empty():
-        # m = 10.0*dm_particles.mass/dm_particles.mass.max()
-        mass_scaling = 30*numpy.log10(
-            dm_particles.mass/dm_particles.mass.min()
-        )
-        color_scaling = numpy.sqrt(dm_particles.mass/dm_particles.mass.max())
-        pyplot.scatter(
-            dm_particles.y.value_in(units.parsec),
-            dm_particles.x.value_in(units.parsec),
-            c=color_scaling, s=mass_scaling, lw=0, cmap=color_map)
-
-    pyplot.savefig('gas-fig-%04i.png' % i)
-    pyplot.close(fig)
-
-
-def plot_stars(
-        time, i, gravity, length_scaling=10,):
-    """
-    make a plot of the current gas densities in a hydro code
-    """
-    # pylint: disable=too-many-locals
-    unitsystem = DefaultUnits()
-    x_label = "x [%s]" % unitsystem.length
-    y_label = "y [%s]" % unitsystem.length
-    fig = single_frame(
-        x_label, y_label,
-        logx=False, logy=False,
-        xsize=15, ysize=15)
-
-    axes = fig.add_subplot(111)
-    xmin = (-length_scaling/2)
-    xmax = (length_scaling/2)
-    ymin = (-length_scaling/2)
-    ymax = (length_scaling/2)
-    axes.set_xlim((xmin, xmax))
-    axes.set_ylim((ymin, ymax))
-
-    stars = gravity.particles
-
-    title_label = "time: %08.2f %s" % (
-        time.value_in(unitsystem.time), unitsystem.time
-    )
-
-    fig.suptitle(title_label)
-
-    color_map = pyplot.cm.get_cmap('RdBu')
-
-    if not stars.is_empty():
-        # m = 10.0*dm_particles.mass/dm_particles.mass.max()
-        mass_scaling = 30*numpy.log10(
-            stars.mass/stars.mass.min()
-        )
-        color_scaling = numpy.sqrt(stars.mass/stars.mass.max())
-        pyplot.scatter(
-            stars.y.value_in(units.parsec),
-            stars.x.value_in(units.parsec),
-            c=color_scaling, s=mass_scaling, lw=0, cmap=color_map)
-
-    pyplot.savefig('stars-fig-%04i.png' % i)
-    pyplot.close(fig)
-
-
-def merge_two_stars(bodies, particles_in_encounter):
-    """
-    Merge two stars into one
-    """
-    com_pos = particles_in_encounter.center_of_mass()
-    com_vel = particles_in_encounter.center_of_mass_velocity()
-    star_0 = particles_in_encounter[0]
-    star_1 = particles_in_encounter[1]
-
-    new_particle = Particles(1)
-    new_particle.birth_age = particles_in_encounter.birth_age.min()
-    new_particle.mass = particles_in_encounter.total_mass()
-    new_particle.age = min(particles_in_encounter.age) \
-        * max(particles_in_encounter.mass)/new_particle.mass
-    new_particle.position = com_pos
-    new_particle.velocity = com_vel
-    new_particle.name = "Star"
-    new_particle.radius = particles_in_encounter.radius.max()
-    print("# old radius:", particles_in_encounter.radius.in_(units.AU))
-    print("# new radius:", new_particle.radius.in_(units.AU))
-    bodies.add_particles(new_particle)
-    print(
-        "# Two stars (M=",
-        particles_in_encounter.mass.in_(units.MSun),
-        ") collided at d=",
-        (star_0.position - star_1.position).length().in_(units.AU)
-    )
-    bodies.remove_particles(particles_in_encounter)
-
-
-def new_evolution_code(code_name="SeBa"):
-    """Initialises stellar evolution code"""
-    if code_name == "SeBa":
-        from amuse.community.seba.interface import SeBa
-        code = SeBa()
-    elif code_name == "SSE":
-        from amuse.community.sse.interface import SSE
-        code = SSE()
-    else:
-        raise "No such stellar evolution code"
-    return code
 
 
 class Cluster(object):
@@ -259,6 +63,7 @@ class Cluster(object):
         """
         self.mode = mode
         self.converter = convert_nbody
+        self.tidal_field = False  # TimeDependentSpiralArmsModel()
 
         self.time_step_diag = time_step_diag
 
@@ -275,7 +80,7 @@ class Cluster(object):
             "mass", "x", "y", "z", "vx", "vy", "vz", "radius",
         )
         self.evolution_sync_attributes = (
-            "mass", "radius", "age", "temperature", "luminosity"
+            "mass", "age", "temperature", "luminosity",  # "radius",
         )
 
         # Should set this to something automatically, not fixed
@@ -284,13 +89,11 @@ class Cluster(object):
         self.cooling_enabled = False
         self.cooling_flag = "thermal_model"
 
+        # Handle binary stars using Multiples?
+        self.multiples = True
+
         if "gas" in self.mode:
             self.gas_code = self.new_gas_code()
-            self.gas_code.gas_particles.add_particles(self.gas_particles)
-            self.density_limit_detection = \
-                self.gas_code.stopping_conditions.density_limit_detection
-            # We're not yet doing star formation on the fly
-            self.density_limit_detection.disable()
 
             self.gas_code_to_model = \
                 self.gas_code.gas_particles.new_channel_to(
@@ -302,21 +105,16 @@ class Cluster(object):
             self.sync_gas_to_model()
 
         if "stars" in self.mode:
-            self.star_code = self.new_gravity_code()
-            self.star_code.particles.add_particles(self.star_particles)
-            self.collision_detection = \
-                self.star_code.stopping_conditions.collision_detection
-            # We are handling stellar collisions
-            self.collision_detection.enable()
+            if self.multiples:
+                self.regular_gravity_code, self.star_code = \
+                    self.new_gravity_code()
+            else:
+                self.star_code = self.new_gravity_code()
+                self.regular_gravity_code = self.star_code
 
-            self.evolution_code = new_evolution_code()
-            self.evolution_code.particles.add_particles(self.star_particles)
-            self.evolution_code.parameters.metallicity = 0.02
+
+            self.evolution_code = self.new_evolution_code()
             self.evolution_code.evolve_model(0.0 | units.Myr)
-            self.supernova_detection = \
-                self.evolution_code.stopping_conditions.supernova_detection
-            # Don't handle supernovae (yet)
-            self.supernova_detection.disable()
 
             self.stars_code_to_model = \
                 self.star_code.particles.new_channel_to(
@@ -330,29 +128,14 @@ class Cluster(object):
                 self.evolution_code.particles.new_channel_to(
                     self.star_particles)
 
-        if self.mode == "gas+stars":
-            self.code = self.new_bridge()
-        elif self.mode == "gas":
-            self.code = self.gas_code
-        elif self.mode == "stars":
-            self.code = self.star_code
+        self.code = self.new_bridge()
 
-        # Calculate initial energy of the system
-        self.kinetic_energy = self.code.kinetic_energy
-        self.potential_energy = self.code.potential_energy
-        if "gas" in mode:
-            self.thermal_energy = self.code.thermal_energy
-        else:
-            self.thermal_energy = 0 * self.kinetic_energy
-        self.tzero_thermal_energy = self.thermal_energy
-        self.total_energy = (
-            self.kinetic_energy
-            + self.potential_energy
-            + self.thermal_energy
-        )
-        self.tzero_total_energy = self.total_energy
-        self.tlast_total_energy = self.tzero_total_energy
-        self.energy_error_cumulative = 0.0
+        self.tzero_total_energy = False
+        self.tlast_total_energy = False
+        self.total_energy = False
+        self.scale_energy = False
+        self.energy_error_cumulative = self.get_energy()
+
         self.tzero_mass = self.code.particles.mass.sum()
 
         print(
@@ -386,42 +169,56 @@ class Cluster(object):
             self.sync_gas_to_model()
         if "stars" in self.mode:
             self.sync_stars_to_model()
-        self.sync_energy_to_model()
-        if self.i == 0:
-            self.tzero_thermal_energy = self.thermal_energy
-            self.tzero_total_energy = (
-                self.kinetic_energy
-                + self.potential_energy
-                + self.thermal_energy
-            )
-            self.tlast_total_energy = self.tzero_total_energy
-            self.energy_error_cumulative = 0.0
-            self.tzero_mass = (
-                self.code.particles.mass.sum()
-            )
 
-    # def print_diagnostics(self):
-    #     hydrogen_atomic_mass = 1./6.02214179e+23 | units.g
-    #     weight = 2.33
-    #     temperature = (
-    #         self.thermal_energy
-    #         * 2.
-    #         / (
-    #             3.*self.gas_particles.mass.sum()
-    #             / (weight*hydrogen_atomic_mass)*constants.kB
-    #         )
-    #     )
-    #     print("temperature: %s" % (temperature))
+    def get_energy(self):
+        zero_energy = 0 | units.erg
+        # Calculate initial energy of the system
+        kinetic_energy = self.code.kinetic_energy
+        potential_energy = self.code.potential_energy
+        thermal_energy = zero_energy
+        tidal_energy = zero_energy
+        integration_energy_error = zero_energy
+        if "gas" in self.mode:
+            thermal_energy = self.code.thermal_energy
+        if "stars" in self.mode and self.multiples:
+            tidal_energy = (
+                self.star_code.multiples_external_tidal_correction
+                + self.star_code.multiples_internal_tidal_correction
+            )
+            integration_energy_error = \
+                self.star_code.multiples_integration_energy_error
+        self.total_energy = (
+            kinetic_energy + potential_energy
+            + thermal_energy
+            + tidal_energy + integration_energy_error
+        )
+        # Scale energy is usually taken as the total (kinetic + potential)
+        # energy at t=0, but we may want to choose something different since we
+        # initialise the system with E_kin = - E_pot...
+        self.scale_energy = (
+            self.scale_energy
+            or abs(potential_energy) + abs(kinetic_energy)
+        )
+        self.tzero_total_energy = self.tzero_total_energy or self.total_energy
+        if self.tlast_total_energy:
+            energy_error = (
+                self.total_energy - self.tlast_total_energy
+            ) / self.scale_energy
+        else:
+            energy_error = 0.0
+        self.tlast_total_energy = self.total_energy
+        try:
+            self.energy_error_cumulative += abs(energy_error)
+        except AttributeError:
+            self.energy_error_cumulative = 0.0
+        return energy_error
 
     def new_gas_code(self, codename="Fi"):
         """Initialises the SPH code we will use"""
-        # total_gas_mass = self.gas_particles.mass.sum()
-        # number_of_gas_particles = len(self.gas_particles)
         # time_step = (
         #     0.004*numpy.pi*numpy.power(self.epsilon, 1.5)
         #     / numpy.sqrt(constants.G*total_gas_mass/number_of_gas_particles)
         # )
-        # time_step = self.converter.to_si(0.01 | nbody_system.time)
         time_step = 5.e-2 | units.Myr
         print(
             "# Gas code time step: %s = %s Nbody time" % (
@@ -462,12 +259,13 @@ class Cluster(object):
             self.cooling = SimplifiedThermalModelEvolver(
                 code.gas_particles)
             self.cooling.model_time = code.model_time
-            return code
         # elif codename == "Gadget2":
         #     from amuse.community.gadget2.interface import Gadget2
         #     code = Gadget2(self.converter)
         else:
             raise "No such code implemented"
+        code.gas_particles.add_particles(self.gas_particles)
+        return code
 
     def new_gravity_code(self, code_name="ph4"):
         """Initialises the gravity code we will use"""
@@ -476,25 +274,18 @@ class Cluster(object):
             code = MI6(self.converter)
             code.parameters.timestep_parameter = 0.01
             code.parameters.epsilon_squared = (0.0 | units.AU)**2
-            code.parameters.calculate_postnewtonian = True
+            code.parameters.calculate_postnewtonian = False
             code.parameters.calculate_postnewtonian_only_first_order = False
-            self.drink = code.parameters.drink
-            return code
         elif code_name == "ph4":
             from amuse.community.ph4.interface import ph4
-            code = ph4(self.converter, number_of_processes=4)
+            code = ph4(self.converter, number_of_processes=1)
             code.parameters.timestep_parameter = 0.01
             # code.parameters.epsilon_squared = (100.0 | units.AU)**2
-            code.parameters.epsilon_squared = (
-                self.converter.to_si(
-                    (10 | nbody_system.length) / len(self.star_particles)
-                )**2
-            )
+            code.parameters.epsilon_squared = (0 | units.parsec)**2
             print(
                 "softening length: ",
                 (code.parameters.epsilon_squared**0.5).value_in(units.AU),
                 "AU")
-            return code
         elif code_name == "BHTree":
             from amuse.community.bhtree.interface import BHTree
             code = BHTree(self.converter)
@@ -505,7 +296,6 @@ class Cluster(object):
             # code.parameters.epsilon_squared = converter.to_si(
             #     0.01 | nbody_system.length
             # )
-            return code
         elif code_name == "Bonsai":
             from amuse.community.bonsai.interface import Bonsai
             code = Bonsai(self.converter)
@@ -516,24 +306,65 @@ class Cluster(object):
             # code.parameters.epsilon_squared = converter.to_si(
             #     0.01 | nbody_system.length
             # )
-            return code
         else:
             raise "No such code implemented"
+
+        code.particles.add_particles(self.star_particles)
+
+        print("Stellar gravity code initialised")
+        if self.multiples:
+            print("Starting multiples")
+            multi = new_multiples_code(code, self.converter)
+            print("Multiples initialised")
+            return code, multi
+        else:
+            return code
+
+    def new_evolution_code(self, code_name="SeBa"):
+        """Initialises stellar evolution code"""
+        if code_name == "SeBa":
+            from amuse.community.seba.interface import SeBa
+            code = SeBa()
+        elif code_name == "SSE":
+            from amuse.community.sse.interface import SSE
+            code = SSE()
+        else:
+            raise "No such stellar evolution code"
+        code.parameters.metallicity = 0.02
+        code.particles.add_particles(self.star_particles)
+        return code
 
     def new_field_code(self):
         return FastKick(self.converter)
 
     def new_bridge(self):
         from amuse.couple.bridge import Bridge
+
+        to_gas = []
+        to_stars = []
+        if "gas" in self.mode:
+            to_stars.append(self.gas_code)
+        if "stars" in self.mode:
+            to_gas.append(self.star_code)
+        if self.tidal_field:
+            to_stars.append(self.tidal_field)
+            to_gas.append(self.tidal_field)
         code = Bridge()
-        code.add_system(
-            self.gas_code,
-            (self.gravity_code),
-        )
-        code.add_system(
-            self.gravity_code,
-            (self.gas_code),
-        )
+        if "gas" in self.mode:
+            code.add_system(
+                self.gas_code,
+                to_gas,
+            )
+        if "stars" in self.mode:
+            code.add_system(
+                self.star_code,
+                to_stars,
+            )
+        if self.tidal_field:
+            code.add_system(
+                self.tidal_field,
+                (),
+            )
         return code
         # self.gravity_to_gas = FastKick(
         #         self.converter,
@@ -567,26 +398,6 @@ class Cluster(object):
     @property
     def model_time(self):
         return self.code.model_time
-
-    def sync_energy_to_model(self):
-        self.kinetic_energy = self.code.kinetic_energy
-        self.potential_energy = self.code.potential_energy
-        if "gas" in self.mode:
-            self.thermal_energy = self.code.thermal_energy
-        else:
-            self.thermal_energy = 0 * self.kinetic_energy
-        self.total_energy = (
-            self.kinetic_energy
-            + self.potential_energy
-            + self.thermal_energy
-        )
-        # print(
-        #     self.code.particles[0],
-        #     self.kinetic_energy,
-        #     self.potential_energy,
-        #     self.thermal_energy,
-        #     self.total_energy,
-        # )
 
     def sync_gas_to_model(self):
         self.gas_code_to_model.copy()
@@ -651,7 +462,7 @@ class Cluster(object):
         if self.star_particles.radius.max() <= (0 | units.AU):
             return
         connected_components = self.star_particles.copy().connected_components(
-            threshold=self.merge_radius
+            threshold=2 | units.RSun  # FIXME self.merge_radius
         )
         n_merge = 0
         for colliders in connected_components:
@@ -662,9 +473,9 @@ class Cluster(object):
                 print("# merged stars")
 
     def resolve_collision(self):
-        gravity = self.star_code
+        gravity = self.regular_gravity_code
         stellar = self.evolution_code
-        collision_detection = self.collision_detection
+        collision_detection = gravity.stopping_conditions.collision_detection
         bodies = self.star_particles
         # From AMUSE book
         if collision_detection.is_set():
@@ -725,19 +536,19 @@ class Cluster(object):
                 self.sync_stars_to_model()
 
             if "gas" in self.mode:
-                while self.density_limit_detection.is_set():
-                    self.sync_gas_to_model()
-                    self.sync_stars_to_model()
-                    self.resolve_sinks()
+                # while self.density_limit_detection.is_set():
+                #     self.sync_gas_to_model()
+                #     self.sync_stars_to_model()
+                #     self.resolve_sinks()
 
-                    # print("..done")
-                    self.code.evolve_model(time)
-                    self.sync_model_to_stars()
-                    # print(
-                    #         "end N=",
-                    #         len(self.star_particles),
-                    #         len(self.code.dm_particles)
-                    #         )
+                #     # print("..done")
+                #     self.code.evolve_model(time)
+                #     self.sync_model_to_stars()
+                #     # print(
+                #     #         "end N=",
+                #     #         len(self.star_particles),
+                #     #         len(self.code.dm_particles)
+                #     #         )
 
                 if self.cooling_enabled:
                     self.cooling.evolve_for(0.5 * self.time_step_diag)
@@ -770,16 +581,7 @@ class Cluster(object):
 
     def print_diagnostics(self):
         density_threshold = 1000 | units.MSun * units.parsec**-3
-        energy_error = (
-            self.total_energy
-            - self.tzero_total_energy
-        ) / self.tzero_total_energy
-        energy_error_last = (
-            self.total_energy
-            - self.tlast_total_energy
-        ) / self.tzero_total_energy
-        self.tlast_total_energy = self.total_energy
-        self.energy_error_cumulative += abs(energy_error_last)
+        energy_error = self.get_energy()
         try:
             rho_max = self.gas_particles.rho.max()
         except AttributeError:
@@ -799,8 +601,6 @@ class Cluster(object):
             energy_error,
             "Cumulative energy conservation error: ",
             self.energy_error_cumulative,
-            "Thermal energy: ",
-            self.thermal_energy.in_(units.erg),
             "Max rho/rho_crit: ",
             rho_max/density_threshold,
             "Mass error: ",
@@ -812,7 +612,7 @@ class Cluster(object):
             # length_scaling = self.converter.to_si(
             #     3.1 | nbody_system.length).value_in(units.parsec)
             plot_hydro(
-                self.model_time, self.fig_num, self.code,
+                self.model_time, self.fig_num, self.gas_code,
                 length_scaling=length_scaling,)
         if "stars" in self.mode:
             # subgroups = identify_subgroups(
@@ -881,10 +681,16 @@ class Cluster(object):
         stars.mass = stellar_masses
         stars.age = 0 | units.Myr
         stars.birth_age = 0 | units.Myr
+        # NOTE: "radius" is the /interaction/ radius used by Multiples!
+        stars.radius = 0.5/len(stars) | units.parsec
+        print(
+            "Stellar interaction radius: %s" % (stars[0].radius.in_(units.AU))
+        )
+        index = numpy.arange(len(stars))
+        stars.id = index+1
 
-        evo = new_evolution_code()
-        evo.particles.add_particles(stars)
-        stars.radius = evo.particles.radius
+        evo = self.new_evolution_code()
+        stars.stellar_radius = evo.particles.radius
         evo.stop()
 
         return stars
@@ -1038,7 +844,10 @@ def main():
             "number of gas particles=", number_of_gas_particles)
 
         print("# gas center-of-mass: ", cluster.gas_particles.center_of_mass())
-        print("# time: ", cluster.model_time.in_(units.yr))
+        print(
+            "# Time: ", cluster.model_time.in_(units.yr),
+            "energy scale: ", cluster.scale_energy.in_(units.erg),
+        )
         t_end = 0.9 * t_ff
         cluster.evolve_model(t_end)
 
@@ -1059,11 +868,26 @@ def main():
                     filename,
                     "amuse",
                 ).history[0]
+            except TypeError:
+                stars = read_set_from_file(
+                    filename,
+                    "amuse",
+                )
             except IoException:
                 print("Could not read file %s, exiting" % filename)
                 exit()
 
-        print("Number of stars: ", len(stars))
+        stars.radius = 0.5/len(stars) | units.parsec
+        print(
+            "Stellar interaction radius: %s AU" % (
+                stars[0].radius.value_in(units.AU)
+            )
+        )
+        stars.id = numpy.arange(len(stars))+1
+        particle_id = stars.id
+        print(stars[0])
+
+        print("Number of stars: ", max(particle_id))
         if stars.is_empty():
             exit()
 

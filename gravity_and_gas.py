@@ -222,7 +222,10 @@ class Cluster(object):
         time_step = 5.e-2 | units.Myr
         N_nb = 64
         m = self.gas_particles.mass.sum() / len(self.gas_particles)
-        rho_g = self.converter.to_si((3/(4*numpy.pi)) | nbody_system.density)
+        rho_g = self.converter.to_si(
+            (1 | nbody_system.mass)
+            / ((4/3) * numpy.pi * (1 | nbody_system.length)**3)
+        )
         h = (m * N_nb / rho_g)**(1/3)
         print(
             "# Gas code time step: %s = %s Nbody time" % (

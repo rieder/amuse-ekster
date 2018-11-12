@@ -213,20 +213,24 @@ class Cluster(object):
             self.energy_error_cumulative = 0.0
         return energy_error
 
-    def new_gas_code(self, codename="Fi"):
+    def new_gas_code(self, code_name="Fi"):
         """Initialises the SPH code we will use"""
         # time_step = (
         #     0.004*numpy.pi*numpy.power(self.epsilon, 1.5)
         #     / numpy.sqrt(constants.G*total_gas_mass/number_of_gas_particles)
         # )
         time_step = 5.e-2 | units.Myr
+        N_nb = 64
+        m = self.gas_particles.mass.sum() / len(self.gas_particles)
+        rho_g = self.converter.to_si((3/(4*numpy.pi)) | nbody_system.density)
+        h = (m * N_nb / rho_g)**(1/3)
         print(
             "# Gas code time step: %s = %s Nbody time" % (
                 time_step.in_(units.Myr),
                 self.converter.to_nbody(time_step)
             )
         )
-        if codename == "Fi":
+        if code_name == "Fi":
             from amuse.community.fi.interface import Fi
             code = Fi(self.converter, mode="openmp")
             code.parameters.use_hydro_flag = True
@@ -247,7 +251,7 @@ class Cluster(object):
             code.parameters.verbosity = 0
             code.parameters.eps_is_h_flag = False
             code.parameters.gas_epsilon = 0.1 | units.parsec
-            code.parameters.sph_h_const = 0.1 | units.parsec
+            code.parameters.sph_h_const = h
             code.parameters.periodic_box_size = self.box_size
             # code.parameters.verbosity = 99
             code.parameters.integrate_entropy_flag = False
@@ -259,12 +263,14 @@ class Cluster(object):
             self.cooling = SimplifiedThermalModelEvolver(
                 code.gas_particles)
             self.cooling.model_time = code.model_time
-        # elif codename == "Gadget2":
+        # elif code_name == "Gadget2":
         #     from amuse.community.gadget2.interface import Gadget2
         #     code = Gadget2(self.converter)
         else:
             raise "No such code implemented"
         code.gas_particles.add_particles(self.gas_particles)
+        print("Hydro code %s initialised" % code_name)
+        print(code.parameters)
         return code
 
     def new_gravity_code(self, code_name="ph4"):
@@ -753,7 +759,7 @@ def main():
 
     if mode == "gas" or mode == "both":
         # mass_scale = 400000 | units.MSun
-        mass_scale = number_of_gas_particles * (1 | units.MSun)
+        mass_scale = number_of_gas_particles * (1.0 | units.MSun)
         # mass_scale = 40000 | units.MSun
 
         # length_scale = 9.8 | units.parsec

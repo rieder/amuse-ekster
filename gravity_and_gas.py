@@ -268,6 +268,13 @@ class Cluster(object):
         #     code = Gadget2(self.converter)
         else:
             raise "No such code implemented"
+
+        try:
+            print(self.gas_particles[0].h_smooth)
+        except AttributeError:
+            self.gas_particles.h_smooth = h
+            print(self.gas_particles[0].h_smooth)
+
         code.gas_particles.add_particles(self.gas_particles)
         print("Hydro code %s initialised" % code_name)
         print(code.parameters)

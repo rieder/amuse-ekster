@@ -897,7 +897,6 @@ def main():
         )
         stars.id = numpy.arange(len(stars))+1
         particle_id = stars.id
-        print(stars[0])
 
         print("Number of stars: ", max(particle_id))
         if stars.is_empty():

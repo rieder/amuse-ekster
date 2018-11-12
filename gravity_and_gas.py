@@ -688,6 +688,7 @@ class Cluster(object):
         )
         index = numpy.arange(len(stars))
         stars.id = index+1
+        self.star_particles.add_particles(stars)
 
         evo = self.new_evolution_code()
         stars.stellar_radius = evo.particles.radius

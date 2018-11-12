@@ -666,6 +666,9 @@ class Cluster(object):
         selected_particles = gas.select_array(
             lambda x: x > selection_chance, ["e_loc"]
         )
+        if selected_particles.is_empty():
+            print("No stars have formed")
+            return -1
 
         stellar_masses = new_salpeter_mass_distribution(
             len(selected_particles),

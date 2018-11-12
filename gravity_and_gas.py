@@ -226,7 +226,8 @@ class Cluster(object):
             (1 | nbody_system.mass)
             / ((4/3) * numpy.pi * (1 | nbody_system.length)**3)
         )
-        h = (m * N_nb / rho_g)**(1/3)
+        # h = (m * N_nb / rho_g)**(1/3)
+        h = 0.1 | units.parsec
         print(
             "# Gas code time step: %s = %s Nbody time" % (
                 time_step.in_(units.Myr),
@@ -253,7 +254,7 @@ class Cluster(object):
             code.parameters.timestep = time_step
             code.parameters.verbosity = 0
             code.parameters.eps_is_h_flag = False
-            code.parameters.gas_epsilon = 0.1 | units.parsec
+            code.parameters.gas_epsilon = h
             code.parameters.sph_h_const = h
             code.parameters.periodic_box_size = self.box_size
             # code.parameters.verbosity = 99

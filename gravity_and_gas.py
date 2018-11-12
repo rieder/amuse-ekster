@@ -90,7 +90,7 @@ class Cluster(object):
         self.cooling_flag = "thermal_model"
 
         # Handle binary stars using Multiples?
-        self.multiples = True
+        self.multiples = False
 
         if "gas" in self.mode:
             self.gas_code = self.new_gas_code()
@@ -278,14 +278,10 @@ class Cluster(object):
             code.parameters.calculate_postnewtonian_only_first_order = False
         elif code_name == "ph4":
             from amuse.community.ph4.interface import ph4
-            code = ph4(self.converter, number_of_processes=1)
+            code = ph4(self.converter, number_of_workers=4)
             code.parameters.timestep_parameter = 0.01
             # code.parameters.epsilon_squared = (100.0 | units.AU)**2
             code.parameters.epsilon_squared = (0 | units.parsec)**2
-            print(
-                "softening length: ",
-                (code.parameters.epsilon_squared**0.5).value_in(units.AU),
-                "AU")
         elif code_name == "BHTree":
             from amuse.community.bhtree.interface import BHTree
             code = BHTree(self.converter)
@@ -293,9 +289,6 @@ class Cluster(object):
                 0.01 | nbody_system.time
             )
             code.parameters.epsilon_squared = (100 | units.AU)**2
-            # code.parameters.epsilon_squared = converter.to_si(
-            #     0.01 | nbody_system.length
-            # )
         elif code_name == "Bonsai":
             from amuse.community.bonsai.interface import Bonsai
             code = Bonsai(self.converter)
@@ -303,15 +296,13 @@ class Cluster(object):
                 0.01 | nbody_system.time
             )
             code.parameters.epsilon_squared = (100 | units.AU)**2
-            # code.parameters.epsilon_squared = converter.to_si(
-            #     0.01 | nbody_system.length
-            # )
         else:
             raise "No such code implemented"
 
         code.particles.add_particles(self.star_particles)
+        print(code.parameters)
 
-        print("Stellar gravity code initialised")
+        print("Stellar gravity code %s initialised" % code_name)
         if self.multiples:
             print("Starting multiples")
             multi = new_multiples_code(code, self.converter)
@@ -906,6 +897,10 @@ def main():
             mode="stars"
         )
         cluster.save_stars()
+        print(
+            "# Time: ", cluster.model_time.in_(units.yr),
+            "energy scale: ", cluster.scale_energy.in_(units.erg),
+        )
 
         cluster.evolve_model(10 | units.Myr)
 

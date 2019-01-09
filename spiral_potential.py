@@ -3,7 +3,9 @@ Calculate the spiral arm potential
 """
 from __future__ import print_function, division
 
-from numpy import (pi, sin, cos, tan, arctan, cosh, sqrt, log, exp)
+from numpy import (
+    pi, sin, cos, tan, arctan, cosh, log, exp,
+)
 
 from amuse.units import units
 from amuse.units.constants import G
@@ -296,160 +298,8 @@ class SpiralArmsProfile(
         )
 
 
-# class SpiralArmsModel(LiteratureReferencesMixIn):
-#     """
-#     Spiral arms potential model
-# 
-#     .. [#] Cox & Gomez (2002)
-# 
-#     """
-# 
-#     def __init__(
-#             self,
-#             t_start=0 | units.Myr,
-#             fiducial_radius=2.47518e22 | units.cm,
-#             number_of_arms=2,
-#             pitch_angle=0.261799,
-#             radial_scale_length=2.16578e22 | units.cm,
-#             density_at_fiducial_radius=2.12889e-24 | units.g * units.cm**-3,
-#             phir=6.3e-16 | units.s**-1,
-#             scale_height=5.56916e20 | units.cm,
-#     ):
-#         LiteratureReferencesMixIn.__init__(self)
-#         # Parameters for spiral potential
-#         # r0
-#         self.fiducial_radius = 2.47518e22 | units.cm
-#         # NN
-#         self.number_of_arms = 2
-#         # alpha
-#         self.pitch_angle = 0.261799
-#         # rS
-#         self.radial_scale_length = 2.16578e22 | units.cm
-#         # p0
-#         self.density_at_fiducial_radius = 2.12889e-24 | units.g * units.cm**-3
-#         # phir
-#         self.phir = 6.3e-16 | units.s**-1
-#         # Hz
-#         self.scale_height = 5.56916e20 | units.cm
-#         # Cz
-#         self.Cz = [
-#             8 / (3*pi),
-#             0.5,
-#             8 / (15*pi)
-#         ]
-# 
-#         # Parameters for logarithmic potential (e.g. Binney & Tremaine)
-#         self.Co = 2.31e14 | units.cm**2 * units.s**-2
-#         self.Rc = 3.09398e21 | units.cm
-#         self.zq = 0.7
-# 
-#         # Time at initial conditions (~100Myr)
-#         # t0
-#         self.time_initial = 3.153e15 | units.s
-#         self.model_time = t_start
-# 
-#     def evolve_model(self, time):
-#         """Set current time of the model"""
-#         self.model_time = time
-# 
-#     def get_potential_at_point(self, eps, x, y, z):
-#         """
-#         Calculate the spiral arm potential at specified point
-# 
-#         from Cox & Gomez 2002
-#         Input: eps, x, y, z
-#         Returns: potential
-#         """
-# 
-#         phi = arctan(y/x)
-#         if x < (0 | units.parsec):
-#             phi = pi + phi
-# 
-#         # d2
-#         r = sqrt(x**2+y**2)
-# 
-#         gamma = (
-#             self.number_of_arms
-#             * (
-#                 phi
-#                 + self.phir * (self.time_initial + self.model_time)
-#                 - log(r/self.fiducial_radius) / tan(self.pitch_angle)
-#             )
-#         )
-# 
-#         result = 0 | units.parsec
-#         for n in range(3):
-#             Kn = (n+1) * self.number_of_arms / (r*sin(self.pitch_angle))
-#             Bn = Kn * self.scale_height * (1. + 0.4 * Kn * self.scale_height)
-#             Dn = (
-#                 1. + Kn * self.scale_height + 0.3 *
-#                 (Kn * self.scale_height)**2.
-#             ) / (1. + 0.3 * Kn * self.scale_height)
-# 
-#             result = (
-#                 result
-#                 + (self.Cz[n] / (Dn * Kn))
-#                 * cos((n+1) * gamma)
-#                 * (1 / cosh((Kn*z) / Bn))**Bn
-#             )
-# 
-#         spiral_value = (
-#             -4. * pi * G
-#             * self.scale_height
-#             * self.density_at_fiducial_radius
-#             * exp(
-#                 -(r - self.fiducial_radius)
-#                 / self.radial_scale_length
-#             )
-#             * result
-#         )
-#         return spiral_value.in_(units.parsec**2 * units.Myr**-2)
-# 
-#     def get_gravity_at_point(self, eps, x, y, z):
-#         """
-#         Returns gravity at specified point
-#         Input: eps, x, y, z
-#         Returns fx,fy,fz
-#         """
-# 
-#         d2 = (x**2 + y**2)
-# 
-#         # Forces from logarithmic potential
-#         fx = -2. * self.Co * x / (self.Rc**2 + d2 + (z/self.zq)**2)
-#         fy = -2. * self.Co * y / (self.Rc**2 + d2 + (z/self.zq)**2)
-#         fz = -2. * self.Co * z / (
-#             (self.Rc**2 + d2 + (z/self.zq)**2) * self.zq**2
-#         )
-# 
-#         # Forces from spiral potential
-#         dh = eps / 1000.
-# 
-#         V = self.get_potential_at_point(eps, x, y, z)
-# 
-#         Vx = self.get_potential_at_point(eps, x+dh, y, z)
-#         fx = fx - (Vx-V) / dh
-# 
-#         Vy = self.get_potential_at_point(eps, x, y+dh, z)
-#         fy = fy - (Vy-V) / dh
-# 
-#         Vz = self.get_potential_at_point(eps, x, y, z+dh)
-#         fz = fz - (Vz-V) / dh
-# 
-#         return (
-#             fx.in_(units.parsec*units.Myr**-2),
-#             fy.in_(units.parsec*units.Myr**-2),
-#             fz.in_(units.parsec*units.Myr**-2),
-#         )
-# 
-#     def enclosed_mass(self, r):
-#         return -1
-# 
-#     def circular_velocity(self, r):
-#         return -1
-
-
 def main():
-    galaxy = SpiralArmsModel()
+    galaxy = SpiralArmsProfile()
     x = 8 | units.kpc
     y = 0 | units.kpc
     z = 0 | units.kpc

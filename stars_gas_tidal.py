@@ -8,6 +8,7 @@ import sys
 import numpy
 
 from amuse.units import units, nbody_system
+from amuse.units.quantities import VectorQuantity
 from amuse.io import write_set_to_file, read_set_from_file
 from amuse.community.ph4.interface import ph4
 from amuse.community.fastkick.interface import FastKick
@@ -15,7 +16,7 @@ from amuse.community.seba.interface import SeBa
 from amuse.community.fi.interface import Fi
 # from amuse.community.bhtree.interface import BHTree
 from amuse.couple.bridge import Bridge
-from amuse.datamodel import Particles
+from amuse.datamodel import Particles, ParticlesSuperset
 
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
@@ -59,7 +60,10 @@ class Gas(object):
                 length_scale,
             )
         # We're simulating gas as gas, not just "dark matter".
-        self.gas_particles = gas
+        if gas is None:
+            self.gas_particles = Particles()
+        else:
+            self.gas_particles = gas
         self.gas_code = Fi(self.gas_converter)
         self.gas_code.parameters.epsilon_squared = (epsilon)**2
         self.gas_code.parameters.timestep = self.gas_converter.to_si(
@@ -163,6 +167,8 @@ class Gas(object):
         timestep: 1.0 time
         zeta_cr_ion_rate: 3.6 1.8e-17 * s**-1
         """
+        # self.code = self.gas_code
+        # self.particles = self.gas_particles
 
     @property
     def model_time(self):
@@ -232,6 +238,8 @@ class Cluster(object):
         self.evo_code_to_model = self.evo_code.particles.new_channel_to(
             self.star_particles,
         )
+        # self.particles = self.star_particles
+        # self.code = self.star_code
 
     @property
     def model_time(self):
@@ -241,7 +249,8 @@ class Cluster(object):
         time = min(star_code_time, evo_code_time)
         return time
 
-    # This is probably not supported by the stellar gravity code
+    # This is not always supported by the stellar gravity code
+    # If it is not, we should do something about that...
     def get_gravity_at_point(self, *args, **kwargs):
         "Return gravity at specified location"
         return self.star_code.get_gravity_at_point(*args, **kwargs)
@@ -264,10 +273,14 @@ class Cluster(object):
         self.evo_code.stop()
 
 
+Tide = TimeDependentSpiralArmsDiskModel
+
+
 class ClusterInPotential(
         # object,
         Cluster,
         Gas,
+        Tide,
 ):
     """Stellar cluster in an external potential"""
 
@@ -277,8 +290,7 @@ class ClusterInPotential(
             gas=None,
             epsilon=0.1 | units.parsec,
     ):
-        Gas.__init__(gas=gas, epsilon=epsilon)
-
+        self.objects = (Cluster, Gas, Tide)
         mass_scale_stars = stars.mass.sum()
         length_scale_stars = 1 | units.parsec
         converter_for_stars = nbody_system.nbody_to_si(
@@ -304,7 +316,8 @@ class ClusterInPotential(
         # self.gas_code = Gas(
         #     gas, converter=self.converter_for_gas, epsilon=epsilon,
         # )
-        self.potential = TimeDependentSpiralArmsDiskModel()
+        Tide.__init__(self)
+        # self.potential = TimeDependentSpiralArmsDiskModel()
 
         self.gravity_field_code = FastKick(
             self.star_converter, mode="cpu", number_of_workers=2,
@@ -315,26 +328,44 @@ class ClusterInPotential(
 
         self.system = Bridge()
         self.system.add_system(
-            self.star_code,
-            [self.potential, self.gas_code],
+            # self.star_code,
+            Cluster,
+            # [Tide, self.gas_code],
+            [Tide, Gas],
             True
         )
         self.system.add_system(
-            self.gas_code,
-            [self.potential, self.star_code],
+            # self.gas_code,
+            Gas,
+            # [Tide, self.star_code],
+            [Tide, Cluster],
             True
         )
         self.system.timestep = 0.05 | units.Myr
         # self.converter.to_si(
         #     0.01 | nbody_system.time,
         # )
-        self.particles = self.system.particles
+        # self.particles = self.system.particles
         # self.stars = self.cluster_code.star_particles
         # self.gas = self.gas_code.gas_particles
+        self.particles = ParticlesSuperset(
+            self.star_particles,
+            self.gas_particles,
+        )
+        self.code = self.system
 
     def evolve_model(self, time):
         "Evolve system to specified time"
         self.system.evolve_model(time)
+
+    def get_gravity_at_point(self, *args, **kwargs):
+        force = VectorQuantity(
+            [0, 0, 0],
+            unit=units.m * units.s**-2,
+        )
+        for parent in self.objects:
+            force += parent.get_gravity_at_point(*args, **kwargs)
+        return force
 
     # @property
     # def particles(self):
@@ -377,7 +408,7 @@ def main():
         write_set_to_file(
             model.gas_particles,
             "model-gas-%04i.hdf5" % i, "amuse")
-        x, y, z = model.particles.center_of_mass()
+        x, y = model.particles.center_of_mass()[0:2]
         plot_cluster(
             model.star_particles,
             xmin=(-400 + x.value_in(length)),

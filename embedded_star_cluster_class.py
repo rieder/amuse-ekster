@@ -5,12 +5,11 @@ from amuse.datamodel import ParticlesSuperset
 from amuse.units import units, nbody_system
 from amuse.units.quantities import VectorQuantity
 
+from gas_class import Gas
+from star_cluster_class import StarCluster
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
 )
-from gas_class import Gas
-from star_cluster_class import StarCluster
-
 
 Tide = TimeDependentSpiralArmsDiskModel
 
@@ -18,7 +17,6 @@ Tide = TimeDependentSpiralArmsDiskModel
 class ClusterInPotential(
         StarCluster,
         Gas,
-        Tide,
 ):
     """Stellar cluster in an external potential"""
 
@@ -28,7 +26,7 @@ class ClusterInPotential(
             gas=None,
             epsilon=0.1 | units.parsec,
     ):
-        self.objects = (StarCluster, Gas, Tide)
+        self.objects = (StarCluster, Gas)
         mass_scale_stars = stars.mass.sum()
         length_scale_stars = 1 | units.parsec
         converter_for_stars = nbody_system.nbody_to_si(
@@ -48,24 +46,22 @@ class ClusterInPotential(
         Gas.__init__(
             self, gas=gas, converter=converter_for_gas, epsilon=epsilon,
         )
-        Tide.__init__(self)
+        self.tidal_field = Tide()
 
         self.gravity_field_code = FastKick(
             self.star_converter, mode="cpu", number_of_workers=2,
         )
-        self.gravity_field_code.parameters.epsilon_squared = (
-            epsilon,
-        )**2
+        self.gravity_field_code.parameters.epsilon_squared = epsilon**2
 
         self.system = Bridge()
         self.system.add_system(
-            StarCluster,
-            [Tide, Gas],
+            self.star_code,
+            [self.tidal_field, self.gas_code],
             True
         )
         self.system.add_system(
-            Gas,
-            [Tide, StarCluster],
+            self.gas_code,
+            [self.tidal_field, self.star_code],
             True
         )
         self.system.timestep = 0.05 | units.Myr

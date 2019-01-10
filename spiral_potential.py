@@ -66,7 +66,6 @@ class TimeDependentSpiralArmsDiskModel(
             t_start=0 | units.yr,
     ):
         LiteratureReferencesMixIn.__init__(self)
-        self.model_time = t_start
 
         self.disk = LogarithmicDiskProfile(
         )

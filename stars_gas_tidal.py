@@ -46,7 +46,7 @@ def main():
         write_set_to_file(
             model.gas_particles,
             "model-gas-%04i.hdf5" % i, "amuse")
-        x, y = model.particles.center_of_mass()[0:2]
+        x, y = model.star_particles.center_of_mass()[0:2]
         plot_cluster(
             model.star_particles,
             xmin=(-400 + x.value_in(length)),

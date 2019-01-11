@@ -1,4 +1,5 @@
 "Class for stellar dynamics"
+from __future__ import print_function, division
 from amuse.units import units, nbody_system
 from amuse.datamodel import Particles
 
@@ -71,3 +72,25 @@ class StellarDynamics(object):
     def stop(self):
         "Stop star_code"
         self.star_code.stop()
+
+
+def main():
+    "Test class with a Plummer sphere"
+    from amuse.ic.plummer import new_plummer_model
+    converter = nbody_system.nbody_to_si(
+        1000 | units.MSun,
+        3 | units.parsec,
+    )
+    stars = new_plummer_model(1000, convert_nbody=converter)
+
+    model = StellarDynamics(stars=stars, converter=converter)
+    print(model.star_code.parameters)
+    timestep = 0.1 | units.Myr
+    for step in range(10):
+        time = step * timestep
+        model.evolve_model(time)
+        print("Evolved to %s" % model.model_time)
+
+
+if __name__ == "__main__":
+    main()

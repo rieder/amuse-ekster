@@ -1,4 +1,5 @@
 "Class for a star cluster with dynamics and evolution"
+from __future__ import print_function, division
 from amuse.units import units
 from stellar_evolution_class import StellarEvolution
 from stellar_dynamics_class import StellarDynamics
@@ -27,8 +28,8 @@ class StarCluster(
     def model_time(self):
         "Return the minimum time of the star and evo code times"
         return min(
-            StellarDynamics.model_time,
-            StellarEvolution.model_time,
+            self.star_code.model_time,
+            self.evo_code.model_time,
         )
 
     @property
@@ -60,3 +61,48 @@ class StarCluster(
         "Stop star_code and evo_code"
         self.star_code.stop()
         self.evo_code.stop()
+
+
+def main():
+    "Simulate a star cluster (dynamics + evolution)"
+    import numpy
+    from amuse.ic.salpeter import new_salpeter_mass_distribution
+    from amuse.units import nbody_system
+    from amuse.ic.plummer import new_plummer_model
+
+    numpy.random.seed(12)
+
+    converter = nbody_system.nbody_to_si(
+        1000 | units.MSun,
+        3 | units.parsec,
+    )
+    stars = new_plummer_model(2000, convert_nbody=converter)
+    stars.mass = new_salpeter_mass_distribution(len(stars))
+
+    model = StarCluster(stars=stars, converter=converter)
+
+    timestep = 0.5 | units.Myr
+    for step in range(10):
+        time = step * timestep
+        model.evolve_model(time)
+        print(
+            "Evolved to %s." % model.model_time.in_(units.Myr),
+            "Shortest stellar timestep is %s." % (
+                model.evo_code.particles.time_step.min(),
+            )
+        )
+        print(
+            "Most massive star is %s" % (
+                model.star_particles.mass.max().in_(units.MSun)
+            )
+        )
+        print(
+            "Centre-of-mass is at %s" % (
+                model.star_particles.center_of_mass()
+            )
+        )
+    return
+
+
+if __name__ == "__main__":
+    main()

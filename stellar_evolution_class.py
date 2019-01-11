@@ -1,4 +1,5 @@
 "Class for a stellar evolution object"
+from __future__ import print_function, division
 from amuse.datamodel import Particles
 
 
@@ -17,8 +18,8 @@ class StellarEvolution(
         else:
             self.star_particles = stars
         if evo_code is None:
-            from amuse.community.seba.interface import SeBa
-            self.evo_code = SeBa()
+            from amuse.community.sse.interface import SSE
+            self.evo_code = SSE()
         else:
             self.evo_code = evo_code
         self.evo_code.particles.add_particles(stars)
@@ -48,3 +49,29 @@ class StellarEvolution(
     def stop(self):
         "Stop stellar evolution code"
         self.evo_code.stop()
+
+
+def main():
+    "Test class with an IMF"
+    import numpy
+    from amuse.ic.salpeter import new_salpeter_mass_distribution
+    from amuse.units import units
+
+    numpy.random.seed(11)
+
+    stars = Particles(10000)
+    stars.mass = new_salpeter_mass_distribution(len(stars))
+    print("Number of stars: %i" % (len(stars)))
+
+    model = StellarEvolution(stars=stars)
+    print(model.evo_code.parameters)
+    timestep = 0.2 | units.Myr
+    for step in range(10):
+        time = step * timestep
+        model.evolve_model(time)
+        print("Evolved to %s" % model.model_time.in_(units.Myr))
+        print("Most massive star: %s" % model.star_particles.mass.max())
+
+
+if __name__ == "__main__":
+    main()

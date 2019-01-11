@@ -1,5 +1,5 @@
 "Class for a star cluster embedded in a tidal field and a gaseous region"
-from amuse.community.fastkick.interface import FastKick
+# from amuse.community.fastkick.interface import FastKick
 from amuse.couple.bridge import Bridge
 from amuse.datamodel import ParticlesSuperset
 from amuse.units import units, nbody_system
@@ -48,23 +48,33 @@ class ClusterInPotential(
         )
         self.tidal_field = Tide()
 
-        self.gravity_field_code = FastKick(
-            self.star_converter, mode="cpu", number_of_workers=2,
-        )
-        self.gravity_field_code.parameters.epsilon_squared = epsilon**2
+        # self.gravity_field_code = FastKick(
+        #     self.star_converter, mode="cpu", number_of_workers=2,
+        # )
+        # self.gravity_field_code.parameters.epsilon_squared = epsilon**2
 
         self.system = Bridge()
         self.system.add_system(
-            self.star_code,
-            [self.tidal_field, self.gas_code],
+            # self.star_code,
+            StarCluster,
+            [
+                self.tidal_field,
+                # self.gas_code,
+                Gas,
+            ],
             True
         )
         self.system.add_system(
-            self.gas_code,
-            [self.tidal_field, self.star_code],
+            Gas,
+            # self.gas_code,
+            [
+                self.tidal_field,
+                # self.star_code,
+                StarCluster,
+            ],
             True
         )
-        self.system.timestep = 0.05 | units.Myr
+        self.system.timestep = 0.005 | units.Myr
 
     @property
     def particles(self):

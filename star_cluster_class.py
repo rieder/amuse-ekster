@@ -27,10 +27,9 @@ class StarCluster(
     @property
     def model_time(self):
         "Return the minimum time of the star and evo code times"
-        return min(
-            self.star_code.model_time,
-            self.evo_code.model_time,
-        )
+        if self.star_code.model_time < self.evo_code.model_time:
+            return self.star_code.model_time
+        return self.evo_code.model_time
 
     @property
     def particles(self):

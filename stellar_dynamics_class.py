@@ -28,15 +28,20 @@ class StellarDynamics(object):
             self.star_particles = Particles()
         else:
             self.star_particles = stars
-        number_of_workers = 2  # Relate this to number of processors available?
+        number_of_workers = 1  # Relate this to number of processors available?
         if star_code is None:
             from amuse.community.ph4.interface import ph4
             self.star_code = ph4(
-                self.star_converter, number_of_workers=number_of_workers,
+                self.star_converter,
+                # number_of_workers=number_of_workers,
+                redirection="none",
             )
         else:
             self.star_code = star_code
         self.star_code.parameters.epsilon_squared = (epsilon)**2
+        # self.star_code.parameters.timestep_parameter = 0.14
+        # self.star_code.parameters.block_steps = 1
+        print(self.star_code.parameters)
         self.star_code.particles.add_particles(self.star_particles)
         self.model_to_star_code = self.star_particles.new_channel_to(
             self.star_code.particles,
@@ -76,12 +81,21 @@ class StellarDynamics(object):
 
 def main():
     "Test class with a Plummer sphere"
-    from amuse.ic.plummer import new_plummer_model
-    converter = nbody_system.nbody_to_si(
-        1000 | units.MSun,
-        3 | units.parsec,
-    )
-    stars = new_plummer_model(1000, convert_nbody=converter)
+    import sys
+    if len(sys.argv) > 1:
+        from amuse.io import read_set_from_file
+        stars = read_set_from_file(sys.argv[1], "amuse")
+        converter = nbody_system.nbody_to_si(
+            stars.mass.sum(),
+            3 | units.parsec,
+        )
+    else:
+        from amuse.ic.plummer import new_plummer_model
+        converter = nbody_system.nbody_to_si(
+            1000 | units.MSun,
+            3 | units.parsec,
+        )
+        stars = new_plummer_model(1000, convert_nbody=converter)
 
     model = StellarDynamics(stars=stars, converter=converter)
     print(model.star_code.parameters)
@@ -89,7 +103,7 @@ def main():
     for step in range(10):
         time = step * timestep
         model.evolve_model(time)
-        print("Evolved to %s" % model.model_time)
+        print("Evolved to %s" % model.model_time.in_(units.Myr))
 
 
 if __name__ == "__main__":

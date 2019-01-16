@@ -79,7 +79,7 @@ class ClusterInPotential(
             ],
             do_sync=True,
         )
-        self.system.timestep = 0.005 | units.Myr
+        self.system.timestep = 2 * self.gas_code.parameters.timestep
 
     # @property
     # def gas_particles(self):
@@ -108,7 +108,7 @@ class ClusterInPotential(
         "Evolve system to specified time"
         self.model_to_evo_code.copy()
         self.model_to_gas_code.copy()
-        while self.model_time < tend:
+        while abs(self.model_time - tend) >= self.system.timestep:
             evo_time = self.evo_code.model_time
             self.model_to_star_code.copy()
             evo_timestep = self.evo_code.particles.time_step.min()

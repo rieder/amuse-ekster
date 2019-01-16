@@ -2,7 +2,6 @@
 from __future__ import print_function, division
 from amuse.units import units, nbody_system
 from amuse.datamodel import Particles
-from amuse.community.fi.interface import Fi
 
 
 def sfe_to_density(e_loc, alpha=0.02):
@@ -45,7 +44,17 @@ class Gas(object):
             self.gas_particles = Particles()
         else:
             self.gas_particles = gas
-        self.gas_code = Fi(self.gas_converter, mode="openmp")
+        from amuse.community.fi.interface import Fi
+        self.gas_code = Fi(
+            self.gas_converter,
+            mode="openmp",
+            # redirection="none",
+        )
+        # from amuse.community.gadget2.interface import Gadget2
+        # self.gas_code = Gadget2(
+        #     self.gas_converter,
+        #     # redirection="none",
+        # )
         self.gas_code.parameters.epsilon_squared = (epsilon)**2
         self.gas_code.parameters.timestep = min(
             self.gas_converter.to_si(
@@ -62,8 +71,10 @@ class Gas(object):
         )
 
         # We want to control cooling ourselves
-        self.gas_code.parameters.gamma = 1
-        self.gas_code.parameters.isothermal_flag = True
+        # self.gas_code.parameters.gamma = 1
+        self.gas_code.parameters.gamma = 5./3.
+        # self.gas_code.parameters.isothermal_flag = True
+        self.gas_code.parameters.isothermal_flag = False
 
         # Sensible to set these, even though they are already default
         self.gas_code.parameters.use_hydro_flag = True

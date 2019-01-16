@@ -64,23 +64,32 @@ class StarCluster(
 
 def main():
     "Simulate a star cluster (dynamics + evolution)"
-    import numpy
-    from amuse.ic.salpeter import new_salpeter_mass_distribution
+    import sys
     from amuse.units import nbody_system
-    from amuse.ic.plummer import new_plummer_model
 
-    numpy.random.seed(12)
+    if len(sys.argv) > 1:
+        from amuse.io import read_set_from_file
+        stars = read_set_from_file(sys.argv[1], "amuse")
+        converter = nbody_system.nbody_to_si(
+            stars.mass.sum(),
+            3 | units.parsec,
+        )
+    else:
+        import numpy
+        from amuse.ic.plummer import new_plummer_model
+        from amuse.ic.salpeter import new_salpeter_mass_distribution
 
-    converter = nbody_system.nbody_to_si(
-        1000 | units.MSun,
-        3 | units.parsec,
-    )
-    stars = new_plummer_model(2000, convert_nbody=converter)
-    stars.mass = new_salpeter_mass_distribution(len(stars))
+        numpy.random.seed(12)
+        converter = nbody_system.nbody_to_si(
+            1000 | units.MSun,
+            3 | units.parsec,
+        )
+        stars = new_plummer_model(1000, convert_nbody=converter)
+        stars.mass = new_salpeter_mass_distribution(len(stars))
 
     model = StarCluster(stars=stars, converter=converter)
 
-    timestep = 0.5 | units.Myr
+    timestep = 0.1 | units.Myr
     for step in range(10):
         time = step * timestep
         model.evolve_model(time)

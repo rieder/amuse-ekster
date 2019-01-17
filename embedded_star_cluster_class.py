@@ -107,7 +107,7 @@ class ClusterInPotential(
         ]
         to_stars_codes = [
             new_field_code(
-                self.sph_code,
+                self.gas_code,
                 new_field_gravity_code(
                     converter_for_gas,
                     epsilon,

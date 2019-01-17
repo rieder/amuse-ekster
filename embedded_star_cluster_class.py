@@ -16,47 +16,6 @@ from amuse.couple.bridge import CalculateFieldForCodes  # UsingReinitialize
 Tide = TimeDependentSpiralArmsDiskModel
 
 
-def new_field_gravity_code(
-        converter,
-        epsilon,
-):
-    "Create a new field code"
-    result = FastKick(
-        converter,
-        # redirection="file",
-        # redirect_file=(
-        #     p.dir_codelogs + "/field_gravity_code.log"
-        #     ),
-        mode="cpu",
-        number_of_workers=2,
-    )
-    result.parameters.epsilon_squared = (epsilon)**2
-    return result
-
-
-def new_field_code(
-        code,
-        field_code,
-):
-    " something"
-    # result = CalculateFieldForCodesUsingReinitialize(
-    result = CalculateFieldForCodes(
-        field_code,
-        [code],
-        # required_attributes=[
-        #     'mass', 'radius',
-        #     'x', 'y', 'z',
-        #     'vx', 'vy', 'vz',
-        # ]
-        # required_attributes=[
-        #     'mass', 'u',
-        #     'x', 'y', 'z',
-        #     'vx', 'vy', 'vz',
-        # ]
-    )
-    return result
-
-
 class ClusterInPotential(
         StarCluster,
         Gas,
@@ -100,6 +59,43 @@ class ClusterInPotential(
         )
         self.tidal_field = Tide()
 
+        self.epsilon = epsilon
+        self.converter = converter_for_gas
+
+        def new_field_gravity_code():
+            "Create a new field code"
+            result = FastKick(
+                self.converter,
+                # redirection="file",
+                # redirect_file=(
+                #     p.dir_codelogs + "/field_gravity_code.log"
+                #     ),
+                mode="cpu",
+                number_of_workers=2,
+            )
+            result.parameters.epsilon_squared = (self.epsilon)**2
+            return result
+
+        def new_field_code(
+                code,
+        ):
+            " something"
+            # result = CalculateFieldForCodesUsingReinitialize(
+            result = CalculateFieldForCodes(
+                new_field_gravity_code,
+                [code],
+                # required_attributes=[
+                #     'mass', 'radius',
+                #     'x', 'y', 'z',
+                #     'vx', 'vy', 'vz',
+                # ]
+                # required_attributes=[
+                #     'mass', 'u',
+                #     'x', 'y', 'z',
+                #     'vx', 'vy', 'vz',
+                # ]
+            )
+            return result
 
         to_gas_codes = [
             self.star_code,
@@ -108,10 +104,6 @@ class ClusterInPotential(
         to_stars_codes = [
             new_field_code(
                 self.gas_code,
-                new_field_gravity_code(
-                    converter_for_gas,
-                    epsilon,
-                ),
             ),
             self.tidal_field,
         ]

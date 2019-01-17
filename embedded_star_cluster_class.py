@@ -11,7 +11,7 @@ from star_cluster_class import StarCluster
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
 )
-from amuse.couple.bridge import CalculateFieldForCodesUsingReinitialize
+from amuse.couple.bridge import CalculateFieldForCodes  # UsingReinitialize
 
 Tide = TimeDependentSpiralArmsDiskModel
 
@@ -119,21 +119,12 @@ class ClusterInPotential(
         self.system = Bridge()
         self.system.add_system(
             self.star_code,
-            partners=[
-                to_stars_codes,
-                # self.tidal_field,
-                # self.gas_code,
-
-            ],
+            partners=to_stars_codes,
             do_sync=True,
         )
         self.system.add_system(
             self.gas_code,
-            partners=[
-                to_gas_codes,
-                # self.tidal_field,
-                # self.star_code,
-            ],
+            partners=to_gas_codes,
             do_sync=True,
             # do_sync=False,
         )

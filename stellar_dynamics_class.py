@@ -28,13 +28,13 @@ class StellarDynamics(object):
             self.star_particles = Particles()
         else:
             self.star_particles = stars
-        number_of_workers = 1  # Relate this to number of processors available?
+        number_of_workers = 4  # Relate this to number of processors available?
         if star_code is None:
             from amuse.community.ph4.interface import ph4
             self.star_code = ph4(
                 self.star_converter,
-                # number_of_workers=number_of_workers,
-                redirection="none",
+                number_of_workers=number_of_workers,
+                # redirection="none",
             )
         else:
             self.star_code = star_code

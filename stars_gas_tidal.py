@@ -12,7 +12,7 @@ from amuse.units import units
 from amuse.io import write_set_to_file, read_set_from_file
 
 from plot_models import plot_cluster
-
+from plotting_class import plot_hydro_and_stars
 from embedded_star_cluster_class import ClusterInPotential
 
 test = False
@@ -59,12 +59,20 @@ def main():
     timestep = 0.05 | units.Myr
     time = 0 | units.Myr
 
-    model_name = "DR21-model_%03i" % (1)
+    model_name = "galaxy-model_%03i" % (2)
     save_dir = "Runs/%s" % model_name
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    for i in range(200):
+    x, y = model.star_particles.center_of_mass()[0:2]
+    plotname = "%s/plot-%04i.png" % (save_dir, 0)
+    plot_hydro_and_stars(
+        model.model_time, model.gas_code, model.star_particles, L=800,
+        filename=plotname,
+        offset_x=x,
+        offset_y=y,
+    )
+    for i in range(1, 201):
         time += timestep
         print("Evolving to %s" % time.in_(units.Myr))
         model.evolve_model(time)
@@ -76,14 +84,12 @@ def main():
             model.gas_particles,
             "%s/gas-%04i.hdf5" % (save_dir, i), "amuse")
         x, y = model.star_particles.center_of_mass()[0:2]
-        plot_cluster(
-            model.star_particles,
-            xmin=(-4 + x.value_in(length)),
-            xmax=(4 + x.value_in(length)),
-            ymin=(-4 + y.value_in(length)),
-            ymax=(4 + y.value_in(length)),
-            i=i,
-            name="DR21-model",
+        plotname = "%s/plot-%03i.png" % (save_dir, i)
+        plot_hydro_and_stars(
+            model.model_time, model.gas_code, model.star_particles, L=600,
+            filename=plotname,
+            offset_x=x,
+            offset_y=y,
         )
 
 

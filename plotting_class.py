@@ -14,7 +14,7 @@ from prepare_figure import single_frame
 # from distinct_colours import get_distinct
 
 
-def make_map(sph, N=100, L=1):
+def make_map(sph, N=100, L=1, offset_x=None, offset_y=None):
     "Create a density map from an SPH code"
     x, y = numpy.indices((N+1, N+1))
     x = L*(x.flatten()-N/2.)/N
@@ -25,7 +25,11 @@ def make_map(sph, N=100, L=1):
     vz = 0.*x
 
     x = units.parsec(x)
+    if offset_x is not None:
+        x += offset_x
     y = units.parsec(y)
+    if offset_y is not None:
+        y += offset_y
     z = units.parsec(z)
     vx = units.kms(vx)
     vy = units.kms(vy)
@@ -37,14 +41,24 @@ def make_map(sph, N=100, L=1):
     return rho
 
 
-def plot_hydro_and_stars(time, sph, stars, L=10, filename=None):
+def plot_hydro_and_stars(time, sph, stars, L=10, filename=None, offset_x=None, offset_y=None):
     fig = pyplot.figure(figsize=(12, 12))
     ax = fig.add_subplot(1, 1, 1,)
-    rho = make_map(sph, N=200, L=L).transpose()
+    rho = make_map(sph, N=200, L=L, offset_x=offset_x, offset_y=offset_y).transpose()
+    xmin = -L/2
+    xmax = L/2
+    ymin = -L/2
+    ymax = L/2
+    if offset_x is not None:
+        xmin += offset_x.value_in(units.parsec)
+        xmax += offset_x.value_in(units.parsec)
+    if offset_y is not None:
+        ymin += offset_y.value_in(units.parsec)
+        ymax += offset_y.value_in(units.parsec)
     pyplot.imshow(
         numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
-        extent=[-L/2, L/2, -L/2, L/2],
-        vmin=1, vmax=5,
+        extent=[xmin, xmax, ymin, ymax],
+        # vmin=1, vmax=5,
         origin="lower"
     )
     # subplot.set_title("GMC at zero age")
@@ -61,8 +75,8 @@ def plot_hydro_and_stars(time, sph, stars, L=10, filename=None):
         x = -stars.x.value_in(units.parsec)
         y = stars.y.value_in(units.parsec)
         pyplot.scatter(-x, y, s=m, c="white", lw=0)
-    pyplot.xlim(-L/2., L/2.)
-    pyplot.ylim(-L/2., L/2.)
+    pyplot.xlim(xmax, xmin)
+    pyplot.ylim(ymin, ymax)
     # pyplot.title("Molecular cloud at time="+time.as_string_in(units.Myr))
     pyplot.xlabel("x [pc]")
     pyplot.ylabel("y [pc]")

@@ -1,6 +1,6 @@
 "Class for a star cluster embedded in a tidal field and a gaseous region"
 from __future__ import print_function, division
-# from amuse.community.fastkick.interface import FastKick
+from amuse.community.fastkick.interface import FastKick
 from amuse.couple.bridge import Bridge
 from amuse.datamodel import ParticlesSuperset
 from amuse.units import units, nbody_system

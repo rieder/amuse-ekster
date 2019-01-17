@@ -11,8 +11,50 @@ from star_cluster_class import StarCluster
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
 )
+from amuse.couple.bridge import CalculateFieldForCodesUsingReinitialize
 
 Tide = TimeDependentSpiralArmsDiskModel
+
+
+def new_field_gravity_code(
+        converter,
+        epsilon,
+):
+    "Create a new field code"
+    result = FastKick(
+        converter,
+        # redirection="file",
+        # redirect_file=(
+        #     p.dir_codelogs + "/field_gravity_code.log"
+        #     ),
+        mode="cpu",
+        number_of_workers=2,
+    )
+    result.parameters.epsilon_squared = (epsilon)**2
+    return result
+
+
+def new_field_code(
+        code,
+        field_code,
+):
+    " something"
+    # result = CalculateFieldForCodesUsingReinitialize(
+    result = CalculateFieldForCodes(
+        field_code,
+        [code],
+        # required_attributes=[
+        #     'mass', 'radius',
+        #     'x', 'y', 'z',
+        #     'vx', 'vy', 'vz',
+        # ]
+        # required_attributes=[
+        #     'mass', 'u',
+        #     'x', 'y', 'z',
+        #     'vx', 'vy', 'vz',
+        # ]
+    )
+    return result
 
 
 class ClusterInPotential(
@@ -25,13 +67,14 @@ class ClusterInPotential(
             self,
             stars=None,
             gas=None,
+            # epsilon=200 | units.AU,
             epsilon=0.1 | units.parsec,
             star_converter=None,
             gas_converter=None,
     ):
         self.objects = (StarCluster, Gas)
         mass_scale_stars = stars.mass.sum()
-        length_scale_stars = 1 | units.parsec
+        length_scale_stars = 3 | units.parsec
         if star_converter is None:
             converter_for_stars = nbody_system.nbody_to_si(
                 mass_scale_stars,
@@ -44,7 +87,7 @@ class ClusterInPotential(
         )
 
         mass_scale_gas = gas.mass.sum()
-        length_scale_gas = 10 | units.parsec
+        length_scale_gas = 3 | units.parsec
         if gas_converter is None:
             converter_for_gas = nbody_system.nbody_to_si(
                 mass_scale_gas,
@@ -57,29 +100,45 @@ class ClusterInPotential(
         )
         self.tidal_field = Tide()
 
-        # self.gravity_field_code = FastKick(
-        #     self.star_converter, mode="cpu", number_of_workers=2,
-        # )
-        # self.gravity_field_code.parameters.epsilon_squared = epsilon**2
+
+        to_gas_codes = [
+            self.star_code,
+            self.tidal_code,
+        ]
+        to_stars_codes = [
+            new_field_code(
+                self.sph_code,
+                new_field_gravity_code(
+                    converter_for_gas,
+                    epsilon,
+                ),
+            ),
+            self.tidal_code,
+        ]
 
         self.system = Bridge()
         self.system.add_system(
             self.star_code,
             partners=[
-                self.tidal_field,
-                self.gas_code,
+                to_stars_codes,
+                # self.tidal_field,
+                # self.gas_code,
+
             ],
             do_sync=True,
         )
         self.system.add_system(
             self.gas_code,
             partners=[
-                self.tidal_field,
-                self.star_code,
+                to_gas_codes,
+                # self.tidal_field,
+                # self.star_code,
             ],
             do_sync=True,
+            # do_sync=False,
         )
         self.system.timestep = 2 * self.gas_code.parameters.timestep
+        # 0.05 | units.Myr
 
     # @property
     # def gas_particles(self):

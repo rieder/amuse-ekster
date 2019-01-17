@@ -103,7 +103,7 @@ class ClusterInPotential(
 
         to_gas_codes = [
             self.star_code,
-            self.tidal_code,
+            self.tidal_field,
         ]
         to_stars_codes = [
             new_field_code(
@@ -113,7 +113,7 @@ class ClusterInPotential(
                     epsilon,
                 ),
             ),
-            self.tidal_code,
+            self.tidal_field,
         ]
 
         self.system = Bridge()

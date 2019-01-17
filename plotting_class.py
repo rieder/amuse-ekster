@@ -55,7 +55,7 @@ def plot_hydro_and_stars(time, sph, stars, L=10, filename=None, offset_x=None, o
     if offset_y is not None:
         ymin += offset_y.value_in(units.parsec)
         ymax += offset_y.value_in(units.parsec)
-    pyplot.imshow(
+    ax.imshow(
         numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
         extent=[xmin, xmax, ymin, ymax],
         # vmin=1, vmax=5,
@@ -71,7 +71,7 @@ def plot_hydro_and_stars(time, sph, stars, L=10, filename=None, offset_x=None, o
     if len(stars):
         # m = 100.0*stars.mass/max(stars.mass)
         m = 3.0*stars.mass/stars.mass.mean()
-        c = stars.mass/stars.mass.mean()
+        # c = stars.mass/stars.mass.mean()
         x = -stars.x.value_in(units.parsec)
         y = stars.y.value_in(units.parsec)
         pyplot.scatter(-x, y, s=m, c="white", lw=0)

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, print_function
 import sys
+"Pelupessy et al. (in prep.) simple thermal model"
 import numpy
 
 from amuse.units import units, constants
@@ -11,6 +12,7 @@ from amuse.units.quantities import zero
 
 
 class SimplifiedThermalModel(object):
+    "Simplified thermal model"
     def __init__(
             self,
             n0=0.05 | units.cm**-3,

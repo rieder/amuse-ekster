@@ -59,7 +59,7 @@ def main():
     timestep = 0.05 | units.Myr
     time = 0 | units.Myr
 
-    model_name = "galaxy-model_%03i" % (2)
+    model_name = "galaxy-model_%03i" % (4)
     save_dir = "Runs/%s" % model_name
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -67,7 +67,7 @@ def main():
     x, y = model.star_particles.center_of_mass()[0:2]
     plotname = "%s/plot-%04i.png" % (save_dir, 0)
     plot_hydro_and_stars(
-        model.model_time, model.gas_code, model.star_particles, L=800,
+        model.model_time, model.gas_code, model.star_particles, L=600,
         filename=plotname,
         offset_x=x,
         offset_y=y,
@@ -84,7 +84,7 @@ def main():
             model.gas_particles,
             "%s/gas-%04i.hdf5" % (save_dir, i), "amuse")
         x, y = model.star_particles.center_of_mass()[0:2]
-        plotname = "%s/plot-%03i.png" % (save_dir, i)
+        plotname = "%s/plot-%04i.png" % (save_dir, i)
         plot_hydro_and_stars(
             model.model_time, model.gas_code, model.star_particles, L=600,
             filename=plotname,

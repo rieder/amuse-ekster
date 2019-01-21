@@ -16,6 +16,7 @@ from plotting_class import plot_hydro_and_stars
 from embedded_star_cluster_class import ClusterInPotential
 
 test = False
+limited_radius = 100 | units.parsec
 
 
 def main():
@@ -38,8 +39,28 @@ def main():
     else:
         if len(sys.argv) > 1:
             stars = read_set_from_file(sys.argv[1], "amuse")
+            if limited_radius:
+                com = stars.center_of_mass()
+                stars.from_com = (stars.position - com).lengths()
+                selected_stars = stars.select(
+                    lambda x: x <= limited_radius,
+                    ["from_com"]
+                )
+                del(selected_stars.from_com)
+                stars = selected_stars
+                del(selected_stars)
+
             if len(sys.argv) > 2:
                 gas = read_set_from_file(sys.argv[2], "amuse")
+                if limited_radius:
+                    gas.from_com = (gas.position - com).lengths()
+                    selected_gas = gas.select(
+                        lambda x: x <= limited_radius,
+                        ["from_com"]
+                    )
+                    del(selected_gas.from_com)
+                    gas = selected_gas
+                    del(selected_gas)
             else:
                 gas = None
             # print(gas.dynamical_timescale())

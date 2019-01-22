@@ -1,13 +1,14 @@
 "Class for a star cluster embedded in a tidal field and a gaseous region"
 from __future__ import print_function, division
+import logging
 from amuse.community.fastkick.interface import FastKick
-from amuse.couple.bridge import (
-    Bridge, CalculateFieldForCodesUsingReinitialize,
-)
 from amuse.datamodel import ParticlesSuperset
 from amuse.units import units, nbody_system
 from amuse.units.quantities import VectorQuantity
 
+from bridge import (
+    Bridge, CalculateFieldForCodes,
+)
 from gas_class import Gas
 from star_cluster_class import StarCluster
 from spiral_potential import (
@@ -15,6 +16,7 @@ from spiral_potential import (
 )
 
 Tide = TimeDependentSpiralArmsDiskModel
+logger = logging.getLogger(__name__)
 
 
 class ClusterInPotential(
@@ -42,9 +44,11 @@ class ClusterInPotential(
             )
         else:
             converter_for_stars = star_converter
+        logger.info("Initialising StarCluster")
         StarCluster.__init__(
             self, stars=stars, converter=converter_for_stars, epsilon=epsilon,
         )
+        logger.info("Initialised StarCluster")
 
         mass_scale_gas = gas.mass.sum()
         length_scale_gas = 3 | units.parsec
@@ -55,10 +59,14 @@ class ClusterInPotential(
             )
         else:
             converter_for_gas = gas_converter
+        logger.info("Initialising Gas")
         Gas.__init__(
             self, gas=gas, converter=converter_for_gas, epsilon=epsilon,
         )
+        logger.info("Initialised Gas")
+        logger.info("Creating Tide object")
         self.tidal_field = Tide()
+        logger.info("Created Tide object")
 
         self.epsilon = epsilon
         self.converter = converter_for_gas
@@ -82,7 +90,7 @@ class ClusterInPotential(
         ):
             " something"
             # result = CalculateFieldForCodesUsingReinitialize(
-            result = CalculateFieldForCodesUsingReinitialize(
+            result = CalculateFieldForCodes(
                 new_field_gravity_code,
                 [code],
                 # required_attributes=[
@@ -154,27 +162,34 @@ class ClusterInPotential(
 
     def evolve_model(self, tend):
         "Evolve system to specified time"
+        logger.info(
+            "Evolving %s to time %s",
+            self.__name__,
+            tend,
+        )
         self.model_to_evo_code.copy()
         self.model_to_gas_code.copy()
         while abs(self.model_time - tend) >= self.system.timestep:
             evo_time = self.evo_code.model_time
             self.model_to_star_code.copy()
             evo_timestep = self.evo_code.particles.time_step.min()
-            print(
-                "Smallest evo timestep: %s" % evo_timestep.in_(units.Myr)
+            logger.info(
+                "Smallest evo timestep: %s", evo_timestep.in_(units.Myr)
             )
             time = min(
                 evo_time+evo_timestep,
                 tend,
             )
-            print("Evolving to %s" % time.in_(units.Myr))
+            logger.info("Evolving to %s", time.in_(units.Myr))
+            logger.info("Stellar evolution...")
             self.evo_code.evolve_model(time)
+            logger.info("System...")
             self.system.evolve_model(time)
-            print(
-                "Evo time is now %s" % self.evo_code.model_time.in_(units.Myr)
+            logger.info(
+                "Evo time is now %s", self.evo_code.model_time.in_(units.Myr)
             )
-            print(
-                "Bridge time is now %s" % (
+            logger.info(
+                "Bridge time is now %s", (
                     self.system.model_time.in_(units.Myr)
                 )
             )

@@ -1,8 +1,11 @@
 "Class for a star cluster with dynamics and evolution"
 from __future__ import print_function, division
+import logging
 from amuse.units import units
 from stellar_evolution_class import StellarEvolution
 from stellar_dynamics_class import StellarDynamics
+
+logger = logging.getLogger(__name__)
 
 
 class StarCluster(
@@ -17,12 +20,16 @@ class StarCluster(
             converter=None,
             epsilon=0.1 | units.parsec,
     ):
+        logger.info("Initialising StellarDynamics")
         StellarDynamics.__init__(
             self, stars=stars, converter=converter, epsilon=epsilon,
         )
+        logger.info("Initialised StellarDynamics")
+        logger.info("Initialising StellarEvolution")
         StellarEvolution.__init__(
             self, stars=stars,
         )
+        logger.info("Initialised StellarEvolution")
 
     @property
     def model_time(self):
@@ -109,7 +116,6 @@ def main():
                 model.star_particles.center_of_mass()
             )
         )
-    return
 
 
 if __name__ == "__main__":

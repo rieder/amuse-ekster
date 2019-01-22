@@ -1,7 +1,10 @@
 "Class for stellar dynamics"
 from __future__ import print_function, division
+import logging
 from amuse.units import units, nbody_system
 from amuse.datamodel import Particles
+
+logger = logging.getLogger(__name__)
 
 
 class StellarDynamics(object):
@@ -50,6 +53,10 @@ class StellarDynamics(object):
         self.star_code_to_model = self.star_code.particles.new_channel_to(
             self.star_particles,
         )
+
+    @property
+    def __name__(self):
+        return "StellarDynamics"
 
     @property
     def model_time(self):

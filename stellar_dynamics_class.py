@@ -34,6 +34,7 @@ class StellarDynamics(object):
             self.star_code = ph4(
                 self.star_converter,
                 number_of_workers=number_of_workers,
+                # channel_type="sockets",
                 # redirection="none",
             )
         else:

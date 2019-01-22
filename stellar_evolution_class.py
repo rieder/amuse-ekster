@@ -19,7 +19,9 @@ class StellarEvolution(
             self.star_particles = stars
         if evo_code is None:
             from amuse.community.sse.interface import SSE
-            self.evo_code = SSE()
+            self.evo_code = SSE(
+            #     channel_type="sockets"
+            )
         else:
             self.evo_code = evo_code
         self.evo_code.particles.add_particles(stars)

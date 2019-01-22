@@ -1,7 +1,9 @@
 "Class for a star cluster embedded in a tidal field and a gaseous region"
 from __future__ import print_function, division
 from amuse.community.fastkick.interface import FastKick
-from amuse.couple.bridge import Bridge
+from amuse.couple.bridge import (
+    Bridge, CalculateFieldForCodesUsingReinitialize,
+)
 from amuse.datamodel import ParticlesSuperset
 from amuse.units import units, nbody_system
 from amuse.units.quantities import VectorQuantity
@@ -11,7 +13,6 @@ from star_cluster_class import StarCluster
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
 )
-from amuse.couple.bridge import CalculateFieldForCodes  # UsingReinitialize
 
 Tide = TimeDependentSpiralArmsDiskModel
 
@@ -81,7 +82,7 @@ class ClusterInPotential(
         ):
             " something"
             # result = CalculateFieldForCodesUsingReinitialize(
-            result = CalculateFieldForCodes(
+            result = CalculateFieldForCodesUsingReinitialize(
                 new_field_gravity_code,
                 [code],
                 # required_attributes=[
@@ -108,7 +109,12 @@ class ClusterInPotential(
             self.tidal_field,
         ]
 
-        self.system = Bridge()
+        self.system = Bridge(
+            timestep=(
+                2 * self.gas_code.parameters.timestep
+            ),
+            use_threading=False,
+        )
         self.system.add_system(
             self.star_code,
             partners=to_stars_codes,
@@ -120,7 +126,7 @@ class ClusterInPotential(
             do_sync=True,
             # do_sync=False,
         )
-        self.system.timestep = 2 * self.gas_code.parameters.timestep
+        # self.system.timestep = 2 * self.gas_code.parameters.timestep
         # 0.05 | units.Myr
 
     # @property

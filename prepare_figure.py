@@ -228,10 +228,10 @@ def _quad_frame(x_label, y_label, logx=False, logy=False, xsize=12, ysize=12):
 
 def set_tickmarks(ax):
     ax.minorticks_on()
+    # ax.tick_params('both', length=15, width=2, which='major')
+    # ax.tick_params('both', length=6, width=1, which='minor')
+    # ax.locator_params(nbins=3)
+    # ax.tick_params(axis='x', which='major', pad=20)
+    # ax.tick_params(axis='y', which='major', pad=20)
+    # ax.margins(0.25, tight=True)
     return
-    ax.tick_params('both', length=15, width=2, which='major')
-    ax.tick_params('both', length=6, width=1, which='minor')
-    ax.locator_params(nbins=3)
-    ax.tick_params(axis='x', which='major', pad=20)
-    ax.tick_params(axis='y', which='major', pad=20)
-    ax.margins(0.25, tight=True)

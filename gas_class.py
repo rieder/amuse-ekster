@@ -48,6 +48,7 @@ class Gas(object):
         self.gas_code = Fi(
             self.gas_converter,
             mode="openmp",
+            # channel_type="sockets",
             # redirection="none",
         )
         # from amuse.community.gadget2.interface import Gadget2

@@ -1,5 +1,6 @@
 "Class for plotting stuff"
 from __future__ import print_function, division
+import logging
 import numpy
 
 from matplotlib import pyplot
@@ -13,9 +14,12 @@ from prepare_figure import single_frame
 # from prepare_figure import figure_frame, set_tickmarks
 # from distinct_colours import get_distinct
 
+logger = logging.getLogger(__name__)
+
 
 def make_map(sph, N=100, L=1, offset_x=None, offset_y=None):
     "Create a density map from an SPH code"
+    logger.info("Creating density map for gas")
     x, y = numpy.indices((N+1, N+1))
     x = L*(x.flatten()-N/2.)/N
     y = L*(y.flatten()-N/2.)/N
@@ -42,8 +46,17 @@ def make_map(sph, N=100, L=1, offset_x=None, offset_y=None):
 
 
 def plot_hydro_and_stars(
-        time, sph, stars, L=10, filename=None, offset_x=None, offset_y=None,
+        time,
+        sph,
+        stars,
+        L=10,
+        filename=None,
+        offset_x=None,
+        offset_y=None,
+        title=""
 ):
+    "Plot gas and stars"
+    logger.info("Plotting gas and stars")
     fig = pyplot.figure(figsize=(12, 12))
     ax = fig.add_subplot(1, 1, 1,)
     rho = make_map(
@@ -84,7 +97,7 @@ def plot_hydro_and_stars(
     # pyplot.title("Molecular cloud at time="+time.as_string_in(units.Myr))
     pyplot.xlabel("x [pc]")
     pyplot.ylabel("y [pc]")
-    # pyplot.title("GMC at time="+time.as_string_in(units.Myr))
+    pyplot.title(title)
     if filename is None:
         filename = "test.png"
     pyplot.savefig(filename, dpi=300)
@@ -99,6 +112,8 @@ def plot_hydro(time, sph, L=10):
         x_label, y_label, logx=False,
         logy=False, xsize=12, ysize=12,
     )
+    "Plot gas"
+    logger.info("Plotting gas")
     ax = fig.add_subplot(1, 1, 1,)
 
     # gas = sph.code.gas_particles
@@ -125,6 +140,7 @@ def plot_hydro(time, sph, L=10):
 
 
 def new_option_parser():
+    "Parse command line arguments"
     from amuse.units.optparse import OptionParser
     result = OptionParser()
     result.add_option(

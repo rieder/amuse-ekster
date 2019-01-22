@@ -2,6 +2,7 @@
 Calculate the spiral arm potential
 """
 from __future__ import print_function, division
+import logging
 
 from numpy import (
     pi, sin, cos, tan, arctan, cosh, log, exp,
@@ -11,6 +12,8 @@ from amuse.units import units
 from amuse.units.constants import G
 
 from amuse.support.literature import LiteratureReferencesMixIn
+
+logger = logging.getLogger(__name__)
 
 
 class DefaultSpiralModelParameters(object):
@@ -65,10 +68,14 @@ class TimeDependentSpiralArmsDiskModel(
             self,
             t_start=0 | units.yr,
     ):
+        # self.__name__ = "TimeDependentSpiralArmsDiskModel"
+
         LiteratureReferencesMixIn.__init__(self)
 
+        logger.info("Creating LogarithmicDiskProfile")
         self.disk = LogarithmicDiskProfile(
         )
+        logger.info("Creating SpiralArmsProfile")
         self.spiralarms = SpiralArmsProfile(
             t_start=t_start,
         )
@@ -127,7 +134,10 @@ class LogarithmicDiskProfile(
     """
 
     def __init__(self,):
+        # self.__name__ = "LogarithmicDiskProfile"
+
         LiteratureReferencesMixIn.__init__(self)
+        logger.info("Setting DefaultLogarithmicModelParameters")
         DefaultLogarithmicModelParameters.__init__(self)
 
         self.model_time = 0 | units.Myr
@@ -202,6 +212,9 @@ class SpiralArmsProfile(
             self,
             t_start=0 | units.Myr,
     ):
+        # self.__name__ = "SpiralArmsProfile"
+
+        logger.info("Setting DefaultSpiralModelParameters")
         DefaultSpiralModelParameters.__init__(self)
         LiteratureReferencesMixIn.__init__(self)
         self.time_initial = t_start

@@ -1,7 +1,10 @@
 "Class for a gas system"
 from __future__ import print_function, division
+import logging
 from amuse.units import units, nbody_system
 from amuse.datamodel import Particles
+
+logger = logging.getLogger(__name__)
 
 
 def sfe_to_density(e_loc, alpha=0.02):

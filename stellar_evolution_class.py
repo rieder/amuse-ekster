@@ -1,6 +1,9 @@
 "Class for a stellar evolution object"
 from __future__ import print_function, division
+import logging
 from amuse.datamodel import Particles
+
+logger = logging.getLogger(__name__)
 
 
 class StellarEvolution(
@@ -29,6 +32,10 @@ class StellarEvolution(
         self.evo_code_to_model = self.evo_code.particles.new_channel_to(
             self.star_particles,
         )
+
+    @property
+    def __name__(self):
+        return "StellarEvolution"
 
     @property
     def particles(self):

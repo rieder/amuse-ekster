@@ -41,10 +41,14 @@ def make_map(sph, N=100, L=1, offset_x=None, offset_y=None):
     return rho
 
 
-def plot_hydro_and_stars(time, sph, stars, L=10, filename=None, offset_x=None, offset_y=None):
+def plot_hydro_and_stars(
+        time, sph, stars, L=10, filename=None, offset_x=None, offset_y=None,
+):
     fig = pyplot.figure(figsize=(12, 12))
     ax = fig.add_subplot(1, 1, 1,)
-    rho = make_map(sph, N=200, L=L, offset_x=offset_x, offset_y=offset_y).transpose()
+    rho = make_map(
+        sph, N=200, L=L, offset_x=offset_x, offset_y=offset_y,
+    ).transpose()
     xmin = -L/2
     xmax = L/2
     ymin = -L/2
@@ -68,7 +72,7 @@ def plot_hydro_and_stars(time, sph, stars, L=10, filename=None, offset_x=None, o
     # )
     # cbar.set_label('projected density [$amu/cm^3$]', rotation=270)
 
-    if len(stars):
+    if not stars.is_empty():
         # m = 100.0*stars.mass/max(stars.mass)
         m = 3.0*stars.mass/stars.mass.mean()
         # c = stars.mass/stars.mass.mean()

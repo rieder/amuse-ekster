@@ -1,14 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+" Pelupessy et al. (in prep.) simple thermal model "
+
 from __future__ import division, print_function
 import sys
-"Pelupessy et al. (in prep.) simple thermal model"
 import numpy
 
 from amuse.units import units, constants
 from amuse.units.quantities import zero
-
-# Pelupessy et al. (in prep.) simple thermal model
 
 
 class SimplifiedThermalModel(object):
@@ -41,8 +40,7 @@ class SimplifiedThermalModel(object):
     def mu(self, rho=None):
         if rho is None:
             return self.reference_mu
-        else:
-            return numpy.ones(numpy.shape(rho))*self.reference_mu
+        return numpy.ones(numpy.shape(rho))*self.reference_mu
 
     def gamma(self, rho):
         return numpy.ones(numpy.shape(rho))*(self.reference_heating)

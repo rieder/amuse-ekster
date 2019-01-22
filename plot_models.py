@@ -37,8 +37,10 @@ def main():
     # for i in range(24):
     try:
         i = int(sys.argv[1])
-    except:
-        i = 0
+    except ValueError:
+        raise "Invalid value"
+    except IndexError:
+        raise "No argument given"
     while True:
         try:
             particles = read_set_from_file("model2-%03i.hdf5" % i, "amuse")
@@ -56,6 +58,7 @@ def main():
             break
         i += 1
     print(i)
+
 
 if __name__ == "__main__":
     main()

@@ -27,6 +27,7 @@ class Gas(object):
             # length_scale=100 | units.parsec,
             epsilon=0.1 | units.parsec,
             alpha_sfe=0.02,
+            internal_cooling=False,
     ):
         self.alpha_sfe = alpha_sfe
         if converter is not None:
@@ -70,11 +71,20 @@ class Gas(object):
             self.gas_particles,
         )
 
-        # We want to control cooling ourselves
-        # self.gas_code.parameters.gamma = 1
-        self.gas_code.parameters.gamma = 5./3.
-        # self.gas_code.parameters.isothermal_flag = True
-        self.gas_code.parameters.isothermal_flag = False
+        if internal_cooling:
+            self.gas_code.parameters.gamma = 5./3.
+            self.gas_code.parameters.isothermal_flag = False
+            self.cooling = False
+        else:
+            # We want to control cooling ourselves
+            # from cooling_class import Cooling
+            from cooling_class import SimplifiedThermalModelEvolver
+            self.gas_code.parameters.gamma = 1
+            self.gas_code.parameters.isothermal_flag = True
+            self.cooling = SimplifiedThermalModelEvolver(
+                self.gas_code.gas_particles,
+            )
+            self.cooling.model_time = self.gas_code.model_time
 
         # Sensible to set these, even though they are already default
         self.gas_code.parameters.use_hydro_flag = True
@@ -89,83 +99,6 @@ class Gas(object):
             self.gas_code.stopping_conditions.density_limit_detection
         self.gas_stopping_conditions.enable()
 
-        """
-        acc_timestep_crit_constant: 0.25
-        acc_timestep_flag: True
-        adaptive_smoothing_flag: False
-        artificial_viscosity_alpha: 0.5
-        balsara_flag: False
-        begin_time: 0.0 time
-        beta: 1.0
-        code_length_unit: 1.0 kpc
-        code_mass_unit: 1000000000.0 MSun
-        conservative_sph_flag: True
-        cool_par: 1.0
-        courant: 0.3
-        direct_sum_flag: False
-        enforce_min_sph_grav_softening_flag: False
-        eps_is_h_flag: True
-        epsilon_squared: 0.0 length * length
-        feedback: fuv
-        fi_data_directory: /Users/rieder/Env/Amuse2/share/amuse/data/fi/input/
-        first_snapshot: 0
-        fixed_halo_flag: False
-        free_timestep_crit_constant_a: 0.35
-        free_timestep_crit_constant_aexp: -1.0
-        free_timestep_crit_constant_v: 0.5
-        free_timestep_crit_constant_vexp: 0.0
-        freeform_timestep_flag: False
-        gadget_cell_opening_constant: 0.01
-        gadget_cell_opening_flag: True
-        gas_epsilon: 0.005 length
-        grain_heat_eff: 0.05
-        h_update_method: mass
-        halofile: none
-        heat_par1: 0.0
-        heat_par2: 0.0
-        integrate_entropy_flag: True
-        log_interval: 5
-        max_density: 100.0 mass / (length**3)
-        maximum_time_bin: 4096
-        min_gas_part_mass: 0.25
-        minimum_part_per_bin: 1
-        n_smooth: 64
-        n_smooth_tol: 0.1
-        nn_tol: 0.1
-        opening_angle: 0.5
-        optical_depth: 0.0
-        output_interval: 5
-        periodic_boundaries_flag: False  (read only)
-        periodic_box_size: 10000.0 length
-        quadrupole_moments_flag: False
-        radiation_flag: False
-        smooth_input_flag: False
-        sph_artificial_viscosity_eps: 0.01
-        sph_dens_init_flag: True
-        sph_h_const: 0.2 length
-        sph_viscosity: sph
-        sqrt_timestep_crit_constant: 1.0
-        square_root_timestep_flag: False
-        star_form_delay_fac: 1.0
-        star_form_eff: 0.25
-        star_form_mass_crit: 100000.0 MSun
-        star_formation_flag: False
-        star_formation_mode: gerritsen
-        stopping_condition_maximum_internal_energy:\
-            1.79769313486e+308 length**2 / (time**2)
-        stopping_condition_minimum_density: -1.0 mass / (length**3)
-        stopping_condition_minimum_internal_energy: -1.0 length**2 / (time**2)
-        stopping_conditions_number_of_steps: 1
-        stopping_conditions_out_of_box_size: 0.0 length
-        stopping_conditions_out_of_box_use_center_of_mass: True
-        stopping_conditions_timeout: 4.0 s
-        supernova_duration: 30000000.0 Myr
-        supernova_eff: 0.0
-        t_supernova_start: 3000000.0 Myr
-        targetnn: 32
-        timestep: 1.0 time
-        zeta_cr_ion_rate: 3.6 1.8e-17 * s**-1
-        """
         # self.code = self.gas_code
         # self.particles = self.gas_particles
 
@@ -194,10 +127,17 @@ class Gas(object):
                     self.model_time.in_(units.Myr),
                 )
             )
+            dt = tend - self.model_time
+            if self.cooling:
+                print("Cooling gas")
+                self.cooling.evolve_for(dt/2)
             self.gas_code.evolve_model(tend)
             # Check stopping conditions
             if self.gas_stopping_conditions.is_set():
                 print("Gas code stopped - max density reached")
+            if self.cooling:
+                print("Cooling gas again")
+                self.cooling.evolve_for(dt/2)
         self.gas_code_to_model.copy()
 
     def stop(self):

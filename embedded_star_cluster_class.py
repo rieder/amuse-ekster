@@ -102,9 +102,9 @@ class ClusterInPotential(
             self.tidal_field,
         ]
         to_stars_codes = [
-            new_field_code(
-                self.gas_code,
-            ),
+            # new_field_code(
+            self.gas_code,
+            # ),
             self.tidal_field,
         ]
 

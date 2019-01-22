@@ -40,8 +40,7 @@ class SimplifiedThermalModel(object):
     def mu(self, rho=None):
         if rho is None:
             return self.reference_mu
-        else:
-            return numpy.ones(numpy.shape(rho))*self.reference_mu
+        return numpy.ones(numpy.shape(rho))*self.reference_mu
 
     def gamma(self, rho):
         return numpy.ones(numpy.shape(rho))*(self.reference_heating)

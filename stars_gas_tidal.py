@@ -1,7 +1,7 @@
 """
 Simulate a system of stars and gas, with an external tidal field
 """
-from __future__ import print_function, division
+from __future__ import division
 
 import os
 import sys
@@ -87,14 +87,18 @@ def main():
                     del selected_gas
             else:
                 gas = None
-            # print(gas.dynamical_timescale())
-            # exit()
         else:
             return
-    print(len(stars))
-    print(stars.center_of_mass().in_(units.parsec))
-    print(len(gas))
-    print(gas.center_of_mass().in_(units.parsec))
+    logging.info("We have %i star particles", len(stars))
+    logging.info(
+        "Stellar center-of-mass is %s",
+        stars.center_of_mass().in_(units.parsec)
+    )
+    logging.info("We have %i gas particles", len(gas))
+    logging.info(
+        "Gas center-of-mass is %s",
+        gas.center_of_mass().in_(units.parsec)
+    )
     logging.info("Creating cluster in potential model")
     model = ClusterInPotential(
         stars=stars,

@@ -1,4 +1,4 @@
-from matplotlib import pyplot
+import matplotlib.pyplot as plt
 # import seaborn
 from cycler import cycler
 
@@ -89,7 +89,6 @@ def get_distinct(nr):
 if __name__ == '__main__':
     import numpy as np
     # import matplotlib.mlab as mlab
-    import matplotlib.pyplot as plt
 
     print __doc__
     print "usage examples: "
@@ -116,12 +115,12 @@ if __name__ == '__main__':
 
 
 def figure_frame(x_label, y_label, xsize=12, ysize=10):
-    figure = pyplot.figure(figsize=(xsize, ysize))
+    figure = plt.figure(figsize=(xsize, ysize))
     ax = figure.add_subplot(1, 1, 1)
     ax.minorticks_on()  # switch on the minor ticks
     ax.locator_params(nbins=3)
-    pyplot.xlabel(x_label)
-    pyplot.ylabel(y_label)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
     return figure, ax
 
 
@@ -130,12 +129,12 @@ def single_frame(
         ymax=-1,
 ):
 
-    pyplot.rcParams.update({'font.size': 20})
-    # pyplot.rcParams['axes.color_cycle'] = [
+    plt.rcParams.update({'font.size': 20})
+    # plt.rcParams['axes.color_cycle'] = [
     #     blue, green, red, sand, light_blue, pink, crimson, violet, brown,
     #     steal, rose, yellow, cyan,
     # ]
-    pyplot.rcParams['axes.prop_cycle'] = (
+    plt.rcParams['axes.prop_cycle'] = (
         cycler(
             'color',
             [
@@ -144,16 +143,16 @@ def single_frame(
             ]
         )
     )
-    figure = pyplot.figure(figsize=(xsize, ysize))
+    figure = plt.figure(figsize=(xsize, ysize))
 
-    ax = pyplot.gca()
+    ax = plt.gca()
     ax.get_yaxis().get_major_formatter().set_useOffset(False)
 
-    pyplot.xlabel(x_label)
-    pyplot.ylabel(y_label)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
 
     if ymax > 0:
-        pyplot.ylim(ymin, ymax)
+        plt.ylim(ymin, ymax)
 
     set_tickmarks(ax)
 
@@ -171,8 +170,9 @@ def single_frame(
 
 def quad_frame(x_label, y_label, logx=False, logy=False, xsize=12, ysize=12):
 
-    f, ((ax1, ax2), (ax3, ax4)) = pyplot.subplots(2, 2, sharex='col',
-                                                  sharey='row', figsize=(8, 8))
+    f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
+        2, 2, sharex='col', sharey='row', figsize=(8, 8),
+    )
     set_tickmarks(ax1)
     ax1.locator_params(nbins=3)
     set_tickmarks(ax2)
@@ -196,16 +196,16 @@ def quad_frame(x_label, y_label, logx=False, logy=False, xsize=12, ysize=12):
 
 def _quad_frame(x_label, y_label, logx=False, logy=False, xsize=12, ysize=12):
 
-    pyplot.rcParams.update({'font.size': 25})
-    # pyplot.rcParams['axes.color_cycle'] = [
+    plt.rcParams.update({'font.size': 25})
+    # plt.rcParams['axes.color_cycle'] = [
     #     blue, green, red, sand, light_blue, pink, crimson, violet, brown,
     #     steal, rose, yellow, cyan,
     # ]
-    pyplot.rcParams['axes.prop_cycle'] \
+    plt.rcParams['axes.prop_cycle'] \
         = (cycler('color', [blue, green, red, sand, light_blue,
                             pink, crimson, violet, brown,
                             steal, rose, yellow, cyan]))
-    f, ((ax1, ax2), (ax3, ax4)) = pyplot.subplots(
+    f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
         2, 2, sharex='col', sharey='row', figsize=(12, 12),
     )
     set_tickmarks(ax1)

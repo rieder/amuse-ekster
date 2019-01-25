@@ -77,7 +77,7 @@
 
 """
 
-from __future__ import print_function, division
+from __future__ import division
 
 # issues:
 # - for now, units in si
@@ -388,14 +388,14 @@ class GravityCodeInField(object):
         explicitly synchronize all components
         """
         if hasattr(self.code, "synchronize_model"):
-            if self.verbose:
-                print(self.code.__class__.__name__,
-                      "is synchronizing", end=' ')
+            logger.info(
+                "%s is synchronizing",
+                self.code.__class__.__name__,
+            )
 
             self.code.synchronize_model()
 
-            if self.verbose:
-                print(".. done")
+            logger.info(".. done")
 
     def get_potential_at_point(self, radius, x, y, z):
         return self.code.get_potential_at_point(radius, x, y, z)
@@ -450,13 +450,15 @@ class GravityCodeInField(object):
     def drift(self, tend):
         if not hasattr(self.code, "evolve_model"):
             return
-        if self.verbose:
-            print(self.code.__class__.__name__, "is evolving to", tend)
+        logger.info(
+            "%s is evolving to %s",
+            self.code.__class__.__name__,
+            tend,
+        )
 
         self.code.evolve_model(tend)
 
-        if self.verbose:
-            print(".. done")
+        logger.info(".. done")
 
     def cannot_kick(self):
         """
@@ -484,9 +486,11 @@ class GravityCodeInField(object):
         kinetic_energy_before = particles.kinetic_energy()
 
         for field_code in self.field_codes:
-            if(self.verbose):
-                print(self.code.__class__.__name__, "receives kick from",
-                      field_code.__class__.__name__, end=' ')
+            logger.info(
+                "%s receives kick from %s",
+                self.code.__class__.__name__,
+                field_code.__class__.__name__,
+            )
 
             self.kick_with_field_code(
                 particles,
@@ -494,8 +498,7 @@ class GravityCodeInField(object):
                 dt
             )
 
-            if(self.verbose):
-                print(".. done")
+            logger.info(".. done")
 
         channel = particles.new_channel_to(self.code.particles)
         channel.copy_attributes(["vx", "vy", "vz"])
@@ -642,11 +645,12 @@ class Bridge(object):
         """
         for x in self.codes:
             if hasattr(x, "synchronize_model"):
-                if(self.verbose):
-                    print(x.__class__.__name__, "is synchronizing", end=' ')
+                logger.info(
+                    "%s is synchronizing",
+                    x.__class__.__name__,
+                )
                 x.synchronize_model()
-                if(self.verbose):
-                    print(".. done")
+                logger.info(".. done")
 
     def stop(self):
         for one_code in self.codes:

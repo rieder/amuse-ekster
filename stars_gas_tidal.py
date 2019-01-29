@@ -17,18 +17,19 @@ from amuse.io import write_set_to_file, read_set_from_file
 from plotting_class import plot_hydro_and_stars
 from embedded_star_cluster_class import ClusterInPotential
 
-test = True
-limited_radius = 100 | units.parsec
-logger = logging.getLogger(__name__)
-
-# DEBUG for more, WARNING, ERROR or CRITICAL for less.
-logging_level = logging.INFO
+TEST = True
 
 
 def main():
     "Load stars and gas, and evolve them"
+    # Ignored at values <= 0
+    limited_radius = 0 | units.parsec
+    # DEBUG for more, WARNING, ERROR or CRITICAL for less.
+    logging_level = logging.INFO
+    logger = logging.getLogger(__name__)
+
     model_name = (
-        "test-model" if test else
+        "test-model" if TEST else
         "galaxy-model_%03i" % (6)
     )
     save_dir = "Runs/%s" % model_name
@@ -41,7 +42,7 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s: %(message)s',
         datefmt='%Y%m%d %H:%M:%S'
     )
-    if test:
+    if TEST:
         logger.info("Creating test initial conditions")
         from amuse.units import nbody_system
         from amuse.ic.plummer import new_plummer_model
@@ -63,7 +64,7 @@ def main():
             starfile = sys.argv[1]
             logger.info("Reading stars from file %s", starfile)
             stars = read_set_from_file(starfile, "amuse")
-            if limited_radius:
+            if limited_radius > 0 | units.parsec:
                 logger.info(
                     "Limiting stars to %s from center of stellar mass",
                     limited_radius.in_(units.parsec)
@@ -82,7 +83,7 @@ def main():
                 gasfile = sys.argv[2]
                 logger.info("Reading gas from file %s", gasfile)
                 gas = read_set_from_file(gasfile, "amuse")
-                if limited_radius:
+                if limited_radius > 0 | units.parsec:
                     logger.info(
                         "Limiting gas to %s from center of stellar mass",
                         limited_radius.in_(units.parsec)
@@ -120,7 +121,7 @@ def main():
     model_time = 0 | units.Myr
     time_unit = units.Myr
 
-    x, y = model.star_particles.center_of_mass()[0:2]
+    com_x, com_y = model.star_particles.center_of_mass()[0:2]
     plotname = "%s/plot-%04i.png" % (save_dir, 0)
     logger.info("Creating plot")
     plot_hydro_and_stars(
@@ -128,14 +129,14 @@ def main():
         model.gas_code,
         model.star_particles,
         L=(
-            600 if not test
+            600 if not TEST
             else star_converter.to_si(
                 4 | nbody_system.length
             ).value_in(units.parsec)
         ),
         filename=plotname,
-        offset_x=x,
-        offset_y=y,
+        offset_x=com_x,
+        offset_y=com_y,
         title="time = %06.1f %s" % (
             model_time.value_in(time_unit),
             time_unit,
@@ -163,7 +164,7 @@ def main():
         write_set_to_file(
             model.gas_particles,
             gas_backup_file, "amuse")
-        x, y = model.star_particles.center_of_mass()[0:2]
+        com_x, com_y = model.star_particles.center_of_mass()[0:2]
         plot_file = "%s/plot-%04i.png" % (save_dir, i)
         logger.info(
             "Making plot, saving to file %s",
@@ -174,14 +175,14 @@ def main():
             model.gas_code,
             model.star_particles,
             L=(
-                600 if not test
+                600 if not TEST
                 else star_converter.to_si(
                     4 | nbody_system.length
                 ).value_in(units.parsec)
             ),
             filename=plot_file,
-            offset_x=x,
-            offset_y=y,
+            offset_x=com_x,
+            offset_y=com_y,
             title="time = %06.1f %s" % (
                 model_time.value_in(time_unit),
                 time_unit,

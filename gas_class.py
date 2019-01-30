@@ -3,6 +3,7 @@ from __future__ import print_function, division
 import logging
 from amuse.units import units, nbody_system
 from amuse.datamodel import Particles
+from plotting_class import plot_hydro_and_stars
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,21 @@ def main():
                 model.gas_particles.density.max()
                 / model.gas_code.parameters.stopping_condition_maximum_density,
             )
+        )
+        
+        plotname = "gastest-%04i.png" % (step)
+        logger.info("Creating plot")
+        plot_hydro_and_stars(
+            model.model_time,
+            model.gas_code,
+            Particles(),
+            L=30,
+            filename=plotname,
+            title="time = %06.1f %s" % (
+                model.model_time.value_in(units.Myr),
+                units.Myr,
+            ),
+            gasproperties=["density", "temperature"],
         )
 
 

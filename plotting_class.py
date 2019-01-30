@@ -17,7 +17,7 @@ from prepare_figure import single_frame
 logger = logging.getLogger(__name__)
 
 
-def make_map(sph, N=100, L=1, offset_x=None, offset_y=None):
+def make_density_map(sph, N=100, L=1, offset_x=None, offset_y=None):
     "Create a density map from an SPH code"
     logger.info("Creating density map for gas")
     x, y = numpy.indices((N+1, N+1))
@@ -59,7 +59,7 @@ def plot_hydro_and_stars(
     logger.info("Plotting gas and stars")
     fig = pyplot.figure(figsize=(12, 12))
     ax = fig.add_subplot(1, 1, 1,)
-    rho = make_map(
+    rho = make_density_map(
         sph, N=200, L=L, offset_x=offset_x, offset_y=offset_y,
     ).transpose()
     xmin = -L/2
@@ -118,7 +118,7 @@ def plot_hydro(time, sph, L=10):
 
     # gas = sph.code.gas_particles
     # dmp = sph.code.dm_particles
-    rho = make_map(sph, N=200, L=L)
+    rho = make_density_map(sph, N=200, L=L)
     ax.imshow(
         numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
         extent=[-L/2, L/2, -L/2, L/2], vmin=1, vmax=5, origin="lower",

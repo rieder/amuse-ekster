@@ -51,7 +51,7 @@ class ClusterInPotential(
         logger.info("Initialised StarCluster")
 
         mass_scale_gas = gas.mass.sum()
-        length_scale_gas = 3 | units.parsec
+        length_scale_gas = 100 | units.parsec
         if gas_converter is None:
             converter_for_gas = nbody_system.nbody_to_si(
                 mass_scale_gas,

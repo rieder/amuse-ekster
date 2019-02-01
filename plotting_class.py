@@ -8,13 +8,36 @@ from matplotlib import pyplot
 
 # from amuse.datamodel import Particles
 # from amuse.io import read_set_from_file
-from amuse.units import units
+from amuse.units import units, constants
 
 from prepare_figure import single_frame
 # from prepare_figure import figure_frame, set_tickmarks
 # from distinct_colours import get_distinct
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 logger = logging.getLogger(__name__)
+
+
+def temperature_to_u(
+        temp,
+        gas_mean_molecular_weight=(2.33 / 6.02214179e+23) | units.g,
+):
+    internal_energy = (
+        3.0 * constants.kB * temperature
+        / (2.0 * gas_mean_molecular_weight)
+    )
+    return internal_energy
+
+
+def u_to_temperature(
+        internal_energy,
+        gas_mean_molecular_weight=(2.33 / 6.02214179e+23) | units.g,
+):
+    temperature = (
+        internal_energy * (2.0 * gas_mean_molecular_weight)
+        / (3.0 * constants.kB)
+    )
+    return temperature
 
 
 def make_density_map(
@@ -48,13 +71,14 @@ def make_density_map(
 
 
 def make_temperature_map(
-        sph, N=100, L=1, offset_x=None, offset_y=None,
+        sph, N=70, L=1, offset_x=None, offset_y=None,
 ):
     "Create a temperature map from an SPH code"
     logger.info("Creating temperature map for gas")
     length = units.parsec
-    temperature = units.K
+    heat = units.K
     internal_energy = units.m**2 * units.s**-2
+    
 
     xmin = -0.5 * L
     ymin = -0.5 * L
@@ -69,7 +93,7 @@ def make_temperature_map(
 
     gas = sph.gas_particles
 
-    gas_temperature, xedges, yedges = numpy.histogram2d(
+    gas_u, xedges, yedges = numpy.histogram2d(
         gas.x.value_in(length),
         gas.y.value_in(length),
         bins=N,
@@ -80,6 +104,9 @@ def make_temperature_map(
         weights=gas.u.value_in(internal_energy),
         # weights=gas.temperature.value_in(temperature),
     )
+    gas_u = gas_u | internal_energy
+
+    gas_temperature = u_to_temperature(gas_u)
     # Convolve with SPH kernel?
 
     return gas_temperature
@@ -95,6 +122,7 @@ def plot_hydro_and_stars(
         offset_y=None,
         title="",
         gasproperties="density",
+        colorbar=False,
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
@@ -103,11 +131,12 @@ def plot_hydro_and_stars(
         1,
         len(gasproperties),
     )
-    fig = pyplot.figure(figsize=(7*number_of_subplots, 6))
-    subplots = []
+    fig = pyplot.figure(figsize=(7*number_of_subplots, 5))
     for i in range(number_of_subplots):
-        subplots.append(fig.add_subplot(1, number_of_subplots, i+1))
-        ax = subplots[-1]
+        ax = fig.add_subplot(1, number_of_subplots, i+1)
+        if colorbar:
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes('right', size='5%', pad=0.1)
         if gasproperties:
             gasproperty = gasproperties[i]
             print("plotting %s" % gasproperty)
@@ -127,12 +156,24 @@ def plot_hydro_and_stars(
                 if offset_y is not None:
                     ymin += offset_y.value_in(units.parsec)
                     ymax += offset_y.value_in(units.parsec)
-                ax.imshow(
+
+                content = numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3))
+                print(content.min(), content.max())
+                img = ax.imshow(
                     numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
                     extent=[xmin, xmax, ymin, ymax],
-                    # vmin=1, vmax=5,
+                    vmin=1, vmax=5,  # content.min(), vmax=content.max(),
                     origin="lower"
                 )
+                if colorbar:
+                    cbar = pyplot.colorbar(
+                        img, cax=cax, orientation='vertical',
+                        pad=0.15,
+                        # fraction=0.045,
+                    )
+                    cbar.ax.get_yaxis().labelpad = 15
+                    cbar.set_label('log projected density [$amu/cm^3$]', rotation=270)
+
             if gasproperty == "temperature":
                 temp = make_temperature_map(
                     sph, N=100, L=L, offset_x=offset_x, offset_y=offset_y,
@@ -141,11 +182,22 @@ def plot_hydro_and_stars(
                 xmax = L/2
                 ymin = -L/2
                 ymax = L/2
-                ax.imshow(
-                    temp,
-                    origin="lower",
+                img = ax.imshow(
+                    numpy.log10(temp.value_in(units.K)),
                     extent=[xmin, xmax, ymin, ymax],
+                    vmin=1,
+                    vmax=5,
+                    origin="lower",
                 )
+                if colorbar:
+                    cbar = pyplot.colorbar(
+                        img, cax=cax, orientation='vertical',
+                        pad=0.15,
+                        # fraction=0.045,
+                    )
+                    cbar.ax.get_yaxis().labelpad = 15
+                    cbar.set_label('log projected temperature [$K$]', rotation=270)
+
         if not stars.is_empty():
             # m = 100.0*stars.mass/max(stars.mass)
             m = 3.0*stars.mass/stars.mass.mean()

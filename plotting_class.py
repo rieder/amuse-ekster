@@ -17,7 +17,9 @@ from prepare_figure import single_frame
 logger = logging.getLogger(__name__)
 
 
-def make_map(sph, N=100, L=1, offset_x=None, offset_y=None):
+def make_density_map(
+        sph, N=100, L=1, offset_x=None, offset_y=None,
+):
     "Create a density map from an SPH code"
     logger.info("Creating density map for gas")
     x, y = numpy.indices((N+1, N+1))
@@ -45,6 +47,44 @@ def make_map(sph, N=100, L=1, offset_x=None, offset_y=None):
     return rho
 
 
+def make_temperature_map(
+        sph, N=100, L=1, offset_x=None, offset_y=None,
+):
+    "Create a temperature map from an SPH code"
+    logger.info("Creating temperature map for gas")
+    length = units.parsec
+    temperature = units.K
+    internal_energy = units.m**2 * units.s**-2
+
+    xmin = -0.5 * L
+    ymin = -0.5 * L
+    xmax = 0.5 * L
+    ymax = 0.5 * L
+    if offset_x is not None:
+        xmin += offset_x
+        xmax += offset_x
+    if offset_y is not None:
+        ymin += offset_y
+        ymax += offset_y
+
+    gas = sph.gas_particles
+
+    gas_temperature, xedges, yedges = numpy.histogram2d(
+        gas.x.value_in(length),
+        gas.y.value_in(length),
+        bins=N,
+        range=[
+            [-0.5*L, 0.5*L],
+            [-0.5*L, 0.5*L],
+        ],
+        weights=gas.u.value_in(internal_energy),
+        # weights=gas.temperature.value_in(temperature),
+    )
+    # Convolve with SPH kernel?
+
+    return gas_temperature
+
+
 def plot_hydro_and_stars(
         time,
         sph,
@@ -53,54 +93,74 @@ def plot_hydro_and_stars(
         filename=None,
         offset_x=None,
         offset_y=None,
-        title=""
+        title="",
+        gasproperties="density",
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
-    fig = pyplot.figure(figsize=(12, 12))
-    ax = fig.add_subplot(1, 1, 1,)
-    rho = make_map(
-        sph, N=200, L=L, offset_x=offset_x, offset_y=offset_y,
-    ).transpose()
-    xmin = -L/2
-    xmax = L/2
-    ymin = -L/2
-    ymax = L/2
-    if offset_x is not None:
-        xmin += offset_x.value_in(units.parsec)
-        xmax += offset_x.value_in(units.parsec)
-    if offset_y is not None:
-        ymin += offset_y.value_in(units.parsec)
-        ymax += offset_y.value_in(units.parsec)
-    ax.imshow(
-        numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
-        extent=[xmin, xmax, ymin, ymax],
-        # vmin=1, vmax=5,
-        origin="lower"
-    )
-    # subplot.set_title("GMC at zero age")
-    # cbar = fig.colorbar(
-    #     ax, ticks=[4, 7.5, 11],
-    #     orientation='vertical', fraction=0.045,
-    # )
-    # cbar.set_label('projected density [$amu/cm^3$]', rotation=270)
 
-    if not stars.is_empty():
-        # m = 100.0*stars.mass/max(stars.mass)
-        m = 3.0*stars.mass/stars.mass.mean()
-        # c = stars.mass/stars.mass.mean()
-        x = -stars.x.value_in(units.parsec)
-        y = stars.y.value_in(units.parsec)
-        pyplot.scatter(-x, y, s=m, c="white", lw=0)
-    pyplot.xlim(xmax, xmin)
-    pyplot.ylim(ymin, ymax)
-    # pyplot.title("Molecular cloud at time="+time.as_string_in(units.Myr))
-    pyplot.xlabel("x [pc]")
-    pyplot.ylabel("y [pc]")
-    pyplot.title(title)
+    number_of_subplots = max(
+        1,
+        len(gasproperties),
+    )
+    fig = pyplot.figure(figsize=(7*number_of_subplots, 6))
+    subplots = []
+    for i in range(number_of_subplots):
+        subplots.append(fig.add_subplot(1, number_of_subplots, i+1))
+        ax = subplots[-1]
+        if gasproperties:
+            gasproperty = gasproperties[i]
+            print("plotting %s" % gasproperty)
+            ax.set_title(gasproperty)
+            if gasproperty == "density":
+
+                rho = make_density_map(
+                    sph, N=200, L=L, offset_x=offset_x, offset_y=offset_y,
+                ).transpose()
+                xmin = -L/2
+                xmax = L/2
+                ymin = -L/2
+                ymax = L/2
+                if offset_x is not None:
+                    xmin += offset_x.value_in(units.parsec)
+                    xmax += offset_x.value_in(units.parsec)
+                if offset_y is not None:
+                    ymin += offset_y.value_in(units.parsec)
+                    ymax += offset_y.value_in(units.parsec)
+                ax.imshow(
+                    numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
+                    extent=[xmin, xmax, ymin, ymax],
+                    # vmin=1, vmax=5,
+                    origin="lower"
+                )
+            if gasproperty == "temperature":
+                temp = make_temperature_map(
+                    sph, N=100, L=L, offset_x=offset_x, offset_y=offset_y,
+                ).transpose()
+                xmin = -L/2
+                xmax = L/2
+                ymin = -L/2
+                ymax = L/2
+                ax.imshow(
+                    temp,
+                    origin="lower",
+                    extent=[xmin, xmax, ymin, ymax],
+                )
+        if not stars.is_empty():
+            # m = 100.0*stars.mass/max(stars.mass)
+            m = 3.0*stars.mass/stars.mass.mean()
+            # c = stars.mass/stars.mass.mean()
+            x = -stars.x.value_in(units.parsec)
+            y = stars.y.value_in(units.parsec)
+            ax.scatter(-x, y, s=m, c="white", lw=0)
+        ax.set_xlim(xmax, xmin)
+        ax.set_ylim(ymin, ymax)
+        ax.set_xlabel("x [pc]")
+        ax.set_ylabel("y [pc]")
+    # pyplot.title(title)
     if filename is None:
         filename = "test.png"
-    pyplot.savefig(filename, dpi=300)
+    pyplot.savefig(filename, dpi=150)
     # pyplot.show()
     pyplot.close(fig)
 
@@ -118,7 +178,7 @@ def plot_hydro(time, sph, L=10):
 
     # gas = sph.code.gas_particles
     # dmp = sph.code.dm_particles
-    rho = make_map(sph, N=200, L=L)
+    rho = make_density_map(sph, N=200, L=L)
     ax.imshow(
         numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
         extent=[-L/2, L/2, -L/2, L/2], vmin=1, vmax=5, origin="lower",

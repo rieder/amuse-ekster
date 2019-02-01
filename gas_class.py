@@ -119,6 +119,40 @@ class Gas(object):
     # def particles(self):
     #     return self.code.particles
 
+    def resolve_starformation(self):
+        logger.info("Resolving star formation")
+        high_density_gas = self.gas_particles.select_array(
+            lambda rho: rho > sfe_to_density(
+                1, alpha=self.alpha_sfe,
+            ),
+            ["rho"],
+        )
+        # Other selections?
+        new_stars = high_density_gas.copy()
+        print(len(new_stars))
+        logger.info("Removing %i former gas particles", len(new_stars))
+        self.gas_code.particles.remove_particles(high_density_gas)
+        self.gas_particles.remove_particles(high_density_gas)
+        # self.gas_particles.synchronize_to(self.gas_code.gas_particles)
+        logger.info("Removed %i former gas particles", len(new_stars))
+        try:
+            star_code_particles = self.star_code.particles
+        except AttributeError:
+            star_code_particles = self.gas_code.dm_particles
+        new_stars.birth_age = self.gas_code.model_time
+        logger.info("Adding %i new stars to star code", len(new_stars))
+        star_code_particles.add_particles(new_stars)
+        logger.info("Added %i new stars to star code", len(new_stars))
+        logger.info("Adding new stars to evolution code")
+        try:
+            self.evo_code.add_particles(new_stars)
+            logger.info("Added new stars to evolution code")
+        except AttributeError:
+            logger.info("No evolution code exists")
+            pass
+        logger.info("Resolved star formation")
+        
+
     def evolve_model(self, tend):
         "Evolve model to specified time and synchronise model"
         self.model_to_gas_code.copy()
@@ -139,6 +173,11 @@ class Gas(object):
             # Check stopping conditions
             if self.gas_stopping_conditions.is_set():
                 print("Gas code stopped - max density reached")
+                self.gas_code_to_model.copy()
+                self.resolve_starformation()
+                print("Now we have %i stars" % len(self.gas_code.dm_particles))
+                print("And we have %i gas" % len(self.gas_code.gas_particles))
+                print("A total of %i particles" % len(self.gas_code.particles))
             if self.cooling:
                 print("Cooling gas again")
                 self.cooling.evolve_for(dt/2)
@@ -153,7 +192,7 @@ def main():
     "Test class with a molecular cloud"
     from amuse.ext.molecular_cloud import molecular_cloud
     converter = nbody_system.nbody_to_si(
-        10000 | units.MSun,
+        300000 | units.MSun,
         10 | units.parsec,
     )
     gas = molecular_cloud(targetN=10000, convert_nbody=converter).result

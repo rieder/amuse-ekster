@@ -5,6 +5,7 @@ from amuse.community.fastkick.interface import FastKick
 from amuse.datamodel import ParticlesSuperset
 from amuse.units import units, nbody_system
 from amuse.units.quantities import VectorQuantity
+from amuse.io import write_set_to_file
 
 from bridge import (
     Bridge, CalculateFieldForCodes,
@@ -314,7 +315,7 @@ def main():
         50000 | units.MSun,
         10 | units.parsec,
     )
-    gas = molecular_cloud(targetN=100000, convert_nbody=gas_converter).result
+    gas = molecular_cloud(targetN=500000, convert_nbody=gas_converter).result
 
     model = ClusterInPotential(
         stars=stars,
@@ -324,7 +325,7 @@ def main():
     )
 
     timestep = 0.02 | units.Myr
-    for step in range(300):
+    for step in range(500):
         time = step * timestep
         while model.model_time < time - timestep/2:
             model.evolve_model(time)
@@ -346,7 +347,7 @@ def main():
                 model.gas_particles.center_of_mass().in_(units.parsec)
             )
         )
-        plotname = "embedded-test3-%04i.png" % (step)
+        plotname = "embedded-test4-%04i.png" % (step)
         logger.info("Creating plot")
         plot_hydro_and_stars(
             model.model_time,
@@ -362,6 +363,17 @@ def main():
             colorbar=True,
             alpha_sfe=model.alpha_sfe,
         )
+        if step%10 == 0:
+            write_set_to_file(
+                model.gas_particles,
+                "gas-%04i.hdf5" % step,
+                "amuse",
+            )
+            write_set_to_file(
+                model.star_particles,
+                "stars-%04i.hdf5" % step,
+                "amuse",
+            )
 
     return
 

@@ -9,11 +9,12 @@ from amuse.units.quantities import VectorQuantity
 from bridge import (
     Bridge, CalculateFieldForCodes,
 )
-from gas_class import Gas
+from gas_class import Gas  # , sfe_to_density
 from star_cluster_class import StarCluster
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
 )
+from plotting_class import plot_hydro_and_stars
 
 Tide = TimeDependentSpiralArmsDiskModel
 logger = logging.getLogger(__name__)
@@ -62,7 +63,9 @@ class ClusterInPotential(
         logger.info("Initialising Gas")
         Gas.__init__(
             self, gas=gas, converter=converter_for_gas, epsilon=epsilon,
+            internal_cooling=False,
         )
+        self.gas_code.parameters.timestep = 0.005 | units.Myr
         logger.info("Initialised Gas")
         logger.info("Creating Tide object")
         self.tidal_field = Tide()
@@ -160,6 +163,38 @@ class ClusterInPotential(
         "Return the main code - the Bridge system in this case"
         return self.system
 
+    def resolve_starformation(self):
+        logger.info("Resolving star formation")
+        high_density_gas = self.gas_particles.select_array(
+            lambda rho:
+            rho > self.gas_code.parameters.stopping_condition_maximum_density,
+            # sfe_to_density(
+            #     1, alpha=self.alpha_sfe,
+            # ),
+            ["rho"],
+        )
+        # Other selections?
+        new_stars = high_density_gas.copy()
+        # print(len(new_stars))
+        logger.info("Removing %i former gas particles", len(new_stars))
+        self.gas_code.particles.remove_particles(high_density_gas)
+        self.gas_particles.remove_particles(high_density_gas)
+        # self.gas_particles.synchronize_to(self.gas_code.gas_particles)
+        logger.info("Removed %i former gas particles", len(new_stars))
+
+        star_code_particles = self.star_code.particles
+        new_stars.birth_age = self.gas_code.model_time
+        logger.info("Adding %i new stars to star code", len(new_stars))
+        star_code_particles.add_particles(new_stars)
+        logger.info("Added %i new stars to star code", len(new_stars))
+        logger.info("Adding %i new stars to model", len(new_stars))
+        self.star_particles.add_particles(new_stars)
+        logger.info("Added %i new stars to model", len(new_stars))
+        logger.info("Adding new stars to evolution code")
+        self.evo_code.particles.add_particles(new_stars)
+        logger.info("Added new stars to evolution code")
+        logger.info("Resolved star formation")
+
     def evolve_model(self, tend):
         "Evolve system to specified time"
         logger.info(
@@ -183,8 +218,37 @@ class ClusterInPotential(
             logger.info("Evolving to %s", time.in_(units.Myr))
             logger.info("Stellar evolution...")
             self.evo_code.evolve_model(time)
+            dt_cooling = time - self.gas_code.model_time
+            if self.cooling:
+                logger.info("Cooling gas...")
+                self.cooling.evolve_for(dt_cooling/2)
             logger.info("System...")
+
             self.system.evolve_model(time)
+            while self.gas_stopping_conditions.is_set():
+                logger.info("Gas code stopped - max density reached")
+                self.gas_code_to_model.copy()
+                self.resolve_starformation()
+                logger.info(
+                    "Now we have %i stars", len(self.star_particles),
+                )
+                logger.info(
+                    "And we have %i gas", len(self.gas_particles),
+                )
+                logger.info(
+                    "A total of %i particles", len(self.gas_code.particles),
+                )
+                self.gas_code.evolve_model(
+                    time
+                    # self.gas_code.model_time
+                    # + self.gas_code.parameters.timestep
+                )
+            self.system.evolve_model(time)
+
+            if self.cooling:
+                logger.info("Second cooling gas...")
+                self.cooling.evolve_for(dt_cooling/2)
+
             logger.info(
                 "Evo time is now %s", self.evo_code.model_time.in_(units.Myr)
             )
@@ -224,22 +288,33 @@ def main():
     from amuse.ic.salpeter import new_salpeter_mass_distribution
     from amuse.ext.molecular_cloud import molecular_cloud
 
-    numpy.random.seed(13)
+    numpy.random.seed(14)
 
-    number_of_stars = 4000
+    logging_level = logging.INFO
+    logging.basicConfig(
+        filename="embedded_star_cluster_info.log",
+        level=logging_level,
+        format='%(asctime)s - %(name)s - %(levelname)s: %(message)s',
+        datefmt='%Y%m%d %H:%M:%S'
+    )
+
+    number_of_stars = 10
     stellar_masses = new_salpeter_mass_distribution(number_of_stars)
     star_converter = nbody_system.nbody_to_si(
-        stellar_masses.sum(),
-        3 | units.parsec,
-    )
-    stars = new_plummer_model(number_of_stars, convert_nbody=star_converter)
-    stars.mass = stellar_masses
-
-    gas_converter = nbody_system.nbody_to_si(
-        10000 | units.MSun,
+        stellar_masses.sum() + (50000 | units.MSun),
         10 | units.parsec,
     )
-    gas = molecular_cloud(targetN=10000, convert_nbody=gas_converter).result
+    stars = new_plummer_model(
+        number_of_stars,
+        convert_nbody=star_converter,
+    )[:2]
+    stars.mass = 1 | units.MSun  # stellar_masses
+
+    gas_converter = nbody_system.nbody_to_si(
+        50000 | units.MSun,
+        10 | units.parsec,
+    )
+    gas = molecular_cloud(targetN=100000, convert_nbody=gas_converter).result
 
     model = ClusterInPotential(
         stars=stars,
@@ -248,10 +323,11 @@ def main():
         gas_converter=gas_converter,
     )
 
-    timestep = 0.2 | units.Myr
-    for step in range(10):
+    timestep = 0.02 | units.Myr
+    for step in range(300):
         time = step * timestep
-        model.evolve_model(time)
+        while model.model_time < time - timestep/2:
+            model.evolve_model(time)
         print(
             "Evolved to %s" % model.model_time.in_(units.Myr)
         )
@@ -269,6 +345,22 @@ def main():
             "Gas centre of mass: %s" % (
                 model.gas_particles.center_of_mass().in_(units.parsec)
             )
+        )
+        plotname = "embedded-test3-%04i.png" % (step)
+        logger.info("Creating plot")
+        plot_hydro_and_stars(
+            model.model_time,
+            model.gas_code,
+            model.star_particles,
+            L=40,
+            filename=plotname,
+            title="time = %06.2f %s" % (
+                model.gas_code.model_time.value_in(units.Myr),
+                units.Myr,
+            ),
+            gasproperties=["density", "temperature"],
+            colorbar=True,
+            alpha_sfe=model.alpha_sfe,
         )
 
     return

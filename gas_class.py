@@ -30,8 +30,8 @@ class Gas(object):
             converter=None,
             # mass_scale=1000 | units.MSun,
             # length_scale=100 | units.parsec,
-            epsilon=0.1 | units.parsec,
-            alpha_sfe=0.02,
+            epsilon=0.05 | units.parsec,
+            alpha_sfe=0.04,
             internal_cooling=False,
     ):
         self.alpha_sfe = alpha_sfe
@@ -100,7 +100,14 @@ class Gas(object):
         # We want to stop and create stars when a certain density is reached
         # print(c.stopping_conditions.supported_conditions())
         self.gas_code.parameters.stopping_condition_maximum_density = \
-            sfe_to_density(1, alpha=self.alpha_sfe)
+            (1 | units.MSun) / (epsilon**3)
+            # sfe_to_density(1, alpha=self.alpha_sfe)
+        logging.info(
+            "The maximum density is set to %s",
+            self.gas_code.parameters.stopping_condition_maximum_density.in_(
+                units.amu * units.cm**-3
+            )
+        )
         self.gas_stopping_conditions = \
             self.gas_code.stopping_conditions.density_limit_detection
         self.gas_stopping_conditions.enable()
@@ -131,7 +138,7 @@ class Gas(object):
         )
         # Other selections?
         new_stars = high_density_gas.copy()
-        print(len(new_stars))
+        # print(len(new_stars))
         logger.info("Removing %i former gas particles", len(new_stars))
         self.gas_code.particles.remove_particles(high_density_gas)
         self.gas_particles.remove_particles(high_density_gas)
@@ -145,19 +152,25 @@ class Gas(object):
         logger.info("Adding %i new stars to star code", len(new_stars))
         star_code_particles.add_particles(new_stars)
         logger.info("Added %i new stars to star code", len(new_stars))
+        logger.info("Adding %i new stars to model", len(new_stars))
+        self.star_particles.add_particles(new_stars)
+        logger.info("Added %i new stars to model", len(new_stars))
         logger.info("Adding new stars to evolution code")
         try:
-            self.evo_code.add_particles(new_stars)
+            self.evo_code.particles.add_particles(new_stars)
             logger.info("Added new stars to evolution code")
         except AttributeError:
             logger.info("No evolution code exists")
             pass
         logger.info("Resolved star formation")
-        
 
     def evolve_model(self, tend):
         "Evolve model to specified time and synchronise model"
         self.model_to_gas_code.copy()
+        dt = tend - self.model_time
+        if self.cooling:
+            print("Cooling gas")
+            self.cooling.evolve_for(dt/2)
         while (
                 abs(tend - self.model_time) > self.gas_code.parameters.timestep
         ):
@@ -167,22 +180,20 @@ class Gas(object):
                     self.model_time.in_(units.Myr),
                 )
             )
-            dt = tend - self.model_time
-            if self.cooling:
-                print("Cooling gas")
-                self.cooling.evolve_for(dt/2)
             self.gas_code.evolve_model(tend)
             # Check stopping conditions
-            if self.gas_stopping_conditions.is_set():
+            while self.gas_stopping_conditions.is_set():
                 print("Gas code stopped - max density reached")
                 self.gas_code_to_model.copy()
                 self.resolve_starformation()
                 print("Now we have %i stars" % len(self.gas_code.dm_particles))
                 print("And we have %i gas" % len(self.gas_code.gas_particles))
                 print("A total of %i particles" % len(self.gas_code.particles))
-            if self.cooling:
-                print("Cooling gas again")
-                self.cooling.evolve_for(dt/2)
+                self.gas_code.evolve_model(tend)
+        self.gas_code_to_model.copy()
+        if self.cooling:
+            print("Cooling gas again")
+            self.cooling.evolve_for(dt/2)
         self.gas_code_to_model.copy()
 
     def stop(self):
@@ -194,8 +205,8 @@ def main():
     "Test class with a molecular cloud"
     from amuse.ext.molecular_cloud import molecular_cloud
     converter = nbody_system.nbody_to_si(
-        400000 | units.MSun,
-        10 | units.parsec,
+        200000 | units.MSun,
+        9.0 | units.parsec,
     )
     numpy.random.seed(11)
     gas = molecular_cloud(targetN=100000, convert_nbody=converter).result
@@ -204,7 +215,7 @@ def main():
     model = Gas(gas=gas, converter=converter, internal_cooling=False)
     print(model.gas_code.parameters)
     timestep = 0.1 | units.Myr
-    for step in range(10):
+    for step in range(20):
         time = step * timestep
         model.evolve_model(time)
         print("Evolved to %s" % model.model_time)

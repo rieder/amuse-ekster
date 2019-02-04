@@ -15,6 +15,7 @@ from prepare_figure import single_frame
 # from distinct_colours import get_distinct
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,7 +41,7 @@ def u_to_temperature(
     return temperature
 
 
-def make_density_map(
+def _make_density_map(
         sph, N=100, L=1, offset_x=None, offset_y=None,
 ):
     "Create a density map from an SPH code"
@@ -68,6 +69,42 @@ def make_density_map(
         x, y, z, vx, vy, vz)
     rho = rho.reshape((N+1, N+1))
     return rho
+
+
+def make_density_map(
+        sph, N=70, L=1, offset_x=None, offset_y=None,
+):
+    "Create a density map from an SPH code"
+    logger.info("Creating density map for gas")
+    length = units.parsec
+
+    xmin = -0.5 * L
+    ymin = -0.5 * L
+    xmax = 0.5 * L
+    ymax = 0.5 * L
+    if offset_x is not None:
+        xmin += offset_x
+        xmax += offset_x
+    if offset_y is not None:
+        ymin += offset_y
+        ymax += offset_y
+
+    gas = sph.gas_particles
+
+    gas_rho, xedges, yedges = numpy.histogram2d(
+        gas.x.value_in(length),
+        gas.y.value_in(length),
+        bins=N,
+        range=[
+            [-0.5*L, 0.5*L],
+            [-0.5*L, 0.5*L],
+        ],
+        weights=gas.rho.value_in(units.amu * units.cm**-3),
+    )
+    gas_rho = gas_rho | units.amu * units.cm**-3
+
+    # Convolve with SPH kernel?
+    return gas_rho
 
 
 def make_temperature_map(
@@ -123,6 +160,7 @@ def plot_hydro_and_stars(
         title="",
         gasproperties="density",
         colorbar=False,
+        alpha_sfe=0.02,
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
@@ -144,7 +182,7 @@ def plot_hydro_and_stars(
             if gasproperty == "density":
 
                 rho = make_density_map(
-                    sph, N=200, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=500, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
                 xmin = -L/2
                 xmax = L/2
@@ -158,11 +196,22 @@ def plot_hydro_and_stars(
                     ymax += offset_y.value_in(units.parsec)
 
                 content = numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3))
-                print(content.min(), content.max())
+                from gas_class import sfe_to_density
+
                 img = ax.imshow(
                     numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
                     extent=[xmin, xmax, ymin, ymax],
-                    vmin=1, vmax=5,  # content.min(), vmax=content.max(),
+                    #vmin=content.min(), vmax=content.max(),
+                    vmin=0,
+                    vmax=1+numpy.log10(
+                        sph.parameters.stopping_condition_maximum_density.value_in(
+                            units.amu * units.cm**-3
+                        ),
+                        # sfe_to_density(
+                        #     1,
+                        #     alpha=alpha_sfe,
+                        # ).value_in(units.amu/units.cm**3),
+                    ),
                     origin="lower"
                 )
                 if colorbar:
@@ -176,17 +225,18 @@ def plot_hydro_and_stars(
 
             if gasproperty == "temperature":
                 temp = make_temperature_map(
-                    sph, N=100, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=500, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
                 xmin = -L/2
                 xmax = L/2
                 ymin = -L/2
                 ymax = L/2
                 img = ax.imshow(
-                    numpy.log10(temp.value_in(units.K)),
+                    numpy.log10(1.e-5+temp.value_in(units.K)),
                     extent=[xmin, xmax, ymin, ymax],
                     vmin=1,
-                    vmax=5,
+                    vmax=4,
+                    cmap="inferno",
                     origin="lower",
                 )
                 if colorbar:
@@ -200,7 +250,7 @@ def plot_hydro_and_stars(
 
         if not stars.is_empty():
             # m = 100.0*stars.mass/max(stars.mass)
-            m = 3.0*stars.mass/stars.mass.mean()
+            m = 2.0*stars.mass/stars.mass.mean()
             # c = stars.mass/stars.mass.mean()
             x = -stars.x.value_in(units.parsec)
             y = stars.y.value_in(units.parsec)
@@ -210,9 +260,10 @@ def plot_hydro_and_stars(
         ax.set_xlabel("x [pc]")
         ax.set_ylabel("y [pc]")
     # pyplot.title(title)
+    fig.suptitle(title)
     if filename is None:
         filename = "test.png"
-    pyplot.savefig(filename, dpi=150)
+    pyplot.savefig(filename, dpi=300)
     # pyplot.show()
     pyplot.close(fig)
 

@@ -1,6 +1,7 @@
 "Class for a gas system"
 from __future__ import print_function, division
 import logging
+import numpy
 from amuse.units import units, nbody_system
 from amuse.datamodel import Particles
 from plotting_class import plot_hydro_and_stars
@@ -196,10 +197,11 @@ def main():
         400000 | units.MSun,
         10 | units.parsec,
     )
+    numpy.random.seed(11)
     gas = molecular_cloud(targetN=100000, convert_nbody=converter).result
     print("Number of gas particles: %i" % (len(gas)))
 
-    model = Gas(gas=gas, converter=converter)
+    model = Gas(gas=gas, converter=converter, internal_cooling=False)
     print(model.gas_code.parameters)
     timestep = 0.1 | units.Myr
     for step in range(10):
@@ -219,13 +221,14 @@ def main():
             model.model_time,
             model.gas_code,
             model.gas_code.dm_particles,
-            L=30,
+            L=40,
             filename=plotname,
             title="time = %06.1f %s" % (
                 model.model_time.value_in(units.Myr),
                 units.Myr,
             ),
             gasproperties=["density", "temperature"],
+            colorbar=True,
         )
 
 

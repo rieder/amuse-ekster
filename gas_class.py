@@ -193,10 +193,10 @@ def main():
     "Test class with a molecular cloud"
     from amuse.ext.molecular_cloud import molecular_cloud
     converter = nbody_system.nbody_to_si(
-        300000 | units.MSun,
+        400000 | units.MSun,
         10 | units.parsec,
     )
-    gas = molecular_cloud(targetN=10000, convert_nbody=converter).result
+    gas = molecular_cloud(targetN=100000, convert_nbody=converter).result
     print("Number of gas particles: %i" % (len(gas)))
 
     model = Gas(gas=gas, converter=converter)
@@ -218,7 +218,7 @@ def main():
         plot_hydro_and_stars(
             model.model_time,
             model.gas_code,
-            Particles(),
+            model.gas_code.dm_particles,
             L=30,
             filename=plotname,
             title="time = %06.1f %s" % (

@@ -80,17 +80,22 @@ class Gas(object):
         if internal_cooling:
             self.gas_code.parameters.gamma = 5./3.
             self.gas_code.parameters.isothermal_flag = False
+            # self.gas_code.parameters.radiation_flag = True
+            # self.gas_code.parameters.star_formation_flag = True
+
             self.cooling = False
         else:
             # We want to control cooling ourselves
             # from cooling_class import Cooling
             from cooling_class import SimplifiedThermalModelEvolver
-            self.gas_code.parameters.isothermal_flag = True
-            self.gas_code.parameters.gamma = 1
+            self.gas_code.parameters.isothermal_flag = False
+            self.gas_code.parameters.radiation_flag = False
+            self.gas_code.parameters.gamma = 5./3.
             self.cooling = SimplifiedThermalModelEvolver(
                 self.gas_code.gas_particles,
             )
             self.cooling.model_time = self.gas_code.model_time
+            # self.cooling = False
 
         # Sensible to set these, even though they are already default
         self.gas_code.parameters.use_hydro_flag = True
@@ -102,7 +107,7 @@ class Gas(object):
         # print(c.stopping_conditions.supported_conditions())
         self.gas_code.parameters.stopping_condition_maximum_density = \
             (1 | units.MSun) / (epsilon**3)
-            # sfe_to_density(1, alpha=self.alpha_sfe)
+        # sfe_to_density(1, alpha=self.alpha_sfe)
         logging.info(
             "The maximum density is set to %s",
             self.gas_code.parameters.stopping_condition_maximum_density.in_(
@@ -128,6 +133,15 @@ class Gas(object):
     # @property
     # def particles(self):
     #     return self.code.particles
+
+    def resolve_collision(self):
+        "Collide two particles - determine what happens"
+
+        return self.merge_particles()
+
+    def merge_particles(self):
+        "Resolve collision by merging"
+        return
 
     def resolve_starformation(self):
         logger.info("Resolving star formation")
@@ -157,7 +171,7 @@ class Gas(object):
         try:
             self.star_particles.add_particles(new_stars)
             logger.info("Added %i new stars to model", len(new_stars))
-        except:
+        except NameError:
             logger.info("No stars in this model")
         logger.info("Adding new stars to evolution code")
         try:
@@ -173,13 +187,13 @@ class Gas(object):
         self.model_to_gas_code.copy()
         tstart = self.gas_code.model_time
         dt = tend - tstart
-        if self.cooling:
-            print("Cooling gas")
-            self.cooling.evolve_for(dt/2)
         while (
                 abs(tend - self.model_time)
-                > self.gas_code.parameters.timestep
+                >= self.gas_code.parameters.timestep
         ):
+            if self.cooling:
+                print("Cooling gas")
+                self.cooling.evolve_for(dt/2)
             print(
                 "Evolving to %s (now at %s)" % (
                     tend.in_(units.Myr),
@@ -196,10 +210,10 @@ class Gas(object):
                 print("And we have %i gas" % len(self.gas_code.gas_particles))
                 print("A total of %i particles" % len(self.gas_code.particles))
                 self.gas_code.evolve_model(tend)
-        self.gas_code_to_model.copy()
-        if self.cooling:
-            print("Cooling gas again")
-            self.cooling.evolve_for(dt/2)
+            # ? self.gas_code_to_model.copy()
+            if self.cooling:
+                print("Cooling gas again")
+                self.cooling.evolve_for(dt/2)
         self.gas_code_to_model.copy()
 
     def stop(self):
@@ -211,11 +225,25 @@ def main():
     "Test class with a molecular cloud"
     from amuse.ext.molecular_cloud import molecular_cloud
     converter = nbody_system.nbody_to_si(
-        200000 | units.MSun,
-        9.0 | units.parsec,
+        5000 | units.MSun,
+        5.0 | units.parsec,
     )
     numpy.random.seed(11)
-    gas = molecular_cloud(targetN=10000, convert_nbody=converter).result
+    temperature = 30 | units.K
+    from plotting_class import temperature_to_u
+    u = temperature_to_u(temperature)
+    gas = molecular_cloud(targetN=500000, convert_nbody=converter).result
+    gas.u = u
+
+    gastwo = molecular_cloud(targetN=500000, convert_nbody=converter).result
+    gastwo.u = u
+
+    gastwo.x += 12 | units.parsec
+    gastwo.y += 3 | units.parsec
+    gastwo.z -= 1 | units.parsec
+    gastwo.vx -= ((5 | units.parsec) / (2 | units.Myr))
+
+    gas.add_particles(gastwo)
     print("Number of gas particles: %i" % (len(gas)))
 
     model = Gas(gas=gas, converter=converter, internal_cooling=False)
@@ -228,7 +256,7 @@ def main():
     thermal_energies = [] | units.J
     time = 0 | units.Myr
     step = 0
-    while time < 1 | units.Myr:
+    while time < 4 | units.Myr:
         time += timestep
         model.evolve_model(time)
         print("Evolved to %s" % model.model_time)
@@ -245,7 +273,7 @@ def main():
             model.model_time,
             model.gas_code,
             model.gas_code.dm_particles,
-            L=40,
+            L=20,
             filename=plotname,
             title="time = %06.1f %s" % (
                 model.model_time.value_in(units.Myr),
@@ -255,6 +283,16 @@ def main():
             colorbar=True,
         )
         times.append(time)
+        ekin = model.gas_code.kinetic_energy
+        starkin = model.gas_code.dm_particles.kinetic_energy()
+        gaskin = model.gas_code.gas_particles.kinetic_energy()
+        print(
+            "Kinetic energy ratios: all=%s star=%s gas=%s" % (
+                (gaskin+starkin)/ekin,
+                starkin/ekin,
+                gaskin/ekin,
+            )
+        )
         kinetic_energies.append(model.gas_code.kinetic_energy)
         potential_energies.append(model.gas_code.potential_energy)
         thermal_energies.append(model.gas_code.thermal_energy)

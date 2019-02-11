@@ -42,8 +42,8 @@ class SPH(object):
                 1 | units.MSun,
                 100 | units.parsec,
             )
-        self.gas_particles = Particles()
-        self.dm_particles = Particles()
+        # self.gas_particles = Particles()
+        # self.dm_particles = Particles()
 
         self.cooling_flag = "thermal_model"
         self.epsilon = 0.05 | units.parsec
@@ -92,25 +92,104 @@ class SPH(object):
 
     @property
     def model_time(self):
+        """Return the current time"""
         return self.code.model_time
 
     @property
     def gas_particles(self):
+        """Return all gas particles"""
         return self.code.gas_particles
 
     @property
+    def dm_particles(self):
+        """Return all dm particles"""
+        return self.code.dm_particles
+
+    @property
+    def particles(self):
+        """Return all particles"""
+        return self.code.particles
+
+    @property
     def stop(self):
+        """Stop the simulation code"""
         return self.code.stop
 
     def evolve_model(self, end_time):
+        """
+        Evolve model, and manage these stopping conditions:
+        - density limit detection
+        --> form stars when this happens
+
+        Use the code time step to advance until 'end_time' is reached.
+        Each step, also do cooling (if enabled).
+
+        - returns immediately if the code would not evolve a step, i.e. when
+          (end_time - model_time) is smaller than half a code timestep (for
+          Fi). Because we don't want to do cooling then either!
+        """
+
+        # if code_name is Fi:
+        timestep = self.code.parameters.timestep
+        if self.model_time >= (end_time - timestep/2):
+            return
+        # if code_name is something_else:
+        # some_other_condition
+
         density_limit_detection = \
             self.code.stopping_conditions.density_limit_detection
         density_limit_detection.enable()
 
-        start_time = self.code.model_time
-        dt = end_time - start_time
-        timestep = self.code.parameters.timestep
-        
+        # Do cooling with a leapfrog scheme
+        first = True
+        if self.cooling and first:
+            self.cooling.evolve_for(timestep/2)
+            first = False
+        while self.model_time < (end_time - timestep/2):
+            if not first:
+                self.cooling.evolve_for(timestep)
+            next_time = self.model_time + timestep
+            self.code.evolve_model(next_time)
+            while density_limit_detection.is_set():
+                self.resolve_starformation()
+                self.code.evolve_model(next_time)
+        # Make sure cooling and the code are synchronised when the loop ends
+        self.cooling.evolve_for(timestep/2)
+
+    def resolve_starformation(self):
+        """
+        Form stars from gas denser than 'density_threshold'.
+        Stars are added to the 'dm_particles' particleset in the code.
+        For use with an external stellar dynamics code: todo.
+        """
+        self.channel_from_gas.copy()
+        high_density_gas = self.gas_particles.select_array(
+            lambda rho: rho > self.density_threshold,
+            ["rho"],
+        )
+        # Other selections?
+        new_stars = high_density_gas.copy()
+        # print(len(new_stars))
+        logger.info("Removing %i former gas particles", len(new_stars))
+        self.code.particles.remove_particles(high_density_gas)
+        self.gas_particles.remove_particles(high_density_gas)
+        # self.gas_particles.synchronize_to(self.gas_code.gas_particles)
+        logger.info("Removed %i former gas particles", len(new_stars))
+
+        new_stars.birth_age = self.model_time
+        logger.info("Adding %i new stars to star code", len(new_stars))
+        self.dm_particles.add_particles(new_stars)
+        logger.info("Added %i new stars to star code", len(new_stars))
+        logger.info("Adding %i new stars to model", len(new_stars))
+        try:
+            self.dm_particles.add_particles(new_stars)
+            logger.info("Added %i new stars to model", len(new_stars))
+        except NameError:
+            logger.info("No stars in this model")
+
+        self.channel_to_gas.copy()
+        self.channel_to_dm.copy()
+        logger.info("Resolved star formation")
 
 
 class Gas(object):
@@ -142,7 +221,7 @@ class Gas(object):
             self.gas_particles = Particles()
         else:
             self.gas_particles = gas
-        from amuse.community.fi.interface import Fi
+        # from amuse.community.fi.interface import Fi
         self.gas_code = Fi(
             self.gas_converter,
             mode="openmp",
@@ -179,7 +258,7 @@ class Gas(object):
         else:
             # We want to control cooling ourselves
             # from cooling_class import Cooling
-            from cooling_class import SimplifiedThermalModelEvolver
+            # from cooling_class import SimplifiedThermalModelEvolver
             self.gas_code.parameters.isothermal_flag = False
             self.gas_code.parameters.radiation_flag = False
             self.gas_code.parameters.gamma = 5./3.
@@ -215,11 +294,11 @@ class Gas(object):
 
     @property
     def model_time(self):
-        "Return the current time in the code"
+        """Return the current time in the code"""
         return self.gas_code.model_time
 
     def get_gravity_at_point(self, *args, **kwargs):
-        "Return gravity at specified location"
+        """Return gravity at specified location"""
         return self.gas_code.get_gravity_at_point(*args, **kwargs)
 
     # @property
@@ -227,12 +306,12 @@ class Gas(object):
     #     return self.code.particles
 
     def resolve_collision(self):
-        "Collide two particles - determine what happens"
+        """Collide two particles - determine what should happen"""
 
         return self.merge_particles()
 
     def merge_particles(self):
-        "Resolve collision by merging"
+        """Resolve collision by merging"""
         return
 
     def resolve_starformation(self):

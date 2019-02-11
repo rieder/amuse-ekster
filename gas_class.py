@@ -177,8 +177,8 @@ class Gas(object):
             # We want to control cooling ourselves
             # from cooling_class import Cooling
             from cooling_class import SimplifiedThermalModelEvolver
-            self.gas_code.parameters.gamma = 1
             self.gas_code.parameters.isothermal_flag = True
+            self.gas_code.parameters.gamma = 1
             self.cooling = SimplifiedThermalModelEvolver(
                 self.gas_code.gas_particles,
             )
@@ -188,6 +188,7 @@ class Gas(object):
         self.gas_code.parameters.use_hydro_flag = True
         self.gas_code.parameters.self_gravity_flag = True
         self.gas_code.parameters.verbosity = 0
+        self.gas_code.parameters.integrate_entropy_flag = False
 
         # We want to stop and create stars when a certain density is reached
         # print(c.stopping_conditions.supported_conditions())
@@ -245,8 +246,11 @@ class Gas(object):
         star_code_particles.add_particles(new_stars)
         logger.info("Added %i new stars to star code", len(new_stars))
         logger.info("Adding %i new stars to model", len(new_stars))
-        self.star_particles.add_particles(new_stars)
-        logger.info("Added %i new stars to model", len(new_stars))
+        try:
+            self.star_particles.add_particles(new_stars)
+            logger.info("Added %i new stars to model", len(new_stars))
+        except:
+            logger.info("No stars in this model")
         logger.info("Adding new stars to evolution code")
         try:
             self.evo_code.particles.add_particles(new_stars)
@@ -259,12 +263,14 @@ class Gas(object):
     def evolve_model(self, tend):
         "Evolve model to specified time and synchronise model"
         self.model_to_gas_code.copy()
-        dt = tend - self.model_time
+        tstart = self.gas_code.model_time
+        dt = tend - tstart
         if self.cooling:
             print("Cooling gas")
             self.cooling.evolve_for(dt/2)
         while (
-                abs(tend - self.model_time) > self.gas_code.parameters.timestep
+                abs(tend - self.model_time)
+                > self.gas_code.parameters.timestep
         ):
             print(
                 "Evolving to %s (now at %s)" % (
@@ -301,14 +307,21 @@ def main():
         9.0 | units.parsec,
     )
     numpy.random.seed(11)
-    gas = molecular_cloud(targetN=100000, convert_nbody=converter).result
+    gas = molecular_cloud(targetN=10000, convert_nbody=converter).result
     print("Number of gas particles: %i" % (len(gas)))
 
     model = Gas(gas=gas, converter=converter, internal_cooling=False)
     print(model.gas_code.parameters)
-    timestep = 0.1 | units.Myr
-    for step in range(20):
-        time = step * timestep
+    timestep = model.gas_code.parameters.timestep
+
+    times = [] | units.Myr
+    kinetic_energies = [] | units.J
+    potential_energies = [] | units.J
+    thermal_energies = [] | units.J
+    time = 0 | units.Myr
+    step = 0
+    while time < 1 | units.Myr:
+        time += timestep
         model.evolve_model(time)
         print("Evolved to %s" % model.model_time)
         print(
@@ -317,7 +330,7 @@ def main():
                 / model.gas_code.parameters.stopping_condition_maximum_density,
             )
         )
-        
+
         plotname = "gastest-%04i.png" % (step)
         logger.info("Creating plot")
         plot_hydro_and_stars(
@@ -333,6 +346,16 @@ def main():
             gasproperties=["density", "temperature"],
             colorbar=True,
         )
+        times.append(time)
+        kinetic_energies.append(model.gas_code.kinetic_energy)
+        potential_energies.append(model.gas_code.potential_energy)
+        thermal_energies.append(model.gas_code.thermal_energy)
+        step += 1
+    from plot_energy import energy_plot
+    energy_plot(
+        times, kinetic_energies, potential_energies, thermal_energies,
+        "gas_energies.png",
+    )
 
 
 if __name__ == "__main__":

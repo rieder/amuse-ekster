@@ -303,13 +303,13 @@ def main():
     stellar_masses = new_salpeter_mass_distribution(number_of_stars)
     star_converter = nbody_system.nbody_to_si(
         stellar_masses.sum() + (50000 | units.MSun),
-        10 | units.parsec,
+        15 | units.parsec,
     )
     stars = new_plummer_model(
         number_of_stars,
         convert_nbody=star_converter,
     )[:2]
-    stars.mass = 1 | units.MSun  # stellar_masses
+    stars.mass = 0.1 | units.MSun  # stellar_masses
 
     gas_converter = nbody_system.nbody_to_si(
         50000 | units.MSun,

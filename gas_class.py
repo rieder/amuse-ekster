@@ -2,8 +2,12 @@
 from __future__ import print_function, division
 import logging
 import numpy
-from amuse.units import units, nbody_system
+
+from amuse.community.fi.interface import Fi
 from amuse.datamodel import Particles
+from amuse.units import units, nbody_system
+
+from cooling_class import SimplifiedThermalModelEvolver
 from plotting_class import plot_hydro_and_stars
 
 logger = logging.getLogger(__name__)
@@ -19,6 +23,94 @@ def density_to_sfe(rho, alpha=0.02):
     "Calculate star formation efficiency for specified density"
     sfe = alpha * (rho.value_in(100 * units.MSun * units.parsec**-3))**0.5
     return sfe
+
+
+class SPH(object):
+    "SPH object"
+
+    def __init__(
+            self,
+            sph_code,
+            converter=None,
+    ):
+        self.typestr = "Hydro"
+        self.namestr = sph_code.__name__
+        if converter is not None:
+            self.converter = converter
+        else:
+            self.converter = nbody_system.nbody_to_si(
+                1 | units.MSun,
+                100 | units.parsec,
+            )
+        self.gas_particles = Particles()
+        self.dm_particles = Particles()
+
+        self.cooling_flag = "thermal_model"
+        self.epsilon = 0.05 | units.parsec
+        self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
+        if sph_code is Fi:
+            self.code = sph_code(
+                self.converter,
+                mode="openmp",
+            )
+            self.code.parameters.begin_time = 0.0 | units.Myr
+            self.code.parameters.use_hydro_flag = True
+            self.code.parameters.self_gravity_flag = True
+            # Have to do our own cooling
+            self.code.parameters.isothermal_flag = True
+            self.code.parameters.integrate_entropy_flag = False
+            self.code.parameters.gamma = 1
+            # Maybe make these depend on the converter?
+            self.code.parameters.periodic_box_size = 10 | units.kpc
+            self.code.parameters.timestep = 0.01 | units.Myr
+        self.code.parameters.stopping_condition_maximum_density = \
+            self.density_threshold
+
+        self.parameters = self.code.parameters
+        self.get_gravity_at_point = self.code.get_gravity_at_point
+        self.get_potential_at_point = self.code.get_potential_at_point
+        self.get_hydro_state_at_point = self.code.get_hydro_state_at_point
+
+        self.channel_to_gas = self.code.gas_particles.new_channel_to(
+            self.gas_particles
+        )
+        self.channel_from_gas = self.gas_particles.new_channel_to(
+            self.code.gas_particles
+        )
+        self.channel_to_dm = self.code.dm_particles.new_channel_to(
+            self.dm_particles
+        )
+        self.channel_from_dm = self.dm_particles.new_channel_to(
+            self.code.dm_particles
+        )
+
+        if self.cooling_flag == "thermal_model":
+            self.cooling = SimplifiedThermalModelEvolver(
+                self.code.gas_particles
+            )
+            self.cooling.model_time = self.code.model_time
+
+    @property
+    def model_time(self):
+        return self.code.model_time
+
+    @property
+    def gas_particles(self):
+        return self.code.gas_particles
+
+    @property
+    def stop(self):
+        return self.code.stop
+
+    def evolve_model(self, end_time):
+        density_limit_detection = \
+            self.code.stopping_conditions.density_limit_detection
+        density_limit_detection.enable()
+
+        start_time = self.code.model_time
+        dt = end_time - start_time
+        timestep = self.code.parameters.timestep
+        
 
 
 class Gas(object):

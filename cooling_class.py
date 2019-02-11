@@ -19,7 +19,7 @@ class SimplifiedThermalModel(object):
             Tmin=20 | units.K,
             alpha=5.,
             reference_heating=1.e-25 | units.erg/units.s
-            ):
+    ):
         self.reference_mu = (2.2 | units.amu)
         self.rho0 = n0*self.reference_mu
         self.T0 = T0
@@ -30,12 +30,12 @@ class SimplifiedThermalModel(object):
     def equilibrium_temperature(self, rho):
         xclip = (rho/self.rho0)
         return (
-                self.Tmin
-                + (
-                    (self.T0-self.Tmin)
-                    / (1.+numpy.log10(1.+9*xclip)**self.alpha)
-                    )
-                )
+            self.Tmin
+            + (
+                (self.T0-self.Tmin)
+                / (1.+numpy.log10(1.+9*xclip)**self.alpha)
+            )
+        )
 
     def mu(self, rho=None):
         if rho is None:
@@ -55,7 +55,9 @@ class SimplifiedThermalModel(object):
         return constants.kB*self.equilibrium_temperature(rho)/self.mu(rho)
 
     def tau(self, rho):
-        return (constants.kB*self.equilibrium_temperature(rho)/self.gamma(rho))
+        return (
+            constants.kB*self.equilibrium_temperature(rho)/self.gamma(rho)
+        )
 
     def evolve_u(self, dt, rho, u0, dudt=None):
         u_eq = self.equilibrium_u(rho)
@@ -102,6 +104,7 @@ class SimplifiedThermalModelEvolver(SimplifiedThermalModel):
             rho = self.particles.rho
             u = self.particles.u
             du_dt = self.particles.du_dt
+
             new_u, lum = self.evolve_u_radiated_energy(dt, rho, u, du_dt)
             self.radiated_energy += (lum*self.particles.mass).sum()/dt
             self.total_luminosity = (lum*self.particles.mass).sum()
@@ -205,11 +208,12 @@ class Cooling(object):
             X = 1.0 - Y - Z
         elif abs(X + Y + Z - 1.0) > 1e-6:
             raise Exception(
-                "Error in calculating mu: mass fractions do not sum to 1.0")
+                "Error in calculating mu: mass fractions do not sum to 1.0"
+            )
         return (
-                constants.proton_mass
-                / (X*(1.0+x_ion) + Y*(1.0+2.0*x_ion)/4.0 + Z*x_ion/2.0)
-                )
+            constants.proton_mass
+            / (X*(1.0+x_ion) + Y*(1.0+2.0*x_ion)/4.0 + Z*x_ion/2.0)
+        )
 
     # G depends on nearby sources, see 1997A&A...325..972G
     def gerritsen_heating_function(self, G_0=10, eps=0.05):
@@ -226,9 +230,11 @@ class Cooling(object):
                 ),
             10.0**-22.7
             ]
-        return (units.erg*units.cm**3/units.s).new_quantity(
-                numpy.select(condlist, choicelist)
-                )
+        return (
+            units.erg*units.cm**3/units.s
+        ).new_quantity(
+            numpy.select(condlist, choicelist)
+        )
 
     def my_cooling_function(self, T, logT=None, a=3.24, b=0.170):  # x=1e-1
         if logT is None:
@@ -240,6 +246,8 @@ class Cooling(object):
                 ),
             10.0**-22.7
             ]
-        return (units.erg*units.cm**3/units.s).new_quantity(
-                numpy.select(condlist, choicelist)
-                )
+        return (
+            units.erg*units.cm**3/units.s
+        ).new_quantity(
+            numpy.select(condlist, choicelist)
+        )

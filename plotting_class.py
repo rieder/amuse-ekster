@@ -91,6 +91,16 @@ def make_density_map(
 
     gas = sph.gas_particles
 
+    n, x_edges, y_edges = numpy.histogram2d(
+        gas.x.value_in(length),
+        gas.y.value_in(length),
+        bins=N,
+        range=[
+            [-0.5*L, 0.5*L],
+            [-0.5*L, 0.5*L],
+        ],
+    )
+
     gas_rho, xedges, yedges = numpy.histogram2d(
         gas.x.value_in(length),
         gas.y.value_in(length),
@@ -101,7 +111,7 @@ def make_density_map(
         ],
         weights=gas.rho.value_in(units.amu * units.cm**-3),
     )
-    gas_rho = gas_rho | units.amu * units.cm**-3
+    gas_rho = (gas_rho/n) | units.amu * units.cm**-3
 
     # Convolve with SPH kernel?
     return gas_rho
@@ -128,6 +138,16 @@ def make_temperature_map(
 
     gas = sph.gas_particles
 
+    n, x_edges, y_edges = numpy.histogram2d(
+        gas.x.value_in(length),
+        gas.y.value_in(length),
+        bins=N,
+        range=[
+            [-0.5*L, 0.5*L],
+            [-0.5*L, 0.5*L],
+        ],
+    )
+ 
     gas_u, xedges, yedges = numpy.histogram2d(
         gas.x.value_in(length),
         gas.y.value_in(length),
@@ -139,7 +159,7 @@ def make_temperature_map(
         weights=gas.u.value_in(internal_energy),
         # weights=gas.temperature.value_in(temperature),
     )
-    gas_u = gas_u | internal_energy
+    gas_u = (gas_u/n) | internal_energy
 
     gas_temperature = u_to_temperature(gas_u)
     # Convolve with SPH kernel?
@@ -180,7 +200,7 @@ def plot_hydro_and_stars(
             if gasproperty == "density":
 
                 rho = make_density_map(
-                    sph, N=100, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=300, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
                 xmin = -L/2
                 xmax = L/2
@@ -225,7 +245,7 @@ def plot_hydro_and_stars(
 
             if gasproperty == "temperature":
                 temp = make_temperature_map(
-                    sph, N=100, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=300, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
                 xmin = -L/2
                 xmax = L/2

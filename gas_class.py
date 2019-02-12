@@ -25,8 +25,8 @@ def density_to_sfe(rho, alpha=0.02):
     return sfe
 
 
-class SPH(object):
-    "SPH object"
+class GasCode(object):
+    """Wraps around gas code, supports star formation and cooling"""
 
     def __init__(
             self,
@@ -40,7 +40,7 @@ class SPH(object):
         else:
             self.converter = nbody_system.nbody_to_si(
                 1 | units.MSun,
-                100 | units.parsec,
+                1 | units.parsec,
             )
         # self.gas_particles = Particles()
         # self.dm_particles = Particles()
@@ -71,24 +71,32 @@ class SPH(object):
         self.get_potential_at_point = self.code.get_potential_at_point
         self.get_hydro_state_at_point = self.code.get_hydro_state_at_point
 
-        self.channel_to_gas = self.code.gas_particles.new_channel_to(
-            self.gas_particles
-        )
-        self.channel_from_gas = self.gas_particles.new_channel_to(
-            self.code.gas_particles
-        )
-        self.channel_to_dm = self.code.dm_particles.new_channel_to(
-            self.dm_particles
-        )
-        self.channel_from_dm = self.dm_particles.new_channel_to(
-            self.code.dm_particles
-        )
-
         if self.cooling_flag == "thermal_model":
             self.cooling = SimplifiedThermalModelEvolver(
                 self.code.gas_particles
             )
             self.cooling.model_time = self.code.model_time
+
+    @property
+    def get_potential_at_point(self, *list_arguments, **keyword_arguments):
+        """Return potential at specified point"""
+        return self.code.get_potential_at_point(
+            *list_arguments, **keyword_arguments
+        )
+
+    @property
+    def get_gravity_at_point(self, *list_arguments, **keyword_arguments):
+        """Return gravity at specified point"""
+        return self.code.get_gravity_at_point(
+            *list_arguments, **keyword_arguments
+        )
+
+    @property
+    def get_hydro_state_at_point(self, *list_arguments, **keyword_arguments):
+        """Return hydro state at specified point"""
+        return self.code.get_hydro_state_at_point(
+            *list_arguments, **keyword_arguments
+        )
 
     @property
     def model_time(self):
@@ -162,33 +170,19 @@ class SPH(object):
         Stars are added to the 'dm_particles' particleset in the code.
         For use with an external stellar dynamics code: todo.
         """
-        self.channel_from_gas.copy()
         high_density_gas = self.gas_particles.select_array(
             lambda rho: rho > self.density_threshold,
             ["rho"],
         )
         # Other selections?
         new_stars = high_density_gas.copy()
-        # print(len(new_stars))
-        logger.info("Removing %i former gas particles", len(new_stars))
-        self.code.particles.remove_particles(high_density_gas)
         self.gas_particles.remove_particles(high_density_gas)
-        # self.gas_particles.synchronize_to(self.gas_code.gas_particles)
         logger.info("Removed %i former gas particles", len(new_stars))
 
         new_stars.birth_age = self.model_time
-        logger.info("Adding %i new stars to star code", len(new_stars))
         self.dm_particles.add_particles(new_stars)
-        logger.info("Added %i new stars to star code", len(new_stars))
-        logger.info("Adding %i new stars to model", len(new_stars))
-        try:
-            self.dm_particles.add_particles(new_stars)
-            logger.info("Added %i new stars to model", len(new_stars))
-        except NameError:
-            logger.info("No stars in this model")
+        logger.info("Added %i new star particles", len(new_stars))
 
-        self.channel_to_gas.copy()
-        self.channel_to_dm.copy()
         logger.info("Resolved star formation")
 
 

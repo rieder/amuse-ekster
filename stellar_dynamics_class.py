@@ -1,10 +1,114 @@
 "Class for stellar dynamics"
 from __future__ import print_function, division
 import logging
-from amuse.units import units, nbody_system
+from amuse.community.ph4.interface import ph4
 from amuse.datamodel import Particles
+from amuse.units import units, nbody_system
 
 logger = logging.getLogger(__name__)
+
+
+class StellarDynamicsCode(object):
+    """Wraps around stellar dynamics code, supports collisions"""
+    def __init__(self, code, converter=None):
+        self.typestr = "Nbody"
+        self.namestr = code.__name__
+        if converter is not None:
+            self.converter = converter
+        else:
+            self.converter = nbody_system.nbody_to_si(
+                1 | units.MSun,
+                1 | units.parsec,
+            )
+
+        if code is ph4:
+            self.code = code(
+                self.converter,
+                number_of_workers=1,
+                mode="cpu",
+            )
+            param = self.parameters
+            # Set the parameters explicitly to some default
+            param.begin_time = 0.0 | units.Myr
+            # self.parameters.block_steps = False
+            param.epsilon_squared = 0 | units.AU**2
+            # param.force_sync = False
+            # param.gpu_id = something
+            # param.initial_timestep_fac = 0.0625
+            # param.initial_timestep_limit = 0.03125
+            # param.initial_timestep_median = 8.0
+            # param.manage_encounters = 4
+            # # We won't use these stopping conditions anyway
+            # param.stopping_condition_maximum_density = some HUGE number
+            # param.stopping_condition_maximum_internal_energy = inf
+            # param.stopping_condition_minimum_density = - huge
+            # param.stopping_condition_minimum_internal_energy = - big number
+            # param.stopping_conditions_number_of_steps = 1
+            # param.stopping_conditions_out_of_box_size = 0 | units.m
+            # param.stopping_conditions_out_of_box_use_center_of_mass = True
+            # param.stopping_conditions_timeout = 4.0 | units.s
+            # param.sync_time = 0.0 | units.s
+            # param.timestep_parameter = 0.0
+            # param.total_steps = False
+            # param.use_gpu = False
+            # param.zero_step_mode = False
+
+    def evolve_model(self, end_time):
+        """
+        Evolve model, handle collisions when they occur
+        """
+        collision_detection = self.code.stopping_conditions.collision_detection
+        collision_detection.enable()
+        # ph4 has a dynamical timestep, so it will stop on or slightly after
+        # 'end_time'
+        while self.model_time < end_time:
+            result = self.code.evolve_model(end_time)
+            while collision_detection.is_set():
+
+                self.resolve_collision()
+                result = self.code.evolve_model(end_time)
+        return result
+
+    def resolve_collision(collision_detection):
+        CD = collision_detection
+        for i, primary in enumerate(CD.particles(0)):
+            secondary = CD.particles(1)[i]
+            
+        return
+
+    @property
+    def model_time(self):
+        """Return code model_time"""
+        return self.code.model_time
+
+    @property
+    def particles(self):
+        """Return code particles"""
+        return self.code.particles
+
+    @property
+    def parameters(self):
+        """Return code parameters"""
+        return self.code.parameters
+
+    @property
+    def get_gravity_at_point(self, *list_arguments, **keyword_arguments):
+        """Return gravity at specified point"""
+        return self.code.get_gravity_at_point(
+            *list_arguments, **keyword_arguments
+        )
+
+    @property
+    def get_potential_at_point(self, *list_arguments, **keyword_arguments):
+        """Return potential at specified point"""
+        return self.code.get_potential_at_point(
+            *list_arguments, **keyword_arguments
+        )
+
+    @property
+    def stop(self, *list_arguments, **keyword_arguments):
+        """Stop code"""
+        return self.code.stop(*list_arguments, **keyword_arguments)
 
 
 class StellarDynamics(object):

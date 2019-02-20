@@ -23,7 +23,7 @@ class StellarEvolution(
         if evo_code is None:
             from amuse.community.sse.interface import SSE
             self.evo_code = SSE(
-            #     channel_type="sockets"
+                # channel_type="sockets",
             )
         else:
             self.evo_code = evo_code

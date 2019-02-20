@@ -2,17 +2,23 @@
 from __future__ import print_function, division
 import logging
 from amuse.community.ph4.interface import ph4
-from amuse.datamodel import Particles
+from amuse.datamodel import Particles, Particle
 from amuse.units import units, nbody_system
-
-logger = logging.getLogger(__name__)
 
 
 class StellarDynamicsCode(object):
     """Wraps around stellar dynamics code, supports collisions"""
-    def __init__(self, code, converter=None):
+    def __init__(
+            self,
+            converter=None,
+            code=ph4,
+            logger=None,
+            handle_stopping_conditions=False,
+    ):
         self.typestr = "Nbody"
         self.namestr = code.__name__
+        self.logger = logger or logging.getLogger(__name__)
+        self.handle_stopping_conditions = handle_stopping_conditions
         if converter is not None:
             self.converter = converter
         else:
@@ -61,19 +67,55 @@ class StellarDynamicsCode(object):
         collision_detection.enable()
         # ph4 has a dynamical timestep, so it will stop on or slightly after
         # 'end_time'
+        result = 0
         while self.model_time < end_time:
             result = self.code.evolve_model(end_time)
             while collision_detection.is_set():
-
-                self.resolve_collision()
-                result = self.code.evolve_model(end_time)
+                # If we don't handle stopping conditions, return instead
+                if self.handle_stopping_conditions:
+                    self.resolve_collision(collision_detection)
+                    result = self.code.evolve_model(end_time)
+                else:
+                    return result
         return result
 
-    def resolve_collision(collision_detection):
-        CD = collision_detection
-        for i, primary in enumerate(CD.particles(0)):
-            secondary = CD.particles(1)[i]
-            
+    def resolve_collision(self, collision_detection):
+        "Determine how to solve a collision and resolve it"
+        coll = collision_detection
+        for i, primary in enumerate(coll.particles(0)):
+            secondary = coll.particles(1)[i]
+            # Optionally, we could do something else.
+            # For now, we are just going to merge.
+            self.merge_two_stars(primary, secondary)
+
+    def merge_two_stars(self, primary, secondary):
+        "Merge two colliding stars into one new one"
+        massunit = units.MSun
+        colliders = Particles()
+        colliders.add_particle(primary)
+        colliders.add_particle(secondary)
+        new_particle = Particle()
+        new_particle.mass = colliders.mass.sum()
+        new_particle.position = colliders.center_of_mass()
+        new_particle.velocity = colliders.center_of_mass_velocity()
+        # This should/will be calculated by stellar evolution
+        new_particle.radius = colliders.radius.max()
+        # new_particle.age = max(colliders.age)
+        new_particle.parents = colliders.key
+        # This should not just be the oldest or youngest.
+        # But youngest seems slightly better.
+        new_particle.age = colliders.age.min()
+        new_particle.birth_age = colliders.birth_age.min()
+        self.particles.add_particle(new_particle)
+        self.logger.info(
+            "Two stars (M1=%s, M2=%s %s) collided at t=%s",
+            colliders[0].mass.value_in(massunit),
+            colliders[1].mass.value_in(massunit),
+            massunit,
+            self.model_time,
+        )
+        self.particles.remove_particles(colliders)
+
         return
 
     @property
@@ -137,7 +179,6 @@ class StellarDynamics(object):
             self.star_particles = stars
         number_of_workers = 4  # Relate this to number of processors available?
         if star_code is None:
-            from amuse.community.ph4.interface import ph4
             self.star_code = ph4(
                 self.star_converter,
                 number_of_workers=number_of_workers,
@@ -194,12 +235,63 @@ class StellarDynamics(object):
 def main():
     "Test class with a Plummer sphere"
     import sys
+    try:
+        from amuse_masc import make_a_star_cluster
+        use_masc = True
+    except ImportError:
+        use_masc = False
     if len(sys.argv) > 1:
         from amuse.io import read_set_from_file
         stars = read_set_from_file(sys.argv[1], "amuse")
         converter = nbody_system.nbody_to_si(
             stars.mass.sum(),
             3 | units.parsec,
+        )
+    elif use_masc:
+        stars = make_a_star_cluster.new_cluster(number_of_stars=1000)
+        rmax = (stars.position - stars.center_of_mass()).lengths().max()
+        converter = nbody_system.nbody_to_si(
+            stars.mass.sum(),
+            rmax,
+        )
+    else:
+        from amuse.ic.plummer import new_plummer_model
+        converter = nbody_system.nbody_to_si(
+            1000 | units.MSun,
+            3 | units.parsec,
+        )
+        stars = new_plummer_model(1000, convert_nbody=converter)
+
+    code = StellarDynamicsCode(code=ph4, converter=converter)
+    code.particles.add_particles(stars)
+    print(code.parameters)
+    timestep = 0.1 | units.Myr
+    for step in range(10):
+        time = step * timestep
+        code.evolve_model(time)
+        print("Evolved to %s" % code.model_time.in_(units.Myr))
+
+
+def _main():
+    "Test class with a Plummer sphere"
+    import sys
+    try:
+        from amuse_masc import make_a_star_cluster
+        use_masc = True
+    except ImportError:
+        use_masc = False
+    if len(sys.argv) > 1:
+        from amuse.io import read_set_from_file
+        stars = read_set_from_file(sys.argv[1], "amuse")
+        converter = nbody_system.nbody_to_si(
+            stars.mass.sum(),
+            3 | units.parsec,
+        )
+    elif use_masc:
+        stars = make_a_star_cluster.new_cluster(number_of_stars=1000)
+        converter = nbody_system.nbody_to_si(
+            stars.mass.sum(),
+            stars.lagrangian_radii.max()
         )
     else:
         from amuse.ic.plummer import new_plummer_model

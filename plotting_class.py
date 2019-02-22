@@ -172,6 +172,7 @@ def plot_hydro_and_stars(
         sph,
         stars,
         L=10,
+        N=200,
         filename=None,
         offset_x=None,
         offset_y=None,
@@ -200,7 +201,7 @@ def plot_hydro_and_stars(
             if gasproperty == "density":
 
                 rho = make_density_map(
-                    sph, N=300, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
                 xmin = -L/2
                 xmax = L/2
@@ -234,10 +235,13 @@ def plot_hydro_and_stars(
                     ),
                     origin="lower"
                 )
+                img.cmap.set_under('k')
+                img.cmap.set_bad('k', alpha=1.0)
                 if colorbar:
                     cbar = pyplot.colorbar(
                         img, cax=cax, orientation='vertical',
                         pad=0.15,
+                        extend='min'
                         # fraction=0.045,
                     )
                     cbar.ax.get_yaxis().labelpad = 15
@@ -245,7 +249,7 @@ def plot_hydro_and_stars(
 
             if gasproperty == "temperature":
                 temp = make_temperature_map(
-                    sph, N=300, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
                 xmin = -L/2
                 xmax = L/2
@@ -259,10 +263,13 @@ def plot_hydro_and_stars(
                     cmap="inferno",
                     origin="lower",
                 )
+                img.cmap.set_under('k')
+                img.cmap.set_bad('k', alpha=1.0)
                 if colorbar:
                     cbar = pyplot.colorbar(
                         img, cax=cax, orientation='vertical',
                         pad=0.15,
+                        extend='min'
                         # fraction=0.045,
                     )
                     cbar.ax.get_yaxis().labelpad = 15

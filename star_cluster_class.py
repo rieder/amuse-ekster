@@ -2,15 +2,102 @@
 from __future__ import print_function, division
 import logging
 from amuse.units import units
-from stellar_evolution_class import StellarEvolution
-from stellar_dynamics_class import StellarDynamics
+from stellar_evolution_class import (
+    # StellarEvolution,
+    StellarEvolutionCode,
+)
+from stellar_dynamics_class import (
+    # StellarDynamics,
+    StellarDynamicsCode,
+)
 
-logger = logging.getLogger(__name__)
+
+# class StarClusterCode(
+#         object,
+# ):
+#     """
+#     Stellar cluster code object.
+#     This wraps around a stellar dynamics and a stellar evolution code to handle
+#     both aspects.
+#     The stellar dynamics code is the "main" code here.
+#     """
+# 
+#     def __init__(
+#             self,
+#             converter=None,
+#             logger=None,
+#             **keyword_arguments
+#     ):
+#         self.logger = logger or logging.getLogger(__name__)
+# 
+#         self.logger.debug("Initialising stellar dynamics")
+#         self.star_code = StellarDynamicsCode(
+#             converter=converter,
+#             **keyword_arguments
+#         )
+#         self.logger.debug("Initialised stellar dynamics")
+#         self.logger.debug("Initialising stellar evolution")
+#         self.evo_code = StellarEvolutionCode(
+#             **keyword_arguments
+#         )
+#         self.logger.debug("Initialised stellar evolution")
+#         self.evo_code_to_star_code_attributes = ["mass", "radius"]
+#         self.star_code_to_evo_code_attributes = ["mass", "radius"]
+# 
+#     @property
+#     def model_time(self):
+#         "Return the minimum time of the star and evo code times"
+#         if self.star_code.model_time < self.evo_code.model_time:
+#             return self.star_code.model_time
+#         return self.evo_code.model_time
+# 
+#     @property
+#     def particles(self):
+#         return self.star_code.particles
+# 
+#     def sync_to_evolution(self):
+#         channel = self.particles.new_channel_to(
+#             self.evo_code.particles,
+#         )
+#         channel.copy_attributes(self.evo_code_attributes)
+# 
+#     def sync_from_evolution(self):
+#         channel = self.evo_code.particles.new_channel_to(
+#             self.particles,
+#         )
+#         channel.copy_attributes(self.star_code_attributes)
+# 
+#     def evolve_model(self, tend):
+#         """
+#         Evolve gravity and stellar evolution to specified time, making sure
+#         that the changes to the stars by stellar evolution are included over
+#         the proper timescales.
+#         """
+#         time = self.model_time
+#         self.model_to_evo_code.copy()
+#         while self.model_time < tend:
+#             self.model_to_star_code.copy()
+#             timestep = self.evo_code.particles.time_step.min()
+#             time = min(
+#                 time+timestep,
+#                 tend,
+#             )
+#             self.evo_code.evolve_model(time)
+#             self.star_code.evolve_model(time)
+#             self.evo_code_to_model.copy()
+#             # Check stopping conditions
+#         self.star_code_to_model.copy()
+# 
+#     def stop(self):
+#         "Stop star_code and evo_code"
+#         self.star_code.stop()
+#         self.evo_code.stop()
 
 
 class StarCluster(
-        StellarDynamics,
-        StellarEvolution,
+        object,
+        # StellarDynamics,
+        # StellarEvolution,
 ):
     "Stellar cluster object"
 
@@ -19,17 +106,28 @@ class StarCluster(
             stars=None,
             converter=None,
             epsilon=0.1 | units.parsec,
+            logger=None,
     ):
-        logger.info("Initialising StellarDynamics")
-        StellarDynamics.__init__(
-            self, stars=stars, converter=converter, epsilon=epsilon,
+        self.logger = logger or logging.getLogger(__name__)
+        self.logger.info("Initialising StellarDynamics")
+        self.star_code = StellarDynamicsCode(
+            converter=converter,
         )
-        logger.info("Initialised StellarDynamics")
-        logger.info("Initialising StellarEvolution")
-        StellarEvolution.__init__(
-            self, stars=stars,
+        self.star_code.particles.add_particles(stars)
+        self.logger.info("Initialised StellarDynamics")
+        self.logger.info("Initialising StellarEvolution")
+        self.evo_code = StellarEvolutionCode()
+        self.evo_code.particles.add_particles(stars)
+        self.logger.info("Initialised StellarEvolution")
+        self.setup_channels()
+
+    def setup_channels(self):
+        self.model_to_evo_code = self.star_particles.new_channel_to(
+            self.evo_code.particles,
         )
-        logger.info("Initialised StellarEvolution")
+        self.model_from_evo_code = self.evo_code.particles.new_channel_to(
+            self.star_particles,
+        )
 
     @property
     def model_time(self):
@@ -39,8 +137,12 @@ class StarCluster(
         return self.evo_code.model_time
 
     @property
+    def star_particles(self):
+        return self.star_code.particles
+
+    @property
     def particles(self):
-        return self.star_particles
+        return self.star_code.particles
 
     def evolve_model(self, tend):
         """
@@ -49,9 +151,8 @@ class StarCluster(
         the proper timescales.
         """
         time = self.model_time
-        self.model_to_evo_code.copy()
+        # self.model_to_evo_code.copy()
         while self.model_time < tend:
-            self.model_to_star_code.copy()
             timestep = self.evo_code.particles.time_step.min()
             time = min(
                 time+timestep,
@@ -59,14 +160,27 @@ class StarCluster(
             )
             self.evo_code.evolve_model(time)
             self.star_code.evolve_model(time)
-            self.evo_code_to_model.copy()
+            self.model_from_evo_code.copy_attributes(
+                ["radius", "mass"],
+            )
             # Check stopping conditions
-        self.star_code_to_model.copy()
 
-    def stop(self):
-        "Stop star_code and evo_code"
-        self.star_code.stop()
-        self.evo_code.stop()
+    def get_gravity_at_point(self, *list_arguments, **keyword_arguments):
+        """Return gravity at specified point"""
+        return self.star_code.get_gravity_at_point(
+            *list_arguments, **keyword_arguments
+        )
+
+    def get_potential_at_point(self, *list_arguments, **keyword_arguments):
+        """Return potential at specified point"""
+        return self.star_code.get_potential_at_point(
+            *list_arguments, **keyword_arguments
+        )
+
+    def stop(self, *list_arguments, **keyword_arguments):
+        """Stop codes"""
+        return self.star_code.stop(*list_arguments, **keyword_arguments)
+        return self.evo_code.stop(*list_arguments, **keyword_arguments)
 
 
 def main():
@@ -108,12 +222,12 @@ def main():
         )
         print(
             "Most massive star is %s" % (
-                model.star_particles.mass.max().in_(units.MSun)
+                model.particles.mass.max().in_(units.MSun)
             )
         )
         print(
             "Centre-of-mass is at %s" % (
-                model.star_particles.center_of_mass()
+                model.particles.center_of_mass()
             )
         )
 

@@ -11,12 +11,12 @@ class StellarDynamicsCode(object):
     def __init__(
             self,
             converter=None,
-            code=ph4,
+            star_code=ph4,
             logger=None,
             handle_stopping_conditions=False,
     ):
         self.typestr = "Nbody"
-        self.namestr = code.__name__
+        self.namestr = star_code.__name__
         self.logger = logger or logging.getLogger(__name__)
         self.handle_stopping_conditions = handle_stopping_conditions
         if converter is not None:
@@ -27,8 +27,8 @@ class StellarDynamicsCode(object):
                 1 | units.parsec,
             )
 
-        if code is ph4:
-            self.code = code(
+        if star_code is ph4:
+            self.code = star_code(
                 self.converter,
                 number_of_workers=1,
                 mode="cpu",
@@ -133,21 +133,18 @@ class StellarDynamicsCode(object):
         """Return code parameters"""
         return self.code.parameters
 
-    @property
     def get_gravity_at_point(self, *list_arguments, **keyword_arguments):
         """Return gravity at specified point"""
         return self.code.get_gravity_at_point(
             *list_arguments, **keyword_arguments
         )
 
-    @property
     def get_potential_at_point(self, *list_arguments, **keyword_arguments):
         """Return potential at specified point"""
         return self.code.get_potential_at_point(
             *list_arguments, **keyword_arguments
         )
 
-    @property
     def stop(self, *list_arguments, **keyword_arguments):
         """Stop code"""
         return self.code.stop(*list_arguments, **keyword_arguments)

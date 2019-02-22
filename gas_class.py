@@ -7,6 +7,7 @@ from amuse.community.fi.interface import Fi
 from amuse.datamodel import Particles
 from amuse.units import units, nbody_system
 
+from basic_class import BasicCode
 from cooling_class import SimplifiedThermalModelEvolver
 from plotting_class import plot_hydro_and_stars
 
@@ -23,18 +24,21 @@ def density_to_sfe(rho, alpha=0.02):
     return sfe
 
 
-class GasCode(object):
+class GasCode(BasicCode):
     """Wraps around gas code, supports star formation and cooling"""
 
     def __init__(
             self,
-            sph_code,
             converter=None,
+            sph_code=Fi,
             logger=None,
+            internal_star_formation=False,
+            **keyword_arguments
     ):
         self.typestr = "Hydro"
         self.namestr = sph_code.__name__
         self.logger = logger or logging.getLogger(__name__)
+        self.internal_star_formation = internal_star_formation
         if converter is not None:
             self.converter = converter
         else:
@@ -48,25 +52,27 @@ class GasCode(object):
         self.cooling_flag = "thermal_model"
         self.epsilon = 0.05 | units.parsec
         self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
+        # self.density_threshold = 10**-12 | units.g * units.cm**-3
         if sph_code is Fi:
             self.code = sph_code(
                 self.converter,
                 mode="openmp",
+                **keyword_arguments
             )
-            self.code.parameters.begin_time = 0.0 | units.Myr
-            self.code.parameters.use_hydro_flag = True
-            self.code.parameters.self_gravity_flag = True
+            self.parameters = self.code.parameters
+            self.parameters.begin_time = 0.0 | units.Myr
+            self.parameters.use_hydro_flag = True
+            self.parameters.self_gravity_flag = True
             # Have to do our own cooling
-            self.code.parameters.isothermal_flag = True
-            self.code.parameters.integrate_entropy_flag = False
-            self.code.parameters.gamma = 1
+            self.parameters.isothermal_flag = True
+            self.parameters.integrate_entropy_flag = False
+            self.parameters.gamma = 1
             # Maybe make these depend on the converter?
-            self.code.parameters.periodic_box_size = 10 | units.kpc
-            self.code.parameters.timestep = 0.01 | units.Myr
-        self.code.parameters.stopping_condition_maximum_density = \
+            self.parameters.periodic_box_size = 10 | units.kpc
+            self.parameters.timestep = 0.01 | units.Myr
+        self.parameters.stopping_condition_maximum_density = \
             self.density_threshold
 
-        self.parameters = self.code.parameters
         # self.get_gravity_at_point = self.code.get_gravity_at_point
         # self.get_potential_at_point = self.code.get_potential_at_point
         # self.get_hydro_state_at_point = self.code.get_hydro_state_at_point
@@ -76,32 +82,36 @@ class GasCode(object):
                 self.code.gas_particles
             )
             self.cooling.model_time = self.code.model_time
+        else:
+            self.cooling = False
 
-    @property
-    def get_potential_at_point(self, *list_arguments, **keyword_arguments):
+    def get_potential_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return potential at specified point"""
         return self.code.get_potential_at_point(
-            *list_arguments, **keyword_arguments
+            eps, x, y, z, **keyword_arguments
         )
 
-    @property
-    def get_gravity_at_point(self, *list_arguments, **keyword_arguments):
+    def get_gravity_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return gravity at specified point"""
         return self.code.get_gravity_at_point(
-            *list_arguments, **keyword_arguments
+            eps, x, y, z, **keyword_arguments
         )
 
-    @property
-    def get_hydro_state_at_point(self, *list_arguments, **keyword_arguments):
+    def get_hydro_state_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return hydro state at specified point"""
         return self.code.get_hydro_state_at_point(
-            *list_arguments, **keyword_arguments
+            eps, x, y, z, **keyword_arguments
         )
 
+    # @property
+    # def model_time(self):
+    #     """Return the current time"""
+    #     return self.code.model_time
+
     @property
-    def model_time(self):
-        """Return the current time"""
-        return self.code.model_time
+    def stopping_conditions(self):
+        """Return stopping conditions"""
+        return self.code.stopping_conditions
 
     @property
     def gas_particles(self):
@@ -113,15 +123,15 @@ class GasCode(object):
         """Return all dm particles"""
         return self.code.dm_particles
 
-    @property
-    def particles(self):
-        """Return all particles"""
-        return self.code.particles
+    # @property
+    # def particles(self):
+    #     """Return all particles"""
+    #     return self.code.particles
 
-    @property
-    def stop(self):
-        """Stop the simulation code"""
-        return self.code.stop
+    # @property
+    # def stop(self):
+    #     """Stop the simulation code"""
+    #     return self.code.stop
 
     def evolve_model(self, end_time):
         """
@@ -155,15 +165,24 @@ class GasCode(object):
             self.cooling.evolve_for(half_timestep)
             first = False
         while self.model_time < (end_time - half_timestep):
-            if not first:
+            if self.cooling and not first:
                 self.cooling.evolve_for(timestep)
             next_time = self.model_time + timestep
             self.code.evolve_model(next_time)
-            while density_limit_detection.is_set():
-                self.resolve_starformation()
-                self.code.evolve_model(next_time)
+
+            if (
+                    density_limit_detection.is_set()
+            ):
+                if self.internal_star_formation:
+                    self.resolve_starformation()
+                else:
+                    break
+
         # Make sure cooling and the code are synchronised when the loop ends
-        self.cooling.evolve_for(half_timestep)
+        if self.cooling:
+            self.cooling.evolve_for(half_timestep)
+
+        return
 
     def resolve_starformation(self):
         """
@@ -188,14 +207,17 @@ class GasCode(object):
 
     @property
     def potential_energy(self):
+        """Return the potential energy in the code"""
         return self.code.potential_energy
 
     @property
     def kinetic_energy(self):
+        """Return the kinetic energy in the code"""
         return self.code.kinetic_energy
 
     @property
     def thermal_energy(self):
+        """Return the thermal energy in the code"""
         return self.code.thermal_energy
 
 
@@ -211,7 +233,9 @@ class Gas(object):
             epsilon=0.05 | units.parsec,
             alpha_sfe=0.04,
             internal_cooling=False,
+            logger=None,
     ):
+        self.logger = logger or logging.getLogger(__name__)
         self.alpha_sfe = alpha_sfe
         if converter is not None:
             self.gas_converter = converter
@@ -405,28 +429,32 @@ def main():
     "Test class with a molecular cloud"
     from amuse.ext.molecular_cloud import molecular_cloud
     converter = nbody_system.nbody_to_si(
-        5000 | units.MSun,
-        5.0 | units.parsec,
+        500 | units.MSun,
+        2.0 | units.parsec,
     )
     numpy.random.seed(11)
-    temperature = 30 | units.K
+    temperature = 10 | units.K
     from plotting_class import temperature_to_u
     u = temperature_to_u(temperature)
-    gas = molecular_cloud(targetN=5000, convert_nbody=converter).result
+    gas = molecular_cloud(targetN=100000, convert_nbody=converter).result
     gas.u = u
 
-    gastwo = molecular_cloud(targetN=5000, convert_nbody=converter).result
+    gastwo = molecular_cloud(targetN=100000, convert_nbody=converter).result
     gastwo.u = u
 
-    gastwo.x += 12 | units.parsec
-    gastwo.y += 3 | units.parsec
-    gastwo.z -= 1 | units.parsec
-    gastwo.vx -= ((5 | units.parsec) / (2 | units.Myr))
+    gas.x -= 2 | units.parsec
+    gastwo.x += 2 | units.parsec
+    gastwo.y += 0 | units.parsec
+    gastwo.z -= 0 | units.parsec
+    gas.vx += 1.2 | units.kms
+    gastwo.vx -= 1.2 | units.kms
+    # gas.vx += ((3 | units.parsec) / (2 | units.Myr))
+    # gastwo.vx -= ((3 | units.parsec) / (2 | units.Myr))
 
     gas.add_particles(gastwo)
     print("Number of gas particles: %i" % (len(gas)))
 
-    model = GasCode(Fi, converter=converter)
+    model = GasCode(converter=converter)
     print(model.parameters)
     timestep = model.parameters.timestep
     model.gas_particles.add_particles(gas)
@@ -454,7 +482,7 @@ def main():
             model.model_time,
             model,
             model.dm_particles,
-            L=20,
+            L=8,
             filename=plotname,
             title="time = %06.1f %s" % (
                 model.model_time.value_in(units.Myr),
@@ -510,7 +538,13 @@ def _main():
     gas.add_particles(gastwo)
     print("Number of gas particles: %i" % (len(gas)))
 
-    model = Gas(gas=gas, converter=converter, internal_cooling=False)
+    model = Gas(
+        gas=gas, converter=converter, internal_cooling=False,
+        internal_star_formation=True,
+    )
+    model.epsilon = 0.05 | units.parsec
+    model.parameters.stopping_condition_maximum_density = \
+        10**-12 | units.g * units.cm**-3
     print(model.gas_code.parameters)
     timestep = model.gas_code.parameters.timestep
 

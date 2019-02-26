@@ -297,7 +297,7 @@ class CalculateFieldForParticles(object):
             dr_squared = (dx * dx) + (dy * dy) + (dz * dz)
             dr = (dr_squared + self._softening_lengths_squared()).sqrt()
             energy_of_this_particle = (self.particles.mass / dr).sum()
-            result.append(-self.gravity_constant * energy_of_this_particle)
+            result.append(-1 * self.gravity_constant * energy_of_this_particle)
         return result
 
     def get_gravity_at_point(self, radius, x, y, z):
@@ -313,9 +313,9 @@ class CalculateFieldForParticles(object):
             dr_squared = ((dx * dx) + (dy * dy) + (dz * dz) +
                           self._softening_lengths_squared() + radius[i]**2)
 
-            ax = -self.gravity_constant * (m1*dx/dr_squared**1.5).sum()
-            ay = -self.gravity_constant * (m1*dy/dr_squared**1.5).sum()
-            az = -self.gravity_constant * (m1*dz/dr_squared**1.5).sum()
+            ax = -1 * self.gravity_constant * (m1*dx/dr_squared**1.5).sum()
+            ay = -1 * self.gravity_constant * (m1*dy/dr_squared**1.5).sum()
+            az = -1 * self.gravity_constant * (m1*dz/dr_squared**1.5).sum()
 
             result_ax.append(ax)
             result_ay.append(ay)

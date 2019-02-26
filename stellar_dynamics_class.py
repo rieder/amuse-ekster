@@ -2,6 +2,7 @@
 from __future__ import print_function, division
 import logging
 from amuse.community.ph4.interface import ph4
+from amuse.community.hermite0.interface import Hermite
 from amuse.datamodel import Particles, Particle
 from amuse.units import units, nbody_system
 
@@ -58,13 +59,19 @@ class StellarDynamicsCode(object):
             # param.total_steps = False
             # param.use_gpu = False
             # param.zero_step_mode = False
+        elif star_code is Hermite:
+            self.code = star_code(
+                self.converter,
+                number_of_workers=1,
+            )
+            param = self.parameters
 
     def evolve_model(self, end_time):
         """
         Evolve model, handle collisions when they occur
         """
         collision_detection = self.code.stopping_conditions.collision_detection
-        collision_detection.enable()
+        # collision_detection.enable()
         # ph4 has a dynamical timestep, so it will stop on or slightly after
         # 'end_time'
         result = 0
@@ -132,6 +139,11 @@ class StellarDynamicsCode(object):
     def parameters(self):
         """Return code parameters"""
         return self.code.parameters
+
+    @property
+    def stopping_conditions(self):
+        """Return stopping conditions for dynamics code"""
+        return self.code.stopping_conditions
 
     def get_gravity_at_point(self, *list_arguments, **keyword_arguments):
         """Return gravity at specified point"""

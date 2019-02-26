@@ -290,7 +290,7 @@ class CalculateFieldForParticles(object):
         positions = self.particles.position
         result = quantities.AdaptingVectorQuantity()
 
-        for i in range(len(x)):
+        for i, item in enumerate(x):
             dx = x[i] - positions.x
             dy = y[i] - positions.y
             dz = z[i] - positions.z
@@ -306,7 +306,7 @@ class CalculateFieldForParticles(object):
         result_ax = quantities.AdaptingVectorQuantity()
         result_ay = quantities.AdaptingVectorQuantity()
         result_az = quantities.AdaptingVectorQuantity()
-        for i in range(len(x)):
+        for i, item in enumerate(x):
             dx = x[i] - positions.x
             dy = y[i] - positions.y
             dz = z[i] - positions.z
@@ -510,10 +510,9 @@ class GravityCodeInField(object):
             return particles.h_smooth
         elif self.zero_smoothing:
             return 0.*particles.x
-        else:
-            return (
-                self.code.parameters.epsilon_squared**0.5
-            ).as_vector_with_length(len(particles))
+        return (
+            self.code.parameters.epsilon_squared**0.5
+        ).as_vector_with_length(len(particles))
 
     def get_potential_energy_in_field_code(self, particles, field_code):
         pot = field_code.get_potential_at_point(
@@ -575,7 +574,7 @@ class Bridge(object):
                 radius_is_eps, h_smooth_is_eps, zero_smoothing)
             self.add_code(code)
         else:
-            if len(partners):
+            if partners:
                 raise Exception(
                     "You added a code without particles, but with partners,"
                     " this is not supported!"
@@ -703,7 +702,7 @@ class Bridge(object):
         for x in self.codes:
             if hasattr(x, "particles"):
                 array.append(x.particles)
-        if len(array) == 0:
+        if not array:
             raise AttributeError
         elif len(array) == 1:
             return array[0]
@@ -715,7 +714,7 @@ class Bridge(object):
         for x in self.codes:
             if hasattr(x, "gas_particles"):
                 array.append(x.gas_particles)
-        if len(array) == 0:
+        if not array:
             raise AttributeError
         elif len(array) == 1:
             return array[0]
@@ -729,7 +728,7 @@ class Bridge(object):
                 array.append(x.dm_particles)
             elif hasattr(x, "particles"):
                 array.append(x.particles)
-        if len(array) == 0:
+        if not array:
             raise AttributeError
         elif len(array) == 1:
             return array[0]

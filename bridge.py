@@ -602,9 +602,8 @@ class Bridge(object):
         if self.method is None:
             logger.info("Using evolve_joined_leapfrog method")
             return self.evolve_joined_leapfrog(tend, timestep)
-        else:
-            logger.info("Using evolve_simple_steps method")
-            return self.evolve_simple_steps(tend, timestep)
+        logger.info("Using evolve_simple_steps method")
+        return self.evolve_simple_steps(tend, timestep)
 
     def evolve_simple_steps(self, tend, timestep):
         while self.time < (tend-timestep/2):

@@ -2,7 +2,7 @@
 from __future__ import print_function, division
 import logging
 from amuse.community.fastkick.interface import FastKick
-from amuse.datamodel import ParticlesSuperset
+from amuse.datamodel import ParticlesSuperset, Particles, Particle
 from amuse.units import units, nbody_system
 from amuse.units.quantities import VectorQuantity
 from amuse.io import write_set_to_file
@@ -10,20 +10,20 @@ from amuse.io import write_set_to_file
 from bridge import (
     Bridge, CalculateFieldForCodes,
 )
-from gas_class import Gas  # , sfe_to_density
+from gas_class import GasCode  # , sfe_to_density
 from star_cluster_class import StarCluster
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
 )
 from plotting_class import plot_hydro_and_stars
+from merge_recipes import form_new_star
 
 Tide = TimeDependentSpiralArmsDiskModel
-logger = logging.getLogger(__name__)
 
 
 class ClusterInPotential(
         StarCluster,
-        Gas,
+        # Gas,
 ):
     """Stellar cluster in an external potential"""
 
@@ -35,8 +35,10 @@ class ClusterInPotential(
             epsilon=0.1 | units.parsec,
             star_converter=None,
             gas_converter=None,
+            logger=None,
     ):
-        self.objects = (StarCluster, Gas)
+        self.logger = logger or logging.getLogger(__name__)
+        # self.objects = (StarCluster, Gas)
         mass_scale_stars = stars.mass.sum()
         length_scale_stars = 3 | units.parsec
         if star_converter is None:
@@ -46,11 +48,11 @@ class ClusterInPotential(
             )
         else:
             converter_for_stars = star_converter
-        logger.info("Initialising StarCluster")
+        self.logger.info("Initialising StarCluster")
         StarCluster.__init__(
             self, stars=stars, converter=converter_for_stars, epsilon=epsilon,
         )
-        logger.info("Initialised StarCluster")
+        self.logger.info("Initialised StarCluster")
 
         mass_scale_gas = gas.mass.sum()
         length_scale_gas = 100 | units.parsec
@@ -61,16 +63,18 @@ class ClusterInPotential(
             )
         else:
             converter_for_gas = gas_converter
-        logger.info("Initialising Gas")
-        Gas.__init__(
-            self, gas=gas, converter=converter_for_gas, epsilon=epsilon,
-            internal_cooling=False,
-        )
+        self.logger.info("Initialising Gas")
+        self.gas_code = GasCode(converter=gas_converter)
+        self.gas_code.gas_particles.add_particles(gas)
+        # Gas.__init__(
+        #     self, gas=gas, converter=converter_for_gas, epsilon=epsilon,
+        #     internal_cooling=False,
+        # )
         self.gas_code.parameters.timestep = 0.005 | units.Myr
-        logger.info("Initialised Gas")
-        logger.info("Creating Tide object")
+        self.logger.info("Initialised Gas")
+        self.logger.info("Creating Tide object")
         self.tidal_field = Tide()
-        logger.info("Created Tide object")
+        self.logger.info("Created Tide object")
 
         self.epsilon = epsilon
         self.converter = converter_for_gas
@@ -141,21 +145,27 @@ class ClusterInPotential(
         # self.system.timestep = 2 * self.gas_code.parameters.timestep
         # 0.05 | units.Myr
 
-    # @property
-    # def gas_particles(self):
-    #     "Return gas particles"
-    #     return self.gas_particles
+    @property
+    def gas_particles(self):
+        "Return gas particles"
+        return self.gas_code.gas_particles
 
-    # @property
-    # def star_particles(self):
-    #     "Return star particles"
-    #     return self.star_particles
+    @property
+    def dm_particles(self):
+        "Return dark matter particles"
+        return self.gas_code.dm_particles
+
+    @property
+    def star_particles(self):
+        "Return star particles"
+        return self.star_code.particles
 
     @property
     def particles(self):
         "Return all particles"
         return ParticlesSuperset(
             self.star_particles,
+            self.dm_particles,
             self.gas_particles,
         )
 
@@ -165,110 +175,276 @@ class ClusterInPotential(
         return self.system
 
     def resolve_starformation(self):
-        logger.info("Resolving star formation")
-        high_density_gas = self.gas_particles.select_array(
+        self.logger.info("Resolving star formation")
+
+        maximum_density = (
+            self.gas_code.parameters.stopping_condition_maximum_density
+        )
+        high_density_gas = self.gas_particles.select(
             lambda rho:
-            rho > self.gas_code.parameters.stopping_condition_maximum_density,
+            rho >= maximum_density,
             # sfe_to_density(
             #     1, alpha=self.alpha_sfe,
             # ),
             ["rho"],
-        )
-        # Other selections?
-        new_stars = high_density_gas.copy()
-        # print(len(new_stars))
-        logger.info("Removing %i former gas particles", len(new_stars))
-        self.gas_code.particles.remove_particles(high_density_gas)
-        self.gas_particles.remove_particles(high_density_gas)
-        # self.gas_particles.synchronize_to(self.gas_code.gas_particles)
-        logger.info("Removed %i former gas particles", len(new_stars))
+        )  # .sorted_by_attribute("rho")
 
-        star_code_particles = self.star_code.particles
-        new_stars.birth_age = self.gas_code.model_time
-        logger.info("Adding %i new stars to star code", len(new_stars))
-        star_code_particles.add_particles(new_stars)
-        logger.info("Added %i new stars to star code", len(new_stars))
-        logger.info("Adding %i new stars to model", len(new_stars))
-        self.star_particles.add_particles(new_stars)
-        logger.info("Added %i new stars to model", len(new_stars))
-        logger.info("Adding new stars to evolution code")
-        self.evo_code.particles.add_particles(new_stars)
-        logger.info("Added new stars to evolution code")
-        logger.info("Resolved star formation")
+        stars_formed = 0
+        while not high_density_gas.is_empty():
+            new_star, absorbed_gas = form_new_star(
+                high_density_gas[0],
+                self.gas_particles
+            )
+            print(
+                "Removing %i former gas particles to form one star" % (
+                    len(absorbed_gas)
+                )
+            )
+
+            self.logger.debug(
+                "Removing %i former gas particles", len(absorbed_gas)
+            )
+            self.gas_particles.remove_particles(absorbed_gas)
+            self.logger.debug(
+                "Removed %i former gas particles", len(absorbed_gas)
+            )
+
+            new_star.birth_age = self.gas_code.model_time
+            self.logger.debug("Adding new star to evolution code")
+            evo_stars = self.evo_code.particles.add_particle(new_star)
+            self.logger.debug("Added new star to evolution code")
+
+            new_star.radius = evo_stars.radius
+
+            self.logger.debug("Adding new star to model")
+            self.star_particles.add_particle(new_star)
+            self.logger.debug("Added new star to model")
+            self.logger.info("Resolved star formation")
+            stars_formed += 1
+        print("Number of gas particles is now %i" % len(self.gas_particles))
+        print("Number of star particles is now %i" % len(self.star_particles))
+        print("Number of dm particles is now %i" % len(self.dm_particles))
+        print("Formed %i new stars" % stars_formed)
+
+    def resolve_collision(self, collision_detection):
+        "Determine how to solve a collision and resolve it"
+
+        # connected_components = self.star_particles.copy().connected_components(
+        #     threshold=50 | units.AU
+        # )
+        # n_merged_stars = 0
+        # for component in connected_components:
+        #     if len(component) == 2:
+        #         mergers = component.copy()
+        #         self.merge_two_stars(
+        #             mergers[0],
+        #             mergers[1],
+        #         )
+        #         n_merged_stars += 1
+        #     elif len(component) > 2:
+        #         print("More than one component, I can't handle that yet")
+        #     # elif len(component) == 1:
+        #     #     print("One component, so not merging obviously")
+        #     # else:
+        #     #     print("This would be really weird")
+
+        coll = collision_detection
+        if not coll.particles(0):
+            print("No collision found? Disabling collision detection for now.")
+            coll.disable()
+            return
+        collisions_counted = 0
+        for i, primary in enumerate(coll.particles(0)):
+            secondary = coll.particles(1)[i]
+            # Optionally, we could do something else.
+            # For now, we are just going to merge.
+            self.merge_two_stars(primary, secondary)
+            collisions_counted += 1
+        print("Resolved %i collisions" % collisions_counted)
+
+    def merge_two_stars(self, primary, secondary):
+        "Merge two colliding stars into one new one"
+        massunit = units.MSun
+        lengthunit = units.RSun
+        colliders = Particles()
+        colliders.add_particle(primary)
+        colliders.add_particle(secondary)
+        new_particle = Particle()
+        new_particle.mass = colliders.mass.sum()
+        new_particle.position = colliders.center_of_mass()
+        new_particle.velocity = colliders.center_of_mass_velocity()
+        # This should/will be calculated by stellar evolution
+        new_particle.radius = colliders.radius.max()
+        # new_particle.age = max(colliders.age)
+        # new_particle.parents = colliders.key
+
+        # Since stellar dynamics code doesn't know about age, add the particles
+        # there before we set these. This is a bit of a hack. We should do our
+        # own bookkeeping here instead.
+        dyn_particle = self.star_particles.add_particle(new_particle)
+
+        # This should not just be the oldest or youngest.
+        # But youngest seems slightly better.
+        # new_particle.age = colliders.age.min()
+        # new_particle.birth_age = colliders.birth_age.min()
+        evo_particle = self.evo_code.particles.add_particle(new_particle)
+        dyn_particle.radius = evo_particle.radius
+
+        # self.logger.info(
+        print(
+            "Two stars ("
+            "M1=%s, M2=%s, M=%s %s; "
+            "R1=%s, R2=%s, R=%s %s"
+            ") collided at t=%s" % (
+                colliders[0].mass.value_in(massunit),
+                colliders[1].mass.value_in(massunit),
+                dyn_particle.mass.value_in(massunit),
+                massunit,
+                colliders[0].radius.value_in(lengthunit),
+                colliders[1].radius.value_in(lengthunit),
+                dyn_particle.radius.value_in(lengthunit),
+                lengthunit,
+                self.model_time,
+            )
+        )
+        self.evo_code.particles.remove_particles(colliders)
+        self.star_particles.remove_particles(colliders)
+
+        return
 
     def evolve_model(self, tend):
         "Evolve system to specified time"
-        logger.info(
-            "Evolving %s to time %s",
-            self.__name__,
+        self.logger.info(
+            "Evolving to time %s",
             tend,
         )
-        self.model_to_evo_code.copy()
-        self.model_to_gas_code.copy()
-        while abs(self.model_time - tend) >= self.system.timestep:
+        # self.model_to_evo_code.copy()
+        # self.model_to_gas_code.copy()
+
+        density_limit_detection = \
+            self.gas_code.stopping_conditions.density_limit_detection
+        density_limit_detection.enable()
+        # density_limit_detection.disable()
+
+        collision_detection = \
+            self.star_code.stopping_conditions.collision_detection
+        collision_detection.enable()
+
+        maximum_density = (
+            self.gas_code.parameters.stopping_condition_maximum_density
+        )
+
+        while self.model_time < (tend - self.system.timestep):
             evo_time = self.evo_code.model_time
-            self.model_to_star_code.copy()
+            # self.model_to_star_code.copy()
             evo_timestep = self.evo_code.particles.time_step.min()
-            logger.info(
+            self.logger.info(
                 "Smallest evo timestep: %s", evo_timestep.in_(units.Myr)
             )
             time = min(
-                evo_time+evo_timestep,
+                # evo_time+evo_timestep,
                 tend,
+                10 * tend,
             )
-            logger.info("Evolving to %s", time.in_(units.Myr))
-            logger.info("Stellar evolution...")
+            self.logger.info("Evolving to %s", time.in_(units.Myr))
+            self.logger.info("Stellar evolution...")
             self.evo_code.evolve_model(time)
-            dt_cooling = time - self.gas_code.model_time
-            if self.cooling:
-                logger.info("Cooling gas...")
-                self.cooling.evolve_for(dt_cooling/2)
-            logger.info("System...")
+            # dt_cooling = time - self.gas_code.model_time
+            # if self.cooling:
+            #     self.logger.info("Cooling gas...")
+            #     self.cooling.evolve_for(dt_cooling/2)
+            self.logger.info("System...")
 
             self.system.evolve_model(time)
-            while self.gas_stopping_conditions.is_set():
-                logger.info("Gas code stopped - max density reached")
-                self.gas_code_to_model.copy()
+
+            stopping_iteration = 0
+            while (
+                    collision_detection.is_set()
+                    and stopping_iteration < (len(self.star_particles) / 2)
+            ):
+                print("Merging colliding stars - %i" % stopping_iteration)
+                self.resolve_collision(collision_detection)
+                self.star_code.evolve_model(time)
+                stopping_iteration += 1
+            if stopping_iteration >= (len(self.star_particles) / 2):
+                print("Stopping too often - disabling collision detection for now")
+                collision_detection.disable()
+                self.star_code.evolve_model(time)
+
+            stopping_iteration = 0
+            while (
+                    stopping_iteration < 10
+                    and density_limit_detection.is_set()
+            ):
+                print("Forming new stars - %i" % stopping_iteration)
+                # print(
+                #     self.gas_particles.density.max()
+                #     / maximum_density
+                # )
+                self.logger.info("Gas code stopped - max density reached")
+                # self.gas_code_to_model.copy()
                 self.resolve_starformation()
-                logger.info(
+                self.logger.info(
                     "Now we have %i stars", len(self.star_particles),
                 )
-                logger.info(
+                self.logger.info(
                     "And we have %i gas", len(self.gas_particles),
                 )
-                logger.info(
+                self.logger.info(
                     "A total of %i particles", len(self.gas_code.particles),
                 )
+                # Make sure we break the loop if the gas code is not going to
+                # evolve further
+                if (
+                        self.gas_code.model_time
+                        < (time - self.gas_code.parameters.timestep)
+                ):
+                    break
                 self.gas_code.evolve_model(
                     time
                     # self.gas_code.model_time
                     # + self.gas_code.parameters.timestep
                 )
-            self.system.evolve_model(time)
+                stopping_iteration += 1
+            if stopping_iteration >= 10:
+                print("Stopping too often - disabling star formation for now")
+                density_limit_detection.disable()
+                self.gas_code.evolve_model(time)
+            # self.system.evolve_model(time)
 
-            if self.cooling:
-                logger.info("Second cooling gas...")
-                self.cooling.evolve_for(dt_cooling/2)
+            # if self.cooling:
+            #     self.logger.info("Second cooling gas...")
+            #     self.cooling.evolve_for(dt_cooling/2)
 
-            logger.info(
+            self.logger.info(
                 "Evo time is now %s", self.evo_code.model_time.in_(units.Myr)
             )
-            logger.info(
+            self.logger.info(
                 "Bridge time is now %s", (
                     self.system.model_time.in_(units.Myr)
                 )
             )
-            self.evo_code_to_model.copy()
+            # self.evo_code_to_model.copy()
             # Check for stopping conditions
-        self.gas_code_to_model.copy()
-        self.star_code_to_model.copy()
+            print(
+                "Time: end= %s bridge= %s gas= %s stars=%s evo=%s" % (
+                    tend.in_(units.Myr),
+                    self.model_time.in_(units.Myr),
+                    self.gas_code.model_time.in_(units.Myr),
+                    self.star_code.model_time.in_(units.Myr),
+                    self.evo_code.model_time.in_(units.Myr),
+                )
+            )
+
+        # self.gas_code_to_model.copy()
+        # self.star_code_to_model.copy()
 
     def get_gravity_at_point(self, *args, **kwargs):
         force = VectorQuantity(
             [0, 0, 0],
             unit=units.m * units.s**-2,
         )
-        for parent in self.objects:
+        for parent in [self.star_code, self.gas_code, self.tidal_field]:
             force += parent.get_gravity_at_point(*args, **kwargs)
         return force
 
@@ -284,10 +460,13 @@ class ClusterInPotential(
 
 def main():
     "Simulate an embedded star cluster (sph + dynamics + evolution)"
+    import sys
     import numpy
+    from amuse.io import read_set_from_file
     from amuse.ic.plummer import new_plummer_model
     from amuse.ic.salpeter import new_salpeter_mass_distribution
     from amuse.ext.molecular_cloud import molecular_cloud
+    from plotting_class import temperature_to_u
 
     numpy.random.seed(14)
 
@@ -302,9 +481,10 @@ def main():
     number_of_stars = 10
     stellar_masses = new_salpeter_mass_distribution(number_of_stars)
     star_converter = nbody_system.nbody_to_si(
-        stellar_masses.sum() + (50000 | units.MSun),
-        15 | units.parsec,
+        stellar_masses.sum() + (500 | units.MSun),
+        2 | units.parsec,
     )
+    # stars = read_set_from_file(sys.argv[1], "amuse")
     stars = new_plummer_model(
         number_of_stars,
         convert_nbody=star_converter,
@@ -312,10 +492,31 @@ def main():
     stars.mass = 0.1 | units.MSun  # stellar_masses
 
     gas_converter = nbody_system.nbody_to_si(
-        50000 | units.MSun,
-        10 | units.parsec,
+        1000 | units.MSun,
+        2 | units.parsec,
     )
-    gas = molecular_cloud(targetN=500000, convert_nbody=gas_converter).result
+    # gas = read_set_from_file(sys.argv[2], "amuse")
+    # gas = molecular_cloud(targetN=50000, convert_nbody=gas_converter).result
+    u = temperature_to_u(10 | units.K)
+
+    gas = molecular_cloud(targetN=25000, convert_nbody=gas_converter).result
+    gas.u = u
+
+    gastwo = molecular_cloud(
+        targetN=25000, convert_nbody=gas_converter
+    ).result
+    gastwo.u = u
+
+    gas.x -= 2 | units.parsec
+    gastwo.x += 2 | units.parsec
+    gastwo.y += 0 | units.parsec
+    gastwo.z -= 0 | units.parsec
+    gas.vx += 1.2 | units.kms
+    gastwo.vx -= 1.2 | units.kms
+    # gas.vx += ((3 | units.parsec) / (2 | units.Myr))
+    # gastwo.vx -= ((3 | units.parsec) / (2 | units.Myr))
+
+    gas.add_particles(gastwo)
 
     model = ClusterInPotential(
         stars=stars,
@@ -347,13 +548,20 @@ def main():
                 model.gas_particles.center_of_mass().in_(units.parsec)
             )
         )
-        plotname = "embedded-test4-%04i.png" % (step)
-        logger.info("Creating plot")
+        print(
+            "Maximum density / stopping density = %s" % (
+                model.gas_particles.density.max()
+                / model.gas_code.parameters.stopping_condition_maximum_density,
+            )
+        )
+
+        plotname = "embedded-test6-%04i.png" % (step)
+        print("Creating plot")
         plot_hydro_and_stars(
             model.model_time,
             model.gas_code,
             model.star_particles,
-            L=40,
+            L=8,
             filename=plotname,
             title="time = %06.2f %s" % (
                 model.gas_code.model_time.value_in(units.Myr),
@@ -361,17 +569,17 @@ def main():
             ),
             gasproperties=["density", "temperature"],
             colorbar=True,
-            alpha_sfe=model.alpha_sfe,
+            # alpha_sfe=model.alpha_sfe,
         )
-        if step%10 == 0:
+        if step % 10 == 0:
             write_set_to_file(
                 model.gas_particles,
-                "gas-%04i.hdf5" % step,
+                "gas6-%04i.hdf5" % step,
                 "amuse",
             )
             write_set_to_file(
                 model.star_particles,
-                "stars-%04i.hdf5" % step,
+                "stars6-%04i.hdf5" % step,
                 "amuse",
             )
 

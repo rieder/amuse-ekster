@@ -157,7 +157,8 @@ class GasCode(BasicCode):
 
         density_limit_detection = \
             self.code.stopping_conditions.density_limit_detection
-        density_limit_detection.enable()
+        if self.internal_star_formation:
+            density_limit_detection.enable()
 
         # Do cooling with a leapfrog scheme
         first = True

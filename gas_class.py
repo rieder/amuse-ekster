@@ -382,7 +382,6 @@ class Gas(object):
             self.logger.debug("Added new stars to evolution code")
         except AttributeError:
             self.logger.debug("No evolution code exists")
-            pass
         self.logger.info(
             "Resolved star formation, formed %i stars" % len(new_stars)
         )

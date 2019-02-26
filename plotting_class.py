@@ -296,13 +296,13 @@ def plot_hydro_and_stars(
 
 
 def plot_hydro(time, sph, L=10):
+    "Plot gas"
     x_label = "x [pc]"
     y_label = "y [pc]"
     fig = single_frame(
         x_label, y_label, logx=False,
         logy=False, xsize=12, ysize=12,
     )
-    "Plot gas"
     logger.info("Plotting gas")
     ax = fig.add_subplot(1, 1, 1,)
 

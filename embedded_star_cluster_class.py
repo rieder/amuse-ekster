@@ -229,25 +229,6 @@ class ClusterInPotential(
     def resolve_collision(self, collision_detection):
         "Determine how to solve a collision and resolve it"
 
-        # connected_components = self.star_particles.copy().connected_components(
-        #     threshold=50 | units.AU
-        # )
-        # n_merged_stars = 0
-        # for component in connected_components:
-        #     if len(component) == 2:
-        #         mergers = component.copy()
-        #         self.merge_two_stars(
-        #             mergers[0],
-        #             mergers[1],
-        #         )
-        #         n_merged_stars += 1
-        #     elif len(component) > 2:
-        #         print("More than one component, I can't handle that yet")
-        #     # elif len(component) == 1:
-        #     #     print("One component, so not merging obviously")
-        #     # else:
-        #     #     print("This would be really weird")
-
         coll = collision_detection
         if not coll.particles(0):
             print("No collision found? Disabling collision detection for now.")
@@ -330,12 +311,12 @@ class ClusterInPotential(
             self.star_code.stopping_conditions.collision_detection
         collision_detection.enable()
 
-        maximum_density = (
-            self.gas_code.parameters.stopping_condition_maximum_density
-        )
+        # maximum_density = (
+        #     self.gas_code.parameters.stopping_condition_maximum_density
+        # )
 
         while self.model_time < (tend - self.system.timestep):
-            evo_time = self.evo_code.model_time
+            # evo_time = self.evo_code.model_time
             # self.model_to_star_code.copy()
             evo_timestep = self.evo_code.particles.time_step.min()
             self.logger.info(
@@ -367,7 +348,9 @@ class ClusterInPotential(
                 self.star_code.evolve_model(time)
                 stopping_iteration += 1
             if stopping_iteration >= (len(self.star_particles) / 2):
-                print("Stopping too often - disabling collision detection for now")
+                print(
+                    "Stopping too often - disabling collision detection"
+                )
                 collision_detection.disable()
                 self.star_code.evolve_model(time)
 
@@ -460,9 +443,9 @@ class ClusterInPotential(
 
 def main():
     "Simulate an embedded star cluster (sph + dynamics + evolution)"
-    import sys
+    # import sys
     import numpy
-    from amuse.io import read_set_from_file
+    # from amuse.io import read_set_from_file
     from amuse.ic.plummer import new_plummer_model
     from amuse.ic.salpeter import new_salpeter_mass_distribution
     from amuse.ext.molecular_cloud import molecular_cloud

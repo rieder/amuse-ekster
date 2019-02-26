@@ -179,8 +179,9 @@ class StarCluster(
 
     def stop(self, *list_arguments, **keyword_arguments):
         """Stop codes"""
-        return self.star_code.stop(*list_arguments, **keyword_arguments)
-        return self.evo_code.stop(*list_arguments, **keyword_arguments)
+        self.star_code.stop(*list_arguments, **keyword_arguments)
+        self.evo_code.stop(*list_arguments, **keyword_arguments)
+        return
 
 
 def main():

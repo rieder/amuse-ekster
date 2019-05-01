@@ -3,13 +3,13 @@ from __future__ import print_function, division
 import logging
 import numpy
 
-# from amuse.community.fi.interface import Fi
+from amuse.community.fi.interface import Fi
 from amuse.community.phantom.interface import Phantom
-from amuse.datamodel import Particles
+from amuse.datamodel import Particles, Particle, ParticlesSuperset
 from amuse.units import units, nbody_system
 
 from cooling_class import SimplifiedThermalModelEvolver
-from plotting_class import plot_hydro_and_stars, u_to_temperature
+from plotting_class import plot_hydro_and_stars  # , u_to_temperature
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class GasCode(object):
             **keyword_arguments
         )
         self.parameters = self.code.parameters
-        if sph_code is "Fi":
+        if sph_code is Fi:
             self.parameters.begin_time = 0.0 | units.Myr
             self.parameters.use_hydro_flag = True
             self.parameters.self_gravity_flag = True
@@ -72,7 +72,7 @@ class GasCode(object):
                 self.density_threshold
 
         if self.cooling_type == "thermal_model":
-            if sph_code is "Fi":
+            if sph_code is Fi:
                 # Have to do our own cooling
                 # self.parameters.isothermal_flag = True
                 # self.parameters.gamma = 1
@@ -87,7 +87,7 @@ class GasCode(object):
             self.cooling.model_time = self.model_time
         elif self.cooling_type == "default":
             self.cooling = False
-            if sph_code is "Fi":
+            if sph_code is Fi:
                 self.parameters.gamma = 1.
                 self.parameters.isothermal_flag = True
                 self.parameters.radiation_flag = False
@@ -131,6 +131,11 @@ class GasCode(object):
     def dm_particles(self):
         """Return all dm particles"""
         return self.code.dm_particles
+
+    @property
+    def sink_particles(self):
+        """Return all sink particles"""
+        return self.code.sink_particles
 
     @property
     def particles(self):
@@ -269,6 +274,7 @@ class Gas(object):
         else:
             self.gas_particles = gas
             self.gas_particles.h_smooth = 100 | units.AU
+        self.sink_particles = Particles()
         # from amuse.community.fi.interface import Fi
         self.gas_code = GasCode(
             #Fi,
@@ -300,6 +306,9 @@ class Gas(object):
         )
         self.gas_code_to_model = self.gas_code.gas_particles.new_channel_to(
             self.gas_particles,
+        )
+        self.sinks_to_model = self.gas_code.sink_particles.new_channel_to(
+            self.sink_particles,
         )
 
         # if internal_cooling:
@@ -356,14 +365,128 @@ class Gas(object):
     # def particles(self):
     #     return self.code.particles
 
-    def resolve_collision(self):
-        """Collide two particles - determine what should happen"""
+    # def resolve_collision(self):
+    #     """Collide two particles - determine what should happen"""
 
-        return self.merge_particles()
+    #     return self.merge_particles()
 
-    def merge_particles(self):
-        """Resolve collision by merging"""
-        return
+    # def merge_particles(self):
+    #     """Resolve collision by merging"""
+    #     return
+
+    def sink_accretion(self):
+        logger.info("Resolving accretion of matter onto sinks")
+        for i, sink in enumerate(self.sink_particles):
+            xs, ys, zs = sink.position
+            r2s = sink.radius**2
+            accreted_gas = self.gas_particles.select(
+                lambda x, y, z:
+                ((x-xs)**2 + (y-ys)**2 + (z-zs)**2) < r2s,
+                ["x", "y", "z"]
+            )
+            sink_and_accreted_gas = Particles()
+            sink_and_accreted_gas.add_particle(sink)
+            sink_and_accreted_gas.add_particles(accreted_gas)
+            new_position = sink_and_accreted_gas.center_of_mass()
+            new_velocity = sink_and_accreted_gas.center_of_mass_velocity()
+            new_mass = sink_and_accreted_gas.total_mass()
+            sink.position = new_position
+            sink.velocity = new_velocity
+            sink.mass = new_mass
+            # if not accreted_tas.is_empty():
+            #     cm = sink.position * sink.mass
+            #     p = sink.velocity * sink.mass
+            #     sink.mass += to_be_accreted.total_mass()
+            #     sink.position = (
+            #         cm + (
+            #             to_be_accreted.center_of_mass()
+            #             * to_be_accreted.total_mass()
+            #         )
+            #     ) / sink.mass
+            #     sink.velocity = (
+            #         p + to_be_accreted.total_momentum()
+            #     ) / sink.mass
+            #     # sink.spin
+            self.remove_gas(accreted_gas)
+
+    def sink_merger(self):
+        logger.info("Resolving sink mergers")
+        sinks = self.sink_particles.sorted_by_attribute('mass').reversed()
+        for i, sink in enumerate(sinks):
+            xs, ys, zs = sink.position
+            r2s = sink.radius**2
+            to_be_accreted = sinks[i:].select(
+                lambda x, y, z:
+                (x-xs)**2
+                + (y-ys)**2
+                + (z-zs)**2
+                < r2s,
+                ["x", "y", "z"]
+            )
+            if not to_be_accreted.is_empty():
+                cm = sink.position * sink.mass
+                p = sink.velocity * sink.mass
+                sink.mass += to_be_accreted.total_mass()
+                sink.position = (
+                    cm + (
+                        to_be_accreted.center_of_mass()
+                        * to_be_accreted.total_mass()
+                    )
+                ) / sink.mass
+                sink.velocity = (
+                    p + to_be_accreted.total_momentum()
+                ) / sink.mass
+                # sink.spin
+                self.remove_sinks(to_be_accreted)
+
+    def add_sink(self, sink):
+        self.gas_code.sink_particles.add_particle(sink)
+        self.sink_particles.add_particle(sink)
+
+    def remove_sinks(self, sinks):
+        self.gas_code.sink_particles.remove_particles(sinks)
+        self.sink_particles.remove_particles(sinks)
+
+    def add_gas(self, gas):
+        self.gas_code.gas_particles.add_particles(gas)
+        self.gas_particles.add_particles(gas)
+
+    def remove_gas(self, gas):
+        self.gas_code.gas_particles.remove_particles(gas)
+        self.gas_particles.remove_particles(gas)
+
+    def sink_formation(self):
+        maximum_density = (
+            self.gas_code.parameters.stopping_condition_maximum_density
+        )
+        high_density_gas = self.gas_particles.select_array(
+            lambda rho: 
+            rho > maximum_density,
+            ["rho"],
+        )
+        for i, origin_gas in enumerate(high_density_gas):
+            try:
+                new_sink = Particle()
+                new_sink.radius = 0.1 | units.parsec # 100 | units.AU  # or something related to mass?
+                new_sink.accreted_mass = 0 | units.MSun
+                o_x, o_y, o_z = origin_gas.position
+    
+                # accreted_gas = self.gas_particles.select_array(
+                #     lambda x, y, z:
+                #     ((x-o_x)**2 + (y-o_y)**2 + (z-o_z)**2) < new_sink.radius**2,
+                #     ["x", "y", "z"]
+                # )
+                accreted_gas = Particles()
+                accreted_gas.add_particle(origin_gas)
+                new_sink.position = accreted_gas.center_of_mass()
+                new_sink.velocity = accreted_gas.center_of_mass_velocity()
+                new_sink.mass = accreted_gas.total_mass()
+                new_sink.accreted_mass = accreted_gas.total_mass() - origin_gas.mass
+                self.remove_gas(accreted_gas)
+                self.add_sink(new_sink)
+                print("Added sink %i" % i)
+            except:
+                print("Could not add another sink")
 
     def resolve_starformation(self):
         logger.info("Resolving star formation")
@@ -428,20 +551,48 @@ class Gas(object):
                 )
             )
             self.gas_code.evolve_model(tend)
+            dead_gas = self.gas_code.gas_particles.select(
+                lambda x: x <= 0.,
+                ["h_smooth"]
+            )
+            print("Number of dead/accreted gas particles: %i" % len(dead_gas))
+            self.remove_gas(dead_gas)
             # Check stopping conditions
-            while self.gas_stopping_conditions.is_set():
+            number_of_checks = 0
+            while (
+                    self.gas_stopping_conditions.is_set()
+                    and (number_of_checks < 1)
+            ):
+                number_of_checks += 1
                 print("Gas code stopped - max density reached")
                 self.gas_code_to_model.copy()
-                self.resolve_starformation()
-                print("Now we have %i stars" % len(self.gas_code.dm_particles))
+                self.sinks_to_model.copy()
+                # self.sink_accretion()
+                self.sink_formation()
+                # self.resolve_starformation()
+                print("Now we have %i stars" % len(self.gas_code.sink_particles))
                 print("And we have %i gas" % len(self.gas_code.gas_particles))
                 print("A total of %i particles" % len(self.gas_code.particles))
                 self.gas_code.evolve_model(tend)
+                dead_gas = self.gas_code.gas_particles.select(
+                    lambda x: x <= 0.,
+                    ["h_smooth"]
+                )
+                print("Number of dead/accreted gas particles: %i" % len(dead_gas))
+                self.remove_gas(dead_gas)
+
+                print(len(self.gas_code.gas_particles))
+                print(
+                    self.gas_code.gas_particles.density.max()
+                    / self.gas_code.parameters.stopping_condition_maximum_density
+                )
+
             # ? self.gas_code_to_model.copy()
             # if self.cooling:
             #     print("Cooling gas again")
             #     self.cooling.evolve_for(dt/2)
         self.gas_code_to_model.copy()
+        self.sinks_to_model.copy()
 
     def stop(self):
         "Stop code"
@@ -499,13 +650,19 @@ def main():
                 / model.gas_code.parameters.stopping_condition_maximum_density,
             )
         )
+        if not model.sink_particles.is_empty():
+            print(
+                "Largest sink mass: %s" % (
+                    model.sink_particles.mass.max().in_(units.MSun)
+                )
+            )
 
         plotname = "gastest-%04i.png" % (step)
         logger.info("Creating plot")
         plot_hydro_and_stars(
             model.model_time,
             model.gas_code,
-            model.gas_code.dm_particles,
+            model.gas_code.sink_particles,
             L=20,
             filename=plotname,
             title="time = %06.1f %s" % (

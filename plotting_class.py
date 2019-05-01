@@ -4,6 +4,11 @@ import logging
 import numpy
 
 from matplotlib import pyplot
+try:
+    import seaborn as sns
+    has_seaborn = False
+except:
+    has_seaborn = False
 # import matplotlib.cm as cm
 
 # from amuse.datamodel import Particles
@@ -200,7 +205,7 @@ def plot_hydro_and_stars(
             if gasproperty == "density":
 
                 rho = make_density_map(
-                    sph, N=300, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=200, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
                 xmin = -L/2
                 xmax = L/2
@@ -218,22 +223,33 @@ def plot_hydro_and_stars(
                 # )
                 # from gas_class import sfe_to_density
 
-                img = ax.imshow(
-                    numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
-                    extent=[xmin, xmax, ymin, ymax],
-                    # vmin=content.min(), vmax=content.max(),
-                    vmin=0,
-                    vmax=1+numpy.log10(
-                        sph.parameters.stopping_condition_maximum_density.value_in(
-                            units.amu * units.cm**-3
-                        ),
-                        # sfe_to_density(
-                        #     1,
-                        #     alpha=alpha_sfe,
-                        # ).value_in(units.amu/units.cm**3),
-                    ),
-                    origin="lower"
+                data = numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3))
+                # bad_points = numpy.where(data <= 0)
+                # numpy.delete(data, bad_points)
+                extent = [xmin, xmax, ymin, ymax]
+                vmin = 0
+                vmax = 1+numpy.log10(
+                    sph.parameters.stopping_condition_maximum_density.value_in(
+                        units.amu * units.cm**-3
+                    )
                 )
+                origin = "lower"
+                if has_seaborn:
+                    img = sns.kdeplot(
+                        data,
+                        shade=True,
+                        ax=ax,
+                    )
+                else:
+                    img = ax.imshow(
+                        data,
+                        extent=extent,
+                        # vmin=content.min(), vmax=content.max(),
+                        vmin=vmin,
+                        vmax=vmax,
+                        origin=origin,
+                        #interpolation="gaussian",
+                    )
                 if colorbar:
                     cbar = pyplot.colorbar(
                         img, cax=cax, orientation='vertical',
@@ -274,7 +290,7 @@ def plot_hydro_and_stars(
             # c = stars.mass/stars.mass.mean()
             x = -stars.x.value_in(units.parsec)
             y = stars.y.value_in(units.parsec)
-            ax.scatter(-x, y, s=m, c="white", lw=0)
+            ax.scatter(-x, y, s=m, c="red", lw=0)
         ax.set_xlim(xmax, xmin)
         ax.set_ylim(ymin, ymax)
         ax.set_xlabel("x [pc]")

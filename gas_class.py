@@ -8,10 +8,9 @@ from amuse.community.phantom.interface import Phantom
 from amuse.datamodel import Particles, Particle, ParticlesSuperset
 from amuse.units import units, nbody_system
 
+from basic_class import BasicCode
 from cooling_class import SimplifiedThermalModelEvolver
 from plotting_class import plot_hydro_and_stars  # , u_to_temperature
-
-logger = logging.getLogger(__name__)
 
 
 def sfe_to_density(e_loc, alpha=0.02):
@@ -26,18 +25,22 @@ def density_to_sfe(rho, alpha=0.02):
     return sfe
 
 
-class GasCode(object):
+class GasCode(BasicCode):
     """Wraps around gas code, supports star formation and cooling"""
 
     def __init__(
             self,
-            sph_code,
             converter=None,
+            sph_code=Fi,
+            logger=None,
+            internal_star_formation=False,
             cooling_type="thermal_model",
             **keyword_arguments
     ):
         self.typestr = "Hydro"
         self.namestr = sph_code.__name__
+        self.logger = logger or logging.getLogger(__name__)
+        self.internal_star_formation = internal_star_formation
         if converter is not None:
             self.converter = converter
         else:
@@ -97,30 +100,33 @@ class GasCode(object):
         # self.get_hydro_state_at_point = self.code.get_hydro_state_at_point
 
     # @property
-    def get_potential_at_point(self, *list_arguments, **keyword_arguments):
+    def get_potential_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return potential at specified point"""
         return self.code.get_potential_at_point(
-            *list_arguments, **keyword_arguments
+            eps, x, y, z, **keyword_arguments
         )
 
-    # @property
-    def get_gravity_at_point(self, *list_arguments, **keyword_arguments):
+    def get_gravity_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return gravity at specified point"""
         return self.code.get_gravity_at_point(
-            *list_arguments, **keyword_arguments
+            eps, x, y, z, **keyword_arguments
+        )
+
+    def get_hydro_state_at_point(self, eps, x, y, z, **keyword_arguments):
+        """Return hydro state at specified point"""
+        return self.code.get_hydro_state_at_point(
+            eps, x, y, z, **keyword_arguments
         )
 
     # @property
-    def get_hydro_state_at_point(self, *list_arguments, **keyword_arguments):
-        """Return hydro state at specified point"""
-        return self.code.get_hydro_state_at_point(
-            *list_arguments, **keyword_arguments
-        )
+    # def model_time(self):
+    #     """Return the current time"""
+    #     return self.code.model_time
 
     @property
-    def model_time(self):
-        """Return the current time"""
-        return self.code.model_time
+    def stopping_conditions(self):
+        """Return stopping conditions"""
+        return self.code.stopping_conditions
 
     @property
     def gas_particles(self):
@@ -175,12 +181,13 @@ class GasCode(object):
 
         density_limit_detection = \
             self.code.stopping_conditions.density_limit_detection
-        density_limit_detection.enable()
+        if self.internal_star_formation:
+            density_limit_detection.enable()
 
         # Do cooling with a leapfrog scheme
         first = True
         if self.cooling and first:
-            self.cooling.evolve_for(timestep/2)
+            self.cooling.evolve_for(half_timestep)
             first = False
         while self.model_time < (end_time - timestep/2):
             if self.cooling and not first:
@@ -220,6 +227,8 @@ class GasCode(object):
         if self.cooling:
             self.cooling.evolve_for(timestep/2)
 
+        return
+
     def resolve_starformation(self):
         """
         Form stars from gas denser than 'density_threshold'.
@@ -233,13 +242,28 @@ class GasCode(object):
         # Other selections?
         new_stars = high_density_gas.copy()
         self.gas_particles.remove_particles(high_density_gas)
-        logger.info("Removed %i former gas particles", len(new_stars))
+        self.logger.info("Removed %i former gas particles", len(new_stars))
 
         new_stars.birth_age = self.model_time
         self.dm_particles.add_particles(new_stars)
-        logger.info("Added %i new star particles", len(new_stars))
+        self.logger.info("Added %i new star particles", len(new_stars))
 
-        logger.info("Resolved star formation")
+        self.logger.info("Resolved star formation")
+
+    @property
+    def potential_energy(self):
+        """Return the potential energy in the code"""
+        return self.code.potential_energy
+
+    @property
+    def kinetic_energy(self):
+        """Return the kinetic energy in the code"""
+        return self.code.kinetic_energy
+
+    @property
+    def thermal_energy(self):
+        """Return the thermal energy in the code"""
+        return self.code.thermal_energy
 
 
 class Gas(object):
@@ -254,7 +278,9 @@ class Gas(object):
             epsilon=0.05 | units.parsec,
             alpha_sfe=0.04,
             # internal_cooling=False,
+            logger=None,
     ):
+        self.logger = logger or logging.getLogger(__name__)
         self.alpha_sfe = alpha_sfe
         if converter is not None:
             self.gas_converter = converter
@@ -489,7 +515,7 @@ class Gas(object):
                 print("Could not add another sink")
 
     def resolve_starformation(self):
-        logger.info("Resolving star formation")
+        self.logger.info("Resolving star formation")
         high_density_gas = self.gas_particles.select_array(
             lambda rho: rho > sfe_to_density(
                 1, alpha=self.alpha_sfe,
@@ -499,33 +525,34 @@ class Gas(object):
         # Other selections?
         new_stars = high_density_gas.copy()
         # print(len(new_stars))
-        logger.info("Removing %i former gas particles", len(new_stars))
+        self.logger.debug("Removing %i former gas particles", len(new_stars))
         self.gas_code.particles.remove_particles(high_density_gas)
         self.gas_particles.remove_particles(high_density_gas)
         # self.gas_particles.synchronize_to(self.gas_code.gas_particles)
-        logger.info("Removed %i former gas particles", len(new_stars))
+        self.logger.debug("Removed %i former gas particles", len(new_stars))
         try:
             star_code_particles = self.star_code.particles
         except AttributeError:
             star_code_particles = self.gas_code.dm_particles
         new_stars.birth_age = self.gas_code.model_time
-        logger.info("Adding %i new stars to star code", len(new_stars))
+        self.logger.debug("Adding %i new stars to star code", len(new_stars))
         star_code_particles.add_particles(new_stars)
-        logger.info("Added %i new stars to star code", len(new_stars))
-        logger.info("Adding %i new stars to model", len(new_stars))
+        self.logger.debug("Added %i new stars to star code", len(new_stars))
+        self.logger.debug("Adding %i new stars to model", len(new_stars))
         try:
             self.star_particles.add_particles(new_stars)
-            logger.info("Added %i new stars to model", len(new_stars))
+            logger.debug("Added %i new stars to model", len(new_stars))
         except NameError:
-            logger.info("No stars in this model")
-        logger.info("Adding new stars to evolution code")
+            self.logger.debug("No stars in this model")
+        self.logger.debug("Adding new stars to evolution code")
         try:
             self.evo_code.particles.add_particles(new_stars)
-            logger.info("Added new stars to evolution code")
+            self.logger.debug("Added new stars to evolution code")
         except AttributeError:
-            logger.info("No evolution code exists")
-            pass
-        logger.info("Resolved star formation")
+            self.logger.debug("No evolution code exists")
+        self.logger.info(
+            "Resolved star formation, formed %i stars" % len(new_stars)
+        )
 
     def evolve_model(self, tend):
         "Evolve model to specified time and synchronise model"
@@ -658,7 +685,7 @@ def main():
             )
 
         plotname = "gastest-%04i.png" % (step)
-        logger.info("Creating plot")
+        print("Creating plot")
         plot_hydro_and_stars(
             model.model_time,
             model.gas_code,

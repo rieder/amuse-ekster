@@ -290,14 +290,14 @@ class CalculateFieldForParticles(object):
         positions = self.particles.position
         result = quantities.AdaptingVectorQuantity()
 
-        for i in range(len(x)):
+        for i, item in enumerate(x):
             dx = x[i] - positions.x
             dy = y[i] - positions.y
             dz = z[i] - positions.z
             dr_squared = (dx * dx) + (dy * dy) + (dz * dz)
             dr = (dr_squared + self._softening_lengths_squared()).sqrt()
             energy_of_this_particle = (self.particles.mass / dr).sum()
-            result.append(-self.gravity_constant * energy_of_this_particle)
+            result.append(-1 * self.gravity_constant * energy_of_this_particle)
         return result
 
     def get_gravity_at_point(self, radius, x, y, z):
@@ -306,16 +306,16 @@ class CalculateFieldForParticles(object):
         result_ax = quantities.AdaptingVectorQuantity()
         result_ay = quantities.AdaptingVectorQuantity()
         result_az = quantities.AdaptingVectorQuantity()
-        for i in range(len(x)):
+        for i, item in enumerate(x):
             dx = x[i] - positions.x
             dy = y[i] - positions.y
             dz = z[i] - positions.z
             dr_squared = ((dx * dx) + (dy * dy) + (dz * dz) +
                           self._softening_lengths_squared() + radius[i]**2)
 
-            ax = -self.gravity_constant * (m1*dx/dr_squared**1.5).sum()
-            ay = -self.gravity_constant * (m1*dy/dr_squared**1.5).sum()
-            az = -self.gravity_constant * (m1*dz/dr_squared**1.5).sum()
+            ax = -1 * self.gravity_constant * (m1*dx/dr_squared**1.5).sum()
+            ay = -1 * self.gravity_constant * (m1*dy/dr_squared**1.5).sum()
+            az = -1 * self.gravity_constant * (m1*dz/dr_squared**1.5).sum()
 
             result_ax.append(ax)
             result_ay.append(ay)
@@ -510,10 +510,9 @@ class GravityCodeInField(object):
             return particles.h_smooth
         elif self.zero_smoothing:
             return 0.*particles.x
-        else:
-            return (
-                self.code.parameters.epsilon_squared**0.5
-            ).as_vector_with_length(len(particles))
+        return (
+            self.code.parameters.epsilon_squared**0.5
+        ).as_vector_with_length(len(particles))
 
     def get_potential_energy_in_field_code(self, particles, field_code):
         pot = field_code.get_potential_at_point(
@@ -575,7 +574,7 @@ class Bridge(object):
                 radius_is_eps, h_smooth_is_eps, zero_smoothing)
             self.add_code(code)
         else:
-            if len(partners):
+            if partners:
                 raise Exception(
                     "You added a code without particles, but with partners,"
                     " this is not supported!"
@@ -603,9 +602,8 @@ class Bridge(object):
         if self.method is None:
             logger.info("Using evolve_joined_leapfrog method")
             return self.evolve_joined_leapfrog(tend, timestep)
-        else:
-            logger.info("Using evolve_simple_steps method")
-            return self.evolve_simple_steps(tend, timestep)
+        logger.info("Using evolve_simple_steps method")
+        return self.evolve_simple_steps(tend, timestep)
 
     def evolve_simple_steps(self, tend, timestep):
         while self.time < (tend-timestep/2):
@@ -703,7 +701,7 @@ class Bridge(object):
         for x in self.codes:
             if hasattr(x, "particles"):
                 array.append(x.particles)
-        if len(array) == 0:
+        if not array:
             raise AttributeError
         elif len(array) == 1:
             return array[0]
@@ -715,7 +713,7 @@ class Bridge(object):
         for x in self.codes:
             if hasattr(x, "gas_particles"):
                 array.append(x.gas_particles)
-        if len(array) == 0:
+        if not array:
             raise AttributeError
         elif len(array) == 1:
             return array[0]
@@ -729,7 +727,7 @@ class Bridge(object):
                 array.append(x.dm_particles)
             elif hasattr(x, "particles"):
                 array.append(x.particles)
-        if len(array) == 0:
+        if not array:
             raise AttributeError
         elif len(array) == 1:
             return array[0]

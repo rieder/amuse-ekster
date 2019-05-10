@@ -177,6 +177,7 @@ def plot_hydro_and_stars(
         sph,
         stars,
         L=10,
+        N=200,
         filename=None,
         offset_x=None,
         offset_y=None,
@@ -205,7 +206,7 @@ def plot_hydro_and_stars(
             if gasproperty == "density":
 
                 rho = make_density_map(
-                    sph, N=200, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
                 xmin = -L/2
                 xmax = L/2
@@ -223,37 +224,29 @@ def plot_hydro_and_stars(
                 # )
                 # from gas_class import sfe_to_density
 
-                data = numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3))
-                # bad_points = numpy.where(data <= 0)
-                # numpy.delete(data, bad_points)
-                extent = [xmin, xmax, ymin, ymax]
-                vmin = 0
-                vmax = 1+numpy.log10(
-                    sph.parameters.stopping_condition_maximum_density.value_in(
-                        units.amu * units.cm**-3
-                    )
+                img = ax.imshow(
+                    numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
+                    extent=[xmin, xmax, ymin, ymax],
+                    # vmin=content.min(), vmax=content.max(),
+                    vmin=0,
+                    vmax=1+numpy.log10(
+                        sph.parameters.stopping_condition_maximum_density.value_in(
+                            units.amu * units.cm**-3
+                        ),
+                        # sfe_to_density(
+                        #     1,
+                        #     alpha=alpha_sfe,
+                        # ).value_in(units.amu/units.cm**3),
+                    ),
+                    origin="lower"
                 )
-                origin = "lower"
-                if has_seaborn:
-                    img = sns.kdeplot(
-                        data,
-                        shade=True,
-                        ax=ax,
-                    )
-                else:
-                    img = ax.imshow(
-                        data,
-                        extent=extent,
-                        # vmin=content.min(), vmax=content.max(),
-                        vmin=vmin,
-                        vmax=vmax,
-                        origin=origin,
-                        #interpolation="gaussian",
-                    )
+                img.cmap.set_under('k')
+                img.cmap.set_bad('k', alpha=1.0)
                 if colorbar:
                     cbar = pyplot.colorbar(
                         img, cax=cax, orientation='vertical',
                         pad=0.15,
+                        extend='min'
                         # fraction=0.045,
                     )
                     cbar.ax.get_yaxis().labelpad = 15
@@ -261,7 +254,7 @@ def plot_hydro_and_stars(
 
             if gasproperty == "temperature":
                 temp = make_temperature_map(
-                    sph, N=300, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
                 xmin = -L/2
                 xmax = L/2
@@ -275,10 +268,13 @@ def plot_hydro_and_stars(
                     cmap="inferno",
                     origin="lower",
                 )
+                img.cmap.set_under('k')
+                img.cmap.set_bad('k', alpha=1.0)
                 if colorbar:
                     cbar = pyplot.colorbar(
                         img, cax=cax, orientation='vertical',
                         pad=0.15,
+                        extend='min'
                         # fraction=0.045,
                     )
                     cbar.ax.get_yaxis().labelpad = 15
@@ -290,7 +286,7 @@ def plot_hydro_and_stars(
             # c = stars.mass/stars.mass.mean()
             x = -stars.x.value_in(units.parsec)
             y = stars.y.value_in(units.parsec)
-            ax.scatter(-x, y, s=m, c="red", lw=0)
+            ax.scatter(-x, y, s=m, c="white", lw=0)
         ax.set_xlim(xmax, xmin)
         ax.set_ylim(ymin, ymax)
         ax.set_xlabel("x [pc]")
@@ -305,13 +301,13 @@ def plot_hydro_and_stars(
 
 
 def plot_hydro(time, sph, L=10):
+    "Plot gas"
     x_label = "x [pc]"
     y_label = "y [pc]"
     fig = single_frame(
         x_label, y_label, logx=False,
         logy=False, xsize=12, ysize=12,
     )
-    "Plot gas"
     logger.info("Plotting gas")
     ax = fig.add_subplot(1, 1, 1,)
 

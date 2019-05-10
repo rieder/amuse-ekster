@@ -30,11 +30,12 @@ class GasCode(BasicCode):
 
     def __init__(
             self,
+            sph_code=Phantom,
             converter=None,
-            sph_code=Fi,
             logger=None,
             internal_star_formation=False,
-            cooling_type="thermal_model",
+            # cooling_type="thermal_model",
+            cooling_type="default",
             **keyword_arguments
     ):
         self.typestr = "Hydro"
@@ -45,8 +46,8 @@ class GasCode(BasicCode):
             self.converter = converter
         else:
             self.converter = nbody_system.nbody_to_si(
-                1 | units.MSun,
-                1 | units.parsec,
+                1.0e5 | units.MSun,
+                5.0 | units.parsec,
             )
         self.cooling_type = cooling_type
 
@@ -73,6 +74,7 @@ class GasCode(BasicCode):
             self.parameters.rho_crit = self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
+            self.parameters.h_acc = 1000 | units.AU
 
         if self.cooling_type == "thermal_model":
             if sph_code is Fi:
@@ -187,7 +189,7 @@ class GasCode(BasicCode):
         # Do cooling with a leapfrog scheme
         first = True
         if self.cooling and first:
-            self.cooling.evolve_for(half_timestep)
+            self.cooling.evolve_for(timestep/2)
             first = False
         while self.model_time < (end_time - timestep/2):
             if self.cooling and not first:
@@ -631,13 +633,13 @@ def main():
     from amuse.ext.molecular_cloud import molecular_cloud
     converter = nbody_system.nbody_to_si(
         100000 | units.MSun,
-        5.0 | units.parsec,
+        10.0 | units.parsec,
     )
     numpy.random.seed(11)
     temperature = 30 | units.K
     from plotting_class import temperature_to_u
     u = temperature_to_u(temperature)
-    gas = molecular_cloud(targetN=500000, convert_nbody=converter).result
+    gas = molecular_cloud(targetN=200000, convert_nbody=converter).result
     gas.u = u
 
     #gastwo = molecular_cloud(targetN=100000, convert_nbody=converter).result
@@ -691,6 +693,7 @@ def main():
             model.gas_code,
             model.gas_code.sink_particles,
             L=20,
+            N=150,
             filename=plotname,
             title="time = %06.1f %s" % (
                 model.model_time.value_in(units.Myr),

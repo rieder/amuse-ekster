@@ -185,6 +185,7 @@ def plot_hydro_and_stars(
         gasproperties="density",
         colorbar=False,
         alpha_sfe=0.02,
+        stars_are_sinks=False,
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
@@ -224,22 +225,29 @@ def plot_hydro_and_stars(
                 # )
                 # from gas_class import sfe_to_density
 
-                img = ax.imshow(
-                    numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
-                    extent=[xmin, xmax, ymin, ymax],
-                    # vmin=content.min(), vmax=content.max(),
-                    vmin=0,
-                    vmax=1+numpy.log10(
-                        sph.parameters.stopping_condition_maximum_density.value_in(
-                            units.amu * units.cm**-3
-                        ),
-                        # sfe_to_density(
-                        #     1,
-                        #     alpha=alpha_sfe,
-                        # ).value_in(units.amu/units.cm**3),
-                    ),
-                    origin="lower"
+                plot_data = numpy.log10(
+                    1.e-5 + rho.value_in(units.amu/units.cm**3)
                 )
+                extent = [xmin, xmax, ymin, ymax]
+                vmin = 0
+                vmax = 1 + numpy.log10(
+                    sph.parameters.stopping_condition_maximum_density.value_in(
+                        units.amu * units.cm**-3
+                    )
+                )
+                origin = "lower"
+                img = ax.imshow(
+                    plot_data,
+                    extent=extent,
+                    vmin=vmin,
+                    vmax=vmax,
+                    origin=origin,
+                )
+                # img = ax.pcolormesh(
+                #     plot_data,
+                #     vmin=vmin,
+                #     vmax=vmax,
+                # )
                 img.cmap.set_under('k')
                 img.cmap.set_bad('k', alpha=1.0)
                 if colorbar:
@@ -281,12 +289,24 @@ def plot_hydro_and_stars(
                     cbar.set_label('log projected temperature [$K$]', rotation=270)
 
         if not stars.is_empty():
-            # m = 100.0*stars.mass/max(stars.mass)
-            m = 2.0*stars.mass/stars.mass.mean()
-            # c = stars.mass/stars.mass.mean()
-            x = -stars.x.value_in(units.parsec)
-            y = stars.y.value_in(units.parsec)
-            ax.scatter(-x, y, s=m, c="white", lw=0)
+            if not stars_are_sinks:
+                # m = 100.0*stars.mass/max(stars.mass)
+                s = 2.0*stars.mass / (1 | units.MSun)  # stars.mass.mean()
+                # c = stars.mass/stars.mass.mean()
+                x = -stars.x.value_in(units.parsec)
+                y = stars.y.value_in(units.parsec)
+                ax.scatter(-x, y, s=s, c="white", lw=0)
+            else:
+                s = 10*(
+                        (
+                        stars.mass
+                        / sph.parameters.stopping_condition_maximum_density
+                    )**(1/3)
+                ).value_in(units.parsec)
+                x = -stars.x.value_in(units.parsec)
+                y = stars.y.value_in(units.parsec)
+                ax.scatter(-x, y, s=s, c="red", lw=0)
+
         ax.set_xlim(xmax, xmin)
         ax.set_ylim(ymin, ymax)
         ax.set_xlabel("x [pc]")

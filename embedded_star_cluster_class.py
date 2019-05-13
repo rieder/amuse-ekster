@@ -64,7 +64,11 @@ class ClusterInPotential(
         else:
             converter_for_gas = gas_converter
         self.logger.info("Initialising Gas")
-        self.gas_code = GasCode(converter=gas_converter)
+        new_gas_converter = nbody_system.nbody_to_si(
+            gas.total_mass(),
+            2 | units.parsec,
+        )
+        self.gas_code = GasCode(converter=new_gas_converter)
         self.gas_code.gas_particles.add_particles(gas)
         # Gas.__init__(
         #     self, gas=gas, converter=converter_for_gas, epsilon=epsilon,
@@ -472,6 +476,15 @@ class ClusterInPotential(
             )
             # self.evo_code_to_model.copy()
             # Check for stopping conditions
+
+            # Clean up accreted gas
+            dead_gas = self.gas_code.gas_particles.select(
+                lambda x: x <= 0.,
+                ["h_smooth"]
+            )
+            print("Number of dead/accreted gas particles: %i" % len(dead_gas))
+            self.remove_gas(dead_gas)
+
             print(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s" % (
                     tend.in_(units.Myr),
@@ -545,11 +558,11 @@ def main():
     # gas = molecular_cloud(targetN=50000, convert_nbody=gas_converter).result
     u = temperature_to_u(10 | units.K)
 
-    gas = molecular_cloud(targetN=25000, convert_nbody=gas_converter).result
+    gas = molecular_cloud(targetN=50000, convert_nbody=gas_converter).result
     gas.u = u
 
     gastwo = molecular_cloud(
-        targetN=25000, convert_nbody=gas_converter
+        targetN=50000, convert_nbody=gas_converter
     ).result
     gastwo.u = u
 
@@ -580,18 +593,29 @@ def main():
             "Evolved to %s" % model.model_time.in_(units.Myr)
         )
         print(
-            "Most massive star: %s" % (
-                model.star_particles.mass.max().in_(units.MSun)
+            "Number of particles - gas: %i sinks: %i stars: %i" % (
+                len(model.gas_particles),
+                len(model.sink_particles),
+                len(model.star_particles),
             )
         )
-        print(
-            "Stars centre of mass: %s" % (
-                model.star_particles.center_of_mass().in_(units.parsec)
+        try:
+            print(
+                "Most massive - sink: %s star: %s" % (
+                    model.sink_particles.mass.max().in_(units.MSun),
+                    model.star_particles.mass.max().in_(units.MSun),
+                )
             )
-        )
+            print(
+                "Sinks centre of mass: %s" % (
+                    model.sink_particles.center_of_mass().in_(units.parsec),
+                )
+            )
+        except AttributeError:
+            pass
         print(
             "Gas centre of mass: %s" % (
-                model.gas_particles.center_of_mass().in_(units.parsec)
+                model.gas_particles.center_of_mass().in_(units.parsec),
             )
         )
         print(
@@ -615,6 +639,7 @@ def main():
             ),
             gasproperties=["density",],
             colorbar=True,
+            stars_are_sinks=True,
             # alpha_sfe=model.alpha_sfe,
         )
         if step % 10 == 0:

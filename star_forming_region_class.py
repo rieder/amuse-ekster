@@ -4,7 +4,6 @@ from amuse.datamodel import Particle, Particles
 from amuse.ic.plummer import new_plummer_model
 from amuse.ic.brokenimf import MultiplePartIMF
 from amuse.units.trigo import sin, cos
-# from amuse_masc import new_cluster
 
 def new_kroupa_mass_distribution(
         number_of_particles,
@@ -32,27 +31,12 @@ def new_kroupa_mass_distribution(
 
 
 class StarFormingRegion(
-        # object,
         Particle,
 ):
     """
-    # Makes a Particle into a Star-forming region.
-    Creates a Star-forming region.
-    Should be initialised after a sink has finished its initial accretion since
-    otherwise the expected mass will be off.
+    Creates a StarFormingRegion Particle superclass.
     """
 
-#     def __init__(
-#             self,
-#             # # star_distribution="plummer",
-#             # binary_fraction=0,
-#             # triple_fraction=0,
-#             # maximum_mass=500 | units.MSun,
-#     ):
-#         #Particle.__init__()
-# 
-#         #Particle.__init__()
-#         print("Initted")
     def __init__(
             self,
             key=None,

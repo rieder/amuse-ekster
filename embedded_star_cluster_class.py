@@ -17,6 +17,7 @@ from spiral_potential import (
 )
 from plotting_class import plot_hydro_and_stars
 from merge_recipes import form_new_star
+from star_forming_region_class import StarFormingRegion
 
 Tide = TimeDependentSpiralArmsDiskModel
 
@@ -75,11 +76,14 @@ class ClusterInPotential(
         #     internal_cooling=False,
         # )
         # self.gas_code.parameters.timestep = 0.005 | units.Myr
-        self.timestep = 0.005 | units.Myr
+        self.timestep = 0.001 | units.Myr
         self.logger.info("Initialised Gas")
         self.logger.info("Creating Tide object")
         self.tidal_field = Tide()
         self.logger.info("Created Tide object")
+        self.star_forming_particles = Particles()
+        self.sink_to_star_forming_region = self.sink_particles.new_channel_to(self.star_forming_particles)
+        self.star_forming_region_to_sink = self.star_forming_particles.new_channel_to(self.sink_particles)
 
         self.epsilon = epsilon
         self.converter = converter_for_gas
@@ -224,6 +228,16 @@ class ClusterInPotential(
     def add_sink(self, sink):
         # self.gas_code.gas_code.sink_particles.add_particle(sink)
         self.sink_particles.add_particle(sink)
+
+        sfr = StarFormingRegion(
+            key=sink.key,
+            position=sink.position,
+            velocity=sink.velocity,
+            mass=sink.mass,
+            radius=sink.radius,
+            formation_time=self.model_time,
+        )
+        self.star_forming_particles.add_particle(sfr)
 
     def remove_sinks(self, sinks):
         # self.gas_code.gas_code.sink_particles.remove_particles(sinks)

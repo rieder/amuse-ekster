@@ -277,7 +277,7 @@ class ClusterInPotential(
             #     print("Sink %i: %s" % (i, self.sink_particles[i]))
             #     print("SFR %i: %s" % (i, self.star_forming_particles[i]))
             new_stars = sfr.yield_next()
-            if not new_star.is_empty():
+            if not new_stars.is_empty():
                 j = 0
                 while j <= max_new_stars_per_timestep:
                     if not new_stars.is_empty():

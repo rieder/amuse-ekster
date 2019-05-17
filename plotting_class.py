@@ -291,7 +291,10 @@ def plot_hydro_and_stars(
         if not stars.is_empty():
             if not stars_are_sinks:
                 # m = 100.0*stars.mass/max(stars.mass)
-                s = 2.0*stars.mass / (1 | units.MSun)  # stars.mass.mean()
+                # directly scale with mass
+                s = stars.mass / (3 | units.MSun)  # stars.mass.mean()
+                # more physical, scale surface ~ with luminosity
+                # s = 0.1 * ((stars.mass / (1 | units.MSun))**(3.5 / 2))
                 # c = stars.mass/stars.mass.mean()
                 x = -stars.x.value_in(units.parsec)
                 y = stars.y.value_in(units.parsec)

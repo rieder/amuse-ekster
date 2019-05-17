@@ -31,14 +31,14 @@ class StellarDynamicsCode(object):
         if star_code is ph4:
             self.code = star_code(
                 self.converter,
-                number_of_workers=1,
+                number_of_workers=4,
                 mode="cpu",
             )
             param = self.parameters
             # Set the parameters explicitly to some default
             param.begin_time = 0.0 | units.Myr
             # self.parameters.block_steps = False
-            param.epsilon_squared = 0 | units.AU**2
+            param.epsilon_squared = 100 | units.AU**2
             # param.force_sync = False
             # param.gpu_id = something
             # param.initial_timestep_fac = 0.0625

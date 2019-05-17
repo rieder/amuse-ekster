@@ -135,7 +135,7 @@ class StarFormingRegion(
 
             # Random velocity, sample magnitude from gaussian with local sound speed
             # like Wall et al (2019)
-            local_sound_speed = 1 | units.kms
+            local_sound_speed = 5 | units.kms
             # TODO: do this properly - see e.g. formula 5.17 in AMUSE book
             velocity_magnitude = numpy.random.normal(
                 # loc=0.0,  # <- since we already added the velocity of the sink
@@ -153,10 +153,50 @@ class StarFormingRegion(
 
             new_stars.origin_cloud = self.key
             
-            # Make sure quantities are (mostly) conserved?
+            # Make sure quantities are (mostly) conserved
+            # - mass
             self.mass -= new_stars.total_mass()
+            # - momentum
+
             
             # Determine which star(s) should form next
             self.generate_next_mass()
             return new_stars
-        return False
+        return Particles()
+
+def main():
+    star_forming_region = StarFormingRegion(
+            key=None,
+            particles_set=None,
+            set_index=None,
+            set_version=-1,
+            mass=150 | units.MSun,
+            radius=1000 | units.AU,
+            position=[0,0,0] | units.parsec,
+            velocity=[0,0,0] | units.kms,
+            initial_mass_function="kroupa",
+            binary_fraction=0,
+            triple_fraction=0,
+            upper_mass_limit=100 | units.MSun,
+    )
+    print(star_forming_region)
+    p = []
+    q = Particles()
+    p.append(star_forming_region)
+    q.add_particle(star_forming_region)
+    print(p[0])
+    print(q[0])
+    print(p[0] == star_forming_region)
+    print(q[0] == star_forming_region)
+    print(p[0] == q[0])
+    new_stars = p[0].yield_next()
+    active_sfr = q[0]
+    q_new_stars = active_sfr.yield_next()
+    i = 0
+    while not new_stars.is_empty():
+        print(i, new_stars.total_mass(), star_forming_region.mass)
+        new_stars = p[0].yield_next()
+        i += 1
+
+if __name__ == "__main__":
+    main()

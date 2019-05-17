@@ -18,6 +18,7 @@ from spiral_potential import (
 from plotting_class import plot_hydro_and_stars
 from merge_recipes import form_new_star
 from star_forming_region_class import StarFormingRegion
+from amuse.units.trigo import sin, cos, arccos, arctan
 
 Tide = TimeDependentSpiralArmsDiskModel
 
@@ -76,14 +77,14 @@ class ClusterInPotential(
         #     internal_cooling=False,
         # )
         # self.gas_code.parameters.timestep = 0.005 | units.Myr
-        self.timestep = 0.001 | units.Myr
+        self.timestep = 0.005 | units.Myr
         self.logger.info("Initialised Gas")
         self.logger.info("Creating Tide object")
         self.tidal_field = Tide()
         self.logger.info("Created Tide object")
-        self.star_forming_particles = Particles()
-        self.sink_to_star_forming_region = self.sink_particles.new_channel_to(self.star_forming_particles)
-        self.star_forming_region_to_sink = self.star_forming_particles.new_channel_to(self.sink_particles)
+        self.star_forming_particles = []  # TODO: this cannot be a Particleset at the moment unfortunately
+        # self.sink_to_star_forming_region = self.sink_particles.new_channel_to(self.star_forming_particles)
+        # self.star_forming_region_to_sink = self.star_forming_particles.new_channel_to(self.sink_particles)
 
         self.epsilon = epsilon
         self.converter = converter_for_gas
@@ -98,7 +99,7 @@ class ClusterInPotential(
                 #     p.dir_codelogs + "/field_gravity_code.log"
                 #     ),
                 mode="cpu",
-                number_of_workers=1,
+                number_of_workers=4,
             )
             result.parameters.epsilon_squared = (self.epsilon)**2
             return result
@@ -151,7 +152,7 @@ class ClusterInPotential(
         self.system.add_system(
             self.gas_code,
             partners=to_gas_codes,
-            do_sync=True,
+            do_sync=False,
             # do_sync=False,
         )
         # self.system.timestep = 2 * self.gas_code.parameters.timestep
@@ -204,7 +205,7 @@ class ClusterInPotential(
         for i, origin_gas in enumerate(high_density_gas):
             # try:
             new_sink = Particle()
-            new_sink.radius = 0.1 | units.parsec # 100 | units.AU  # or something related to mass?
+            new_sink.radius = 0.25 | units.parsec # 100 | units.AU  # or something related to mass?
             new_sink.accreted_mass = 0 | units.MSun
             o_x, o_y, o_z = origin_gas.position
     
@@ -237,7 +238,7 @@ class ClusterInPotential(
             radius=sink.radius,
             formation_time=self.model_time,
         )
-        self.star_forming_particles.add_particle(sfr)
+        self.star_forming_particles.append(sfr)
 
     def remove_sinks(self, sinks):
         # self.gas_code.gas_code.sink_particles.remove_particles(sinks)
@@ -251,7 +252,52 @@ class ClusterInPotential(
         # self.gas_code.gas_code.gas_particles.remove_particles(gas)
         self.gas_particles.remove_particles(gas)
 
-    def resolve_starformation(self):
+    def add_stars(self, stars):
+        self.star_particles.add_particles(stars)
+        self.evo_code.particles.add_particles(stars)
+
+    def resolve_star_formation(self):
+        self.logger.info("Resolving star formation")
+        mass_before = self.sink_particles.total_mass() + self.star_particles.total_mass()
+        sink_attributes = ["mass", "x", "y", "z", "vx", "vy", "vz"]
+        max_new_stars_per_timestep = 10
+        stellar_mass_formed = 0 | units.MSun
+        for i, sfr in enumerate(self.star_forming_particles):
+            if i%100 == 99:
+                print(i)
+            #sink_to_sfr = self.sink_particles.new_channel_to(sfr)
+            #sink_to_sfr.copy_attributes(sink_attributes)
+            # Check if we're doing the right sink particle - should be but unsafe
+            # if self.sink_particles[i].key == sfr.key:
+            sfr.mass = self.sink_particles[i].mass
+            sfr.position = self.sink_particles[i].position
+            sfr.velocity = self.sink_particles[i].velocity
+            sfr.radius = self.sink_particles[i].radius
+            # if i == 0:
+            #     print("Sink %i: %s" % (i, self.sink_particles[i]))
+            #     print("SFR %i: %s" % (i, self.star_forming_particles[i]))
+            new_stars = sfr.yield_next()
+            if not new_star.is_empty():
+                j = 0
+                while j <= max_new_stars_per_timestep:
+                    if not new_stars.is_empty():
+                        self.add_stars(new_stars)
+                        stellar_mass_formed += new_stars.mass.sum()
+                        new_stars = sfr.yield_next()
+                        j += 1
+                    else:
+                        break
+                self.sink_particles[i].mass = sfr.mass
+                self.sink_particles[i].position = sfr.position
+                self.sink_particles[i].velocity = sfr.velocity
+                self.sink_particles[i].radius = sfr.radius
+            
+        # sfr_to_sink = sfr.new_channel_to(self.sink_particles)
+        # sfr_to_sink.copy_attributes(sink_attributes)
+        mass_after = self.sink_particles.total_mass() + self.star_particles.total_mass()
+        print("dM = %s, mFormed = %s " % ((mass_after - mass_before).in_(units.MSun), stellar_mass_formed.in_(units.MSun)))
+
+    def _resolve_starformation(self):
         self.logger.info("Resolving star formation")
 
         maximum_density = (
@@ -370,6 +416,37 @@ class ClusterInPotential(
 
         return
 
+    def stellar_feedback(self):
+        # Extremely simplified stellar feedback onto gas
+        gas = self.gas_particles.copy()
+        mass_cutoff = 5 | units.MSun
+        rmax = 1000 | units.AU
+        massive_stars = self.star_particles.select(
+            lambda m:
+            m >= mass_cutoff,
+            ["mass"]
+        )
+        for i, star in enumerate(massive_stars):
+            gas.position -= star.position
+            gas.dist = gas.position.lengths()
+            gas = gas.sorted_by_attribute("dist")
+            gas_near_star = gas.select(
+                lambda r:
+                r < rmax,
+                ["dist"]
+            )
+            theta = arccos(gas_near_star.z/gas_near_star.dist)
+            phi = arctan(gas_near_star.y / gas_near_star.x)
+            # Something related to energy
+            # (Slow) solar wind is about 400 km/s
+            base_velocity = (400 | units.kms) #(1 | units.AU) / self.feedback_timestep
+            gas_near_star.vx += sin(theta) * cos(phi) * base_velocity
+            gas_near_star.vy += sin(theta) * sin(phi) * base_velocity
+            gas_near_star.vz += cos(theta) * base_velocity
+
+            gas.position += star.position
+            
+
     def evolve_model(self, tend):
         "Evolve system to specified time"
         self.logger.info(
@@ -386,7 +463,8 @@ class ClusterInPotential(
 
         collision_detection = \
             self.star_code.stopping_conditions.collision_detection
-        collision_detection.enable()
+        # TODO: re-enable at some point?
+        # collision_detection.enable()
 
         # maximum_density = (
         #     self.gas_code.parameters.stopping_condition_maximum_density
@@ -432,8 +510,9 @@ class ClusterInPotential(
                 self.star_code.evolve_model(time)
 
             stopping_iteration = 0
+            max_number_of_iterations = 3
             while (
-                    stopping_iteration < 10
+                    stopping_iteration < max_number_of_iterations
                     and density_limit_detection.is_set()
             ):
                 print("Forming new stars - %i" % stopping_iteration)
@@ -445,7 +524,7 @@ class ClusterInPotential(
                 # self.gas_code_to_model.copy()
                 self.resolve_sink_formation()
                 self.logger.info(
-                    "Now we have %i stars", len(self.star_particles),
+                    "Now we have %i sinks", len(self.star_particles),
                 )
                 self.logger.info(
                     "; %i sinks", len(self.sink_particles),
@@ -470,10 +549,14 @@ class ClusterInPotential(
                     # + self.gas_code.parameters.timestep
                 )
                 stopping_iteration += 1
-            if stopping_iteration >= 10:
-                print("Stopping too often - disabling star formation for now")
+            if stopping_iteration >= max_number_of_iterations:
+                print("Stopping too often - disabling sink formation for now")
                 density_limit_detection.disable()
                 self.gas_code.evolve_model(time)
+            if not self.sink_particles.is_empty():
+                print("Forming stars")
+                self.resolve_star_formation()
+                print("Formed stars")
             # self.system.evolve_model(time)
 
             # if self.cooling:
@@ -498,6 +581,10 @@ class ClusterInPotential(
             )
             print("Number of dead/accreted gas particles: %i" % len(dead_gas))
             self.remove_gas(dead_gas)
+
+            self.feedback_timestep = self.timestep
+            if not self.star_particles.is_empty():
+                self.stellar_feedback()
 
             print(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s" % (
@@ -572,11 +659,11 @@ def main():
     # gas = molecular_cloud(targetN=50000, convert_nbody=gas_converter).result
     u = temperature_to_u(10 | units.K)
 
-    gas = molecular_cloud(targetN=50000, convert_nbody=gas_converter).result
+    gas = molecular_cloud(targetN=10000, convert_nbody=gas_converter).result
     gas.u = u
 
     gastwo = molecular_cloud(
-        targetN=50000, convert_nbody=gas_converter
+        targetN=10000, convert_nbody=gas_converter
     ).result
     gastwo.u = u
 
@@ -644,8 +731,9 @@ def main():
         plot_hydro_and_stars(
             model.model_time,
             model.gas_code,
-            model.sink_particles,
+            model.star_particles,
             L=15,
+            N=100,
             filename=plotname,
             title="time = %06.2f %s" % (
                 model.gas_code.model_time.value_in(units.Myr),
@@ -653,7 +741,8 @@ def main():
             ),
             gasproperties=["density",],
             colorbar=True,
-            stars_are_sinks=True,
+            # stars_are_sinks=True,
+            stars_are_sinks=False,
             # alpha_sfe=model.alpha_sfe,
         )
         if step % 10 == 0:

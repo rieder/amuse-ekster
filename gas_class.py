@@ -51,7 +51,8 @@ class GasCode(BasicCode):
             )
         self.cooling_type = cooling_type
 
-        self.epsilon = 0.05 | units.parsec
+        self.epsilon = 0.1 | units.parsec
+        # self.density_threshold = (1e-16 | units.g * units.cm**-3)
         self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
         self.code = sph_code(
             self.converter,
@@ -74,7 +75,7 @@ class GasCode(BasicCode):
             self.parameters.rho_crit = self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
-            self.parameters.h_acc = 1000 | units.AU
+            self.parameters.h_acc = 100 | units.AU
 
         if self.cooling_type == "thermal_model":
             if sph_code is Fi:
@@ -175,7 +176,7 @@ class GasCode(BasicCode):
         """
 
         # if code_name is Fi:
-        timestep = 0.01 | units.Myr #self.code.parameters.timestep
+        timestep = 0.005 | units.Myr #self.code.parameters.timestep
         if self.model_time >= (end_time - timestep/2):
             return
         # if code_name is something_else:

@@ -1,1 +1,5 @@
+title: Ekster module for AMUSE
+logo: /images/ekster.jpg
+description: Ekster is an AMUSE module for embedded star clusters.
+show_downloads: true
 theme: jekyll-theme-minimal

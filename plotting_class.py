@@ -76,6 +76,55 @@ def _make_density_map(
     return rho
 
 
+def make_column_density_map(
+        sph, N=70, L=1, offset_x=None, offset_y=None,
+):
+    "Create a density map from an SPH code"
+    logger.info("Creating density map for gas")
+    length = units.parsec
+
+    xmin = -0.5 * L
+    ymin = -0.5 * L
+    xmax = 0.5 * L
+    ymax = 0.5 * L
+    # if offset_x is not None:
+    #     xmin += offset_x
+    #     xmax += offset_x
+    # if offset_y is not None:
+    #     ymin += offset_y
+    #     ymax += offset_y
+
+    gas = sph.gas_particles.copy()
+    gas.x -= offset_x | length
+    gas.y -= offset_y | length
+
+    n, x_edges, y_edges = numpy.histogram2d(
+        gas.x.value_in(length),
+        gas.y.value_in(length),
+        bins=N,
+        range=[
+            [-0.5*L, 0.5*L],
+            [-0.5*L, 0.5*L],
+        ],
+    )
+
+    square = ((xmax-xmin) * (ymax-ymin) / L**2) | length**2
+    gas_coldens, xedges, yedges = numpy.histogram2d(
+        gas.x.value_in(length),
+        gas.y.value_in(length),
+        bins=N,
+        range=[
+            [-0.5*L, 0.5*L],
+            [-0.5*L, 0.5*L],
+        ],
+        weights=gas.mass.value_in(units.MSun) / square.value_in(length**2),
+    )
+    gas_coldens = (gas_coldens) | units.MSun / length**2
+
+    # Convolve with SPH kernel?
+    return (gas_coldens, xedges, yedges)
+
+
 def make_density_map(
         sph, N=70, L=1, offset_x=None, offset_y=None,
 ):
@@ -87,14 +136,16 @@ def make_density_map(
     ymin = -0.5 * L
     xmax = 0.5 * L
     ymax = 0.5 * L
-    if offset_x is not None:
-        xmin += offset_x
-        xmax += offset_x
-    if offset_y is not None:
-        ymin += offset_y
-        ymax += offset_y
+    # if offset_x is not None:
+    #     xmin += offset_x
+    #     xmax += offset_x
+    # if offset_y is not None:
+    #     ymin += offset_y
+    #     ymax += offset_y
 
-    gas = sph.gas_particles
+    gas = sph.gas_particles.copy()
+    gas.x -= offset_x | length
+    gas.y -= offset_y | length
 
     n, x_edges, y_edges = numpy.histogram2d(
         gas.x.value_in(length),
@@ -119,7 +170,7 @@ def make_density_map(
     gas_rho = (gas_rho/n) | units.amu * units.cm**-3
 
     # Convolve with SPH kernel?
-    return gas_rho
+    return (gas_rho, xedges, yedges)
 
 
 def make_temperature_map(
@@ -206,19 +257,22 @@ def plot_hydro_and_stars(
             ax.set_title(gasproperty)
             if gasproperty == "density":
 
-                rho = make_density_map(
+                rho, xedges, yedges = make_column_density_map(
                     sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
-                ).transpose()
+                )
+                rho = rho.transpose()
+                print(xedges.min(), xedges.max())
+                print(yedges.min(), yedges.max())
                 xmin = -L/2
                 xmax = L/2
                 ymin = -L/2
                 ymax = L/2
                 if offset_x is not None:
-                    xmin += offset_x.value_in(units.parsec)
-                    xmax += offset_x.value_in(units.parsec)
+                    xmin += offset_x
+                    xmax += offset_x
                 if offset_y is not None:
-                    ymin += offset_y.value_in(units.parsec)
-                    ymax += offset_y.value_in(units.parsec)
+                    ymin += offset_y
+                    ymax += offset_y
 
                 # content = numpy.log10(
                 #     1.e-5+rho.value_in(units.amu/units.cm**3)
@@ -226,13 +280,17 @@ def plot_hydro_and_stars(
                 # from gas_class import sfe_to_density
 
                 plot_data = numpy.log10(
-                    1.e-5 + rho.value_in(units.amu/units.cm**3)
+                    1.e-5 + rho.value_in(units.MSun/units.parsec**2)
+                    # 1.e-5 + rho.value_in(units.amu/units.cm**3)
                 )
                 extent = [xmin, xmax, ymin, ymax]
                 vmin = 0
                 vmax = 1 + numpy.log10(
-                    sph.parameters.stopping_condition_maximum_density.value_in(
-                        units.amu * units.cm**-3
+                    (
+                        sph.parameters.stopping_condition_maximum_density.value_in(
+                            units.MSun/units.parsec**3
+                        )
+                        * (1 | units.parsec).value_in(units.parsec)
                     )
                 )
                 origin = "lower"
@@ -258,7 +316,7 @@ def plot_hydro_and_stars(
                         # fraction=0.045,
                     )
                     cbar.ax.get_yaxis().labelpad = 15
-                    cbar.set_label('log projected density [$amu/cm^3$]', rotation=270)
+                    cbar.set_label('log column density [$MSun/parsec^2$]', rotation=270)
 
             if gasproperty == "temperature":
                 temp = make_temperature_map(
@@ -336,7 +394,7 @@ def plot_hydro(time, sph, L=10):
 
     # gas = sph.code.gas_particles
     # dmp = sph.code.dm_particles
-    rho = make_density_map(sph, N=200, L=L)
+    rho, xedges, yedges = make_density_map(sph, N=200, L=L)
     ax.imshow(
         numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
         extent=[-L/2, L/2, -L/2, L/2], vmin=1, vmax=5, origin="lower",
@@ -354,7 +412,7 @@ def plot_hydro(time, sph, L=10):
     #     pyplot.scatter(dmp.y.value_in(units.parsec), dmp.x.value_in(
     #         units.parsec), c=c, s=m, lw=0, cmap=cm)
 
-    pyplot.show()
+    #pyplot.show()
 
 
 def new_option_parser():

@@ -68,16 +68,17 @@ class ClusterInPotential(
         self.logger.info("Initialising Gas")
         new_gas_converter = nbody_system.nbody_to_si(
             gas.total_mass(),
-            2 | units.parsec,
+            100 | units.parsec,
         )
         self.gas_code = GasCode(converter=new_gas_converter)
         self.gas_code.gas_particles.add_particles(gas)
+        print(self.gas_code.parameters)
         # Gas.__init__(
         #     self, gas=gas, converter=converter_for_gas, epsilon=epsilon,
         #     internal_cooling=False,
         # )
         # self.gas_code.parameters.timestep = 0.005 | units.Myr
-        self.timestep = 0.005 | units.Myr
+        self.timestep = 0.01 | units.Myr
         self.logger.info("Initialised Gas")
         self.logger.info("Creating Tide object")
         self.tidal_field = Tide()
@@ -140,7 +141,7 @@ class ClusterInPotential(
 
         self.system = Bridge(
             timestep=(
-                2 * self.timestep
+                self.timestep
             ),
             use_threading=False,
         )
@@ -152,7 +153,7 @@ class ClusterInPotential(
         self.system.add_system(
             self.gas_code,
             partners=to_gas_codes,
-            do_sync=False,
+            do_sync=True,
             # do_sync=False,
         )
         # self.system.timestep = 2 * self.gas_code.parameters.timestep
@@ -205,7 +206,7 @@ class ClusterInPotential(
         for i, origin_gas in enumerate(high_density_gas):
             # try:
             new_sink = Particle()
-            new_sink.radius = 0.25 | units.parsec # 100 | units.AU  # or something related to mass?
+            new_sink.radius = 0.1 | units.parsec # 100 | units.AU  # or something related to mass?
             new_sink.accreted_mass = 0 | units.MSun
             o_x, o_y, o_z = origin_gas.position
     
@@ -470,7 +471,21 @@ class ClusterInPotential(
         #     self.gas_code.parameters.stopping_condition_maximum_density
         # )
 
-        while self.model_time < (tend - self.system.timestep):
+        print("Starting loop")
+        print(self.model_time, tend, self.system.timestep)
+        step = 0 
+        minimum_steps = 1
+        print(
+            (
+                (self.model_time < (tend - self.system.timestep))
+                or (step < minimum_steps)
+            )
+        )
+        while (
+                (self.model_time < (tend - self.system.timestep))
+                or (step < minimum_steps)
+        ):
+            step += 1
             # evo_time = self.evo_code.model_time
             # self.model_to_star_code.copy()
             evo_timestep = self.evo_code.particles.time_step.min()
@@ -491,23 +506,26 @@ class ClusterInPotential(
             #     self.cooling.evolve_for(dt_cooling/2)
             self.logger.info("System...")
 
+            print("Evolving system")
             self.system.evolve_model(time)
+            self.gas_code.evolve_model(time)
+            print("Evolved system")
 
-            stopping_iteration = 0
-            while (
-                    collision_detection.is_set()
-                    and stopping_iteration < (len(self.star_particles) / 2)
-            ):
-                print("Merging colliding stars - %i" % stopping_iteration)
-                self.resolve_collision(collision_detection)
-                self.star_code.evolve_model(time)
-                stopping_iteration += 1
-            if stopping_iteration >= (len(self.star_particles) / 2):
-                print(
-                    "Stopping too often - disabling collision detection"
-                )
-                collision_detection.disable()
-                self.star_code.evolve_model(time)
+            # stopping_iteration = 0
+            # while (
+            #         collision_detection.is_set()
+            #         and stopping_iteration < (len(self.star_particles) / 2)
+            # ):
+            #     print("Merging colliding stars - %i" % stopping_iteration)
+            #     self.resolve_collision(collision_detection)
+            #     self.star_code.evolve_model(time)
+            #     stopping_iteration += 1
+            # if stopping_iteration >= (len(self.star_particles) / 2):
+            #     print(
+            #         "Stopping too often - disabling collision detection"
+            #     )
+            #     collision_detection.disable()
+            #     self.star_code.evolve_model(time)
 
             stopping_iteration = 0
             max_number_of_iterations = 3
@@ -620,9 +638,9 @@ class ClusterInPotential(
 
 def main():
     "Simulate an embedded star cluster (sph + dynamics + evolution)"
-    # import sys
+    import sys
     import numpy
-    # from amuse.io import read_set_from_file
+    from amuse.io import read_set_from_file
     from amuse.ic.plummer import new_plummer_model
     from amuse.ic.salpeter import new_salpeter_mass_distribution
     from amuse.ext.molecular_cloud import molecular_cloud
@@ -652,31 +670,40 @@ def main():
     stars.mass = 0.1 | units.MSun  # stellar_masses
 
     gas_converter = nbody_system.nbody_to_si(
-        25000 | units.MSun,
-        5 | units.parsec,
+        10000000 | units.MSun,
+        200 | units.parsec,
     )
     # gas = read_set_from_file(sys.argv[2], "amuse")
     # gas = molecular_cloud(targetN=50000, convert_nbody=gas_converter).result
+
+    print(sys.argv)
+    if len(sys.argv) > 1:
+        print("reading gas")
+        gas = read_set_from_file(sys.argv[1], "amuse")
+        print("%i particles read" % len(gas))
+    else:
+        gas = molecular_cloud(targetN=100000, convert_nbody=gas_converter).result
+
+        gastwo = molecular_cloud(
+            targetN=100000, convert_nbody=gas_converter
+        ).result
+
+        gas.x -= 5 | units.parsec
+        gastwo.x += 5 | units.parsec
+        gastwo.y += 0 | units.parsec
+        gastwo.z -= 0 | units.parsec
+        gas.vx += 2.5 | units.kms
+        gastwo.vx -= 2.5 | units.kms
+        # gas.vx += ((3 | units.parsec) / (2 | units.Myr))
+        # gastwo.vx -= ((3 | units.parsec) / (2 | units.Myr))
+
+        gas.add_particles(gastwo)
+    stars.position += gas.center_of_mass()
+    stars.velocity += gas.center_of_mass_velocity()
+
     u = temperature_to_u(10 | units.K)
-
-    gas = molecular_cloud(targetN=10000, convert_nbody=gas_converter).result
+    del(gas.u)
     gas.u = u
-
-    gastwo = molecular_cloud(
-        targetN=10000, convert_nbody=gas_converter
-    ).result
-    gastwo.u = u
-
-    gas.x -= 5 | units.parsec
-    gastwo.x += 5 | units.parsec
-    gastwo.y += 0 | units.parsec
-    gastwo.z -= 0 | units.parsec
-    gas.vx += 2.5 | units.kms
-    gastwo.vx -= 2.5 | units.kms
-    # gas.vx += ((3 | units.parsec) / (2 | units.Myr))
-    # gastwo.vx -= ((3 | units.parsec) / (2 | units.Myr))
-
-    gas.add_particles(gastwo)
 
     model = ClusterInPotential(
         stars=stars,
@@ -685,9 +712,9 @@ def main():
         gas_converter=gas_converter,
     )
 
-    timestep = 0.02 | units.Myr
+    timestep = 0.01 | units.Myr
     for step in range(500):
-        time = step * timestep
+        time = (1+step) * timestep
         while model.model_time < time - timestep/2:
             model.evolve_model(time)
         print(
@@ -728,17 +755,29 @@ def main():
 
         plotname = "embedded-phantom-%04i.png" % (step)
         print("Creating plot")
+        mtot = model.gas_particles.total_mass()
+        com = mtot * model.gas_particles.center_of_mass()
+        if not model.sink_particles.is_empty():
+            mtot += model.sink_particles.total_mass()
+            com += model.sink_particles.total_mass() * model.sink_particles.center_of_mass()
+        if not model.star_particles.is_empty():
+            mtot += model.star_particles.total_mass()
+            com + model.star_particles.total_mass() * model.star_particles.center_of_mass()
+        com = com / mtot
+        print("Centre of mass: %s" % com)
         plot_hydro_and_stars(
             model.model_time,
             model.gas_code,
             model.star_particles,
-            L=15,
-            N=100,
+            L=500,
+            N=300,
             filename=plotname,
             title="time = %06.2f %s" % (
                 model.gas_code.model_time.value_in(units.Myr),
                 units.Myr,
             ),
+            offset_x=com[0].value_in(units.parsec),
+            offset_y=com[1].value_in(units.parsec),
             gasproperties=["density",],
             colorbar=True,
             # stars_are_sinks=True,
@@ -751,11 +790,11 @@ def main():
                 "gas-%04i.hdf5" % step,
                 "amuse",
             )
-            write_set_to_file(
-                model.sink_particles,
-                "sinks-%04i.hdf5" % step,
-                "amuse",
-            )
+            # write_set_to_file(
+            #     model.sink_particles,
+            #     "sinks-%04i.hdf5" % step,
+            #     "amuse",
+            # )
             write_set_to_file(
                 model.star_particles,
                 "stars-%04i.hdf5" % step,

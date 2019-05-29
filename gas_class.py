@@ -52,8 +52,9 @@ class GasCode(BasicCode):
         self.cooling_type = cooling_type
 
         self.epsilon = 0.1 | units.parsec
-        # self.density_threshold = (1e-16 | units.g * units.cm**-3)
-        self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
+        self.density_threshold = (3e-20 | units.g * units.cm**-3)
+        print("Density threshold for sink formation: %s" % self.density_threshold.in_(units.MSun * units.parsec**-3))
+        # self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
         self.code = sph_code(
             self.converter,
             redirection="none",
@@ -662,7 +663,7 @@ def main():
     print(model.gas_code.parameters)
     #print(model.gas_code.gas_particles[0])
     #exit()
-    timestep = 0.01 | units.Myr #model.gas_code.parameters.timestep
+    timestep = 0.002 | units.Myr #model.gas_code.parameters.timestep
 
     times = [] | units.Myr
     kinetic_energies = [] | units.J

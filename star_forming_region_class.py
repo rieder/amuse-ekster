@@ -135,7 +135,7 @@ class StarFormingRegion(
 
             # Random velocity, sample magnitude from gaussian with local sound speed
             # like Wall et al (2019)
-            local_sound_speed = 5 | units.kms
+            local_sound_speed = 2 | units.kms
             # TODO: do this properly - see e.g. formula 5.17 in AMUSE book
             velocity_magnitude = numpy.random.normal(
                 # loc=0.0,  # <- since we already added the velocity of the sink

@@ -38,7 +38,7 @@ class StellarDynamicsCode(object):
             # Set the parameters explicitly to some default
             param.begin_time = 0.0 | units.Myr
             # self.parameters.block_steps = False
-            param.epsilon_squared = (0.1 | units.parsec)**2  # | units.AU**2
+            param.epsilon_squared = (0.01 | units.parsec)**2  # | units.AU**2
             # param.force_sync = False
             # param.gpu_id = something
             # param.initial_timestep_fac = 0.0625

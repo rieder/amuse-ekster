@@ -52,7 +52,7 @@ class GasCode(BasicCode):
         self.cooling_type = cooling_type
 
         self.epsilon = 0.1 | units.parsec
-        self.density_threshold = (3e-20 | units.g * units.cm**-3)
+        self.density_threshold = (1e-20 | units.g * units.cm**-3)
         print("Density threshold for sink formation: %s" % self.density_threshold.in_(units.MSun * units.parsec**-3))
         # self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
         self.code = sph_code(
@@ -76,7 +76,9 @@ class GasCode(BasicCode):
             self.parameters.rho_crit = self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
-            self.parameters.h_acc = 100 | units.AU
+            # self.parameters.h_soft_sinkgas = 0.01 | units.parsec
+            # self.parameters.h_soft_sinksink = 0.01 | units.parsec
+            self.parameters.h_acc = 0.001 | units.parsec
 
         if self.cooling_type == "thermal_model":
             if sph_code is Fi:
@@ -497,7 +499,7 @@ class Gas(object):
         for i, origin_gas in enumerate(high_density_gas):
             try:
                 new_sink = Particle()
-                new_sink.radius = 0.1 | units.parsec # 100 | units.AU  # or something related to mass?
+                new_sink.radius = 0.01 | units.parsec # 100 | units.AU  # or something related to mass?
                 new_sink.accreted_mass = 0 | units.MSun
                 o_x, o_y, o_z = origin_gas.position
     

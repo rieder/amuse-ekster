@@ -226,7 +226,8 @@ def make_temperature_map(
 def plot_hydro_and_stars(
         time,
         sph,
-        stars,
+        stars=None,
+        sinks=None,
         L=10,
         N=200,
         filename=None,
@@ -237,9 +238,20 @@ def plot_hydro_and_stars(
         colorbar=False,
         alpha_sfe=0.02,
         stars_are_sinks=False,
+        starscale=1,
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
+    xmin = -L/2
+    xmax = L/2
+    ymin = -L/2
+    ymax = L/2
+    if offset_x is not None:
+        xmin += offset_x
+        xmax += offset_x
+    if offset_y is not None:
+        ymin += offset_y
+        ymax += offset_y
 
     number_of_subplots = max(
         1,
@@ -263,16 +275,6 @@ def plot_hydro_and_stars(
                 rho = rho.transpose()
                 print(xedges.min(), xedges.max())
                 print(yedges.min(), yedges.max())
-                xmin = -L/2
-                xmax = L/2
-                ymin = -L/2
-                ymax = L/2
-                if offset_x is not None:
-                    xmin += offset_x
-                    xmax += offset_x
-                if offset_y is not None:
-                    ymin += offset_y
-                    ymax += offset_y
 
                 # content = numpy.log10(
                 #     1.e-5+rho.value_in(units.amu/units.cm**3)
@@ -322,10 +324,6 @@ def plot_hydro_and_stars(
                 temp = make_temperature_map(
                     sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
                 ).transpose()
-                xmin = -L/2
-                xmax = L/2
-                ymin = -L/2
-                ymax = L/2
                 img = ax.imshow(
                     numpy.log10(1.e-5+temp.value_in(units.K)),
                     extent=[xmin, xmax, ymin, ymax],
@@ -346,27 +344,29 @@ def plot_hydro_and_stars(
                     cbar.ax.get_yaxis().labelpad = 15
                     cbar.set_label('log projected temperature [$K$]', rotation=270)
 
-        if not stars.is_empty():
-            if not stars_are_sinks:
+        if sinks is not None:
+            if not sinks.is_empty():
+                s = 2*(
+                        (
+                        sinks.mass
+                        / sph.parameters.stopping_condition_maximum_density
+                    )**(1/3)
+                ).value_in(units.parsec)
+                x = -sinks.x.value_in(units.parsec)
+                y = sinks.y.value_in(units.parsec)
+                ax.scatter(-x, y, s=s, c="red", lw=0)
+        if stars is not None:
+            if not stars.is_empty():
+            #if not stars_are_sinks:
                 # m = 100.0*stars.mass/max(stars.mass)
                 # directly scale with mass
-                s = stars.mass / (3 | units.MSun)  # stars.mass.mean()
+                s = starscale * stars.mass / (5 | units.MSun)  # stars.mass.mean()
                 # more physical, scale surface ~ with luminosity
                 # s = 0.1 * ((stars.mass / (1 | units.MSun))**(3.5 / 2))
                 # c = stars.mass/stars.mass.mean()
                 x = -stars.x.value_in(units.parsec)
                 y = stars.y.value_in(units.parsec)
                 ax.scatter(-x, y, s=s, c="white", lw=0)
-            else:
-                s = 10*(
-                        (
-                        stars.mass
-                        / sph.parameters.stopping_condition_maximum_density
-                    )**(1/3)
-                ).value_in(units.parsec)
-                x = -stars.x.value_in(units.parsec)
-                y = stars.y.value_in(units.parsec)
-                ax.scatter(-x, y, s=s, c="red", lw=0)
 
         ax.set_xlim(xmax, xmin)
         ax.set_ylim(ymin, ymax)

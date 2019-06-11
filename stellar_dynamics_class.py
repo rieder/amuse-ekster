@@ -33,6 +33,7 @@ class StellarDynamicsCode(object):
                 self.converter,
                 number_of_workers=1,
                 mode="cpu",
+                redirection="none",
             )
             param = self.parameters
             # Set the parameters explicitly to some default
@@ -63,6 +64,7 @@ class StellarDynamicsCode(object):
             self.code = star_code(
                 self.converter,
                 number_of_workers=1,
+                redirection="none",
             )
             param = self.parameters
 

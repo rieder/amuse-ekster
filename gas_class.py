@@ -76,8 +76,8 @@ class GasCode(BasicCode):
             self.parameters.rho_crit = self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
-            # self.parameters.h_soft_sinkgas = 0.01 | units.parsec
-            # self.parameters.h_soft_sinksink = 0.01 | units.parsec
+            self.parameters.h_soft_sinkgas = 0.01 | units.parsec
+            self.parameters.h_soft_sinksink = 0.01 | units.parsec
             self.parameters.h_acc = 0.001 | units.parsec
 
         if self.cooling_type == "thermal_model":

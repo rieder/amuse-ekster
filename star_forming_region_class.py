@@ -1,9 +1,10 @@
 import numpy
-from amuse.units import units, nbody_system
+from amuse.units import units  # , nbody_system
 from amuse.datamodel import Particle, Particles
-from amuse.ic.plummer import new_plummer_model
+# from amuse.ic.plummer import new_plummer_model
 from amuse.ic.brokenimf import MultiplePartIMF
 from amuse.units.trigo import sin, cos
+
 
 def new_kroupa_mass_distribution(
         number_of_particles,
@@ -18,9 +19,9 @@ def new_kroupa_mass_distribution(
     masses = [] | units.MSun
     while len(masses) < number_of_particles:
         next_mass = MultiplePartIMF(
-            mass_boundaries = [0.01, 0.08, 0.5, 1000.0] | units.MSun,
-            mass_max = mass_max,
-            alphas = [-0.3, -1.3, -2.3],
+            mass_boundaries=[0.01, 0.08, 0.5, 1000.0] | units.MSun,
+            mass_max=mass_max,
+            alphas=[-0.3, -1.3, -2.3],
             random=random,
         ).next_mass(1)
         if mass_min is None:
@@ -28,6 +29,111 @@ def new_kroupa_mass_distribution(
         elif next_mass >= mass_min:
             masses.append(next_mass)
     return masses
+
+
+def generate_next_mass(
+        initial_mass_function="kroupa",
+        upper_mass_limit=100 | units.MSun,
+        binary_fraction=0,
+        triple_fraction=0,
+):
+    "Generate list of masses of next star/stars to form"
+    rnd = numpy.random.random()
+    is_triple = False
+    is_binary = False
+    if rnd < triple_fraction:
+        is_triple = True
+    elif rnd < triple_fraction + binary_fraction:
+        is_binary = True
+    if not (is_binary or is_triple):
+        n = 1
+    elif is_binary:
+        n = 2
+    elif is_triple:
+        n = 3
+
+    return new_kroupa_mass_distribution(
+        n,
+        mass_max=upper_mass_limit,
+    )
+
+
+def form_stars(
+        sink,
+        upper_mass_limit=100 | units.MSun,
+        **keyword_arguments
+):
+    "Let sink form stars"
+
+    initialised = sink.initialised or False
+    if not initialised:
+        next_mass = generate_next_mass()
+        sink.next_number_of_stars = len(next_mass)
+        sink.next_total_mass = next_mass.sum()
+        sink.next_primary_mass = next_mass[0]
+        if sink.next_number_of_stars > 1:
+            sink.next_secondary_mass = next_mass[1]
+        if sink.next_number_of_stars > 2:
+            sink.next_tertiary_mass = next_mass[2]
+        sink.initialised = True
+    if sink.mass < sink.next_total_mass:
+        return None
+    new_stars = Particles(sink.next_number_of_stars)
+    new_stars[0].mass = sink.next_primary_mass
+    if sink.next_number_of_stars > 1:
+        new_stars[1].mass = sink.next_secondary_mass
+    if sink.next_number_of_stars > 2:
+        new_stars[2].mass = sink.next_tertiary_mass
+    new_stars.position = sink.position
+    new_stars.velocity = sink.velocity
+
+    # Random position within the sink radius
+    radius = sink.radius
+    rho = numpy.random.random(sink.next_number_of_stars) * radius
+    theta = (
+        numpy.random.random(sink.next_number_of_stars)
+        * (2 * numpy.pi | units.rad)
+    )
+    phi = (
+        numpy.random.random(sink.next_number_of_stars) * numpy.pi | units.rad
+    )
+    x = rho * sin(phi) * cos(theta)
+    y = rho * sin(phi) * sin(theta)
+    z = rho * cos(phi)
+    new_stars.x += x
+    new_stars.y += y
+    new_stars.z += z
+    # Random velocity, sample magnitude from gaussian with local sound speed
+    # like Wall et al (2019)
+    local_sound_speed = 2 | units.kms
+    # TODO: do this properly - see e.g. formula 5.17 in AMUSE book
+    velocity_magnitude = numpy.random.normal(
+        # loc=0.0,  # <- since we already added the velocity of the sink
+        scale=local_sound_speed.value_in(units.kms),
+        size=sink.next_number_of_stars,
+    ) | units.kms
+    velocity_theta = (
+        numpy.random.random(sink.next_number_of_stars)
+        * (2 * numpy.pi | units.rad)
+    )
+    velocity_phi = (
+        numpy.random.random(sink.next_number_of_stars)
+        * (numpy.pi | units.rad)
+    )
+    vx = velocity_magnitude * sin(velocity_phi) * cos(velocity_theta)
+    vy = velocity_magnitude * sin(velocity_phi) * sin(velocity_theta)
+    vz = velocity_magnitude * cos(velocity_phi)
+    new_stars.vx += vx
+    new_stars.vy += vy
+    new_stars.vz += vz
+
+    new_stars.origin_cloud = sink.key
+    sink.mass -= new_stars.total_mass()
+    # TODO: fix sink's momentum
+
+    # cleanup
+    sink.initialised = False
+    return new_stars
 
 
 class StarFormingRegion(
@@ -45,19 +151,19 @@ class StarFormingRegion(
             set_version=-1,
             mass=0 | units.MSun,
             radius=0 | units.AU,
-            position=[0,0,0] | units.parsec,
-            velocity=[0,0,0] | units.kms,
+            position=[0, 0, 0] | units.parsec,
+            velocity=[0, 0, 0] | units.kms,
             initial_mass_function="kroupa",
             binary_fraction=0,
             triple_fraction=0,
             upper_mass_limit=100 | units.MSun,
             **keyword_arguments):
         if particles_set is None:
-            if key == None:
+            if key is None:
                 particles_set = Particles(1)
                 key = particles_set.get_all_keys_in_store()[0]
             else:
-                particles_set = Particles(1, keys = [key])
+                particles_set = Particles(1, keys=[key])
 
         object.__setattr__(self, "key", key)
         object.__setattr__(self, "particles_set", particles_set)
@@ -76,7 +182,6 @@ class StarFormingRegion(
         self.binary_fraction = binary_fraction
         self.upper_mass_limit = upper_mass_limit
         self.generate_next_mass()
-
 
     def generate_next_mass(self):
         """

@@ -116,7 +116,7 @@ class StarCluster(
         self.star_code.particles.add_particles(stars)
         self.logger.info("Initialised StellarDynamics")
         self.logger.info("Initialising StellarEvolution")
-        self.evo_code = StellarEvolutionCode()
+        self.evo_code = StellarEvolutionCode(redirection="none")
         self.evo_code.particles.add_particles(stars)
         self.logger.info("Initialised StellarEvolution")
         self.setup_channels()

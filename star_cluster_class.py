@@ -107,6 +107,7 @@ class StarCluster(
             converter=None,
             epsilon=0.1 | units.parsec,
             logger=None,
+            start_time=None,
     ):
         self.logger = logger or logging.getLogger(__name__)
         self.logger.info("Initialising StellarDynamics")
@@ -136,13 +137,13 @@ class StarCluster(
             return self.star_code.model_time
         return self.evo_code.model_time
 
-    @property
-    def star_particles(self):
-        return self.star_code.particles
+    # @property
+    # def star_particles(self):
+    #     return self.star_code.particles
 
-    @property
-    def particles(self):
-        return self.star_code.particles
+    # @property
+    # def particles(self):
+    #     return self.star_code.particles
 
     def evolve_model(self, tend):
         """

@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy
 from amuse.units import units  # , nbody_system
 from amuse.datamodel import Particle, Particles
@@ -65,6 +66,8 @@ def form_stars(
 ):
     "Let sink form stars"
 
+    sink_initial_density = sink.mass / (4/3 * numpy.pi * sink.radius**3)
+
     initialised = sink.initialised or False
     if not initialised:
         next_mass = generate_next_mass()
@@ -129,7 +132,14 @@ def form_stars(
 
     new_stars.origin_cloud = sink.key
     sink.mass -= new_stars.total_mass()
-    # TODO: fix sink's momentum
+    # TODO: fix sink's momentum etc
+
+    # Shrink the sink's (accretion) radius to prevent it from accreting
+    # relatively far away gas and moving a lot
+    sink.radius = (
+        (sink.mass / sink_initial_density)
+        / (4/3 * numpy.pi)
+    )**(1/3)
 
     # cleanup
     sink.initialised = False

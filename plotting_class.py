@@ -415,6 +415,91 @@ def plot_hydro(time, sph, L=10):
     #pyplot.show()
 
 
+def plot_stars(
+        time,
+        sph=None,
+        stars=None,
+        sinks=None,
+        L=10,
+        N=None,
+        filename=None,
+        offset_x=None,
+        offset_y=None,
+        title="",
+        gasproperties="density",
+        colorbar=False,
+        alpha_sfe=0.02,
+        stars_are_sinks=False,
+        starscale=1,
+        fig=None,
+):
+    "Plot stars, but still accept sph keyword for compatibility reasons"
+    logger.info("Plotting stars")
+    if sph is None:
+        max_density = 100 | units.MSun * units.parsec**-3
+    else:
+        max_density = sph.parameters.stopping_condition_maximum_density
+    xmin = -L/2
+    xmax = L/2
+    ymin = -L/2
+    ymax = L/2
+    if offset_x is not None:
+        xmin += offset_x
+        xmax += offset_x
+    if offset_y is not None:
+        ymin += offset_y
+        ymax += offset_y
+
+    if fig == None:
+        # Create new figure
+        fig = pyplot.figure(figsize=(7, 5))
+        ax = fig.add_subplot(1, 1, 1)
+        close_fig_when_done = True
+    else:
+        # Use existing figure
+        close_fig_when_done = False
+        if ax is None:
+            # But new axes
+            ax = fig.add_subplot(1, 1, 1)
+
+    if sinks is not None:
+        if not sinks.is_empty():
+            s = 2*(
+                    (
+                    sinks.mass
+                    / max_density
+                )**(1/3)
+            ).value_in(units.parsec)
+            x = -sinks.x.value_in(units.parsec)
+            y = sinks.y.value_in(units.parsec)
+            ax.scatter(-x, y, s=s, c="red", lw=0)
+    if stars is not None:
+        if not stars.is_empty():
+            s = starscale * stars.mass / (5 | units.MSun)  # stars.mass.mean()
+            # more physical, scale surface ~ with luminosity
+            # s = 0.1 * ((stars.mass / (1 | units.MSun))**(3.5 / 2))
+            # c = stars.mass/stars.mass.mean()
+            x = -stars.x.value_in(units.parsec)
+            y = stars.y.value_in(units.parsec)
+            ax.scatter(-x, y, s=s, c="white", lw=0)
+
+    ax.set_xlim(xmax, xmin)
+    ax.set_ylim(ymin, ymax)
+    ax.set_xlabel("x [pc]")
+    ax.set_ylabel("y [pc]")
+    ax.set_aspect(1)
+    ax.set_facecolor('black')
+    fig.suptitle(title)
+    if filename is None:
+        filename = "test.png"
+    pyplot.savefig(filename, dpi=300)
+
+    if close_fig_when_done:
+        pyplot.close(fig)
+    # else:
+        # just clear up
+
+
 def new_option_parser():
     "Parse command line arguments"
     from amuse.units.optparse import OptionParser

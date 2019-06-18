@@ -1,6 +1,7 @@
 "Class for stellar dynamics"
 from __future__ import print_function, division
 import logging
+from amuse.community.bhtree.interface import BHTree
 from amuse.community.ph4.interface import ph4
 from amuse.community.hermite0.interface import Hermite
 from amuse.datamodel import Particles, Particle
@@ -12,12 +13,13 @@ class StellarDynamicsCode(object):
     def __init__(
             self,
             converter=None,
-            star_code=ph4,
+            star_code=BHTree,
             logger=None,
             handle_stopping_conditions=False,
     ):
         self.typestr = "Nbody"
         self.namestr = star_code.__name__
+        self.__name__ = "StellarDynamics"
         self.logger = logger or logging.getLogger(__name__)
         self.handle_stopping_conditions = handle_stopping_conditions
         if converter is not None:
@@ -31,7 +33,7 @@ class StellarDynamicsCode(object):
         if star_code is ph4:
             self.code = star_code(
                 self.converter,
-                number_of_workers=1,
+                number_of_workers=2,
                 mode="cpu",
                 redirection="none",
             )
@@ -39,7 +41,7 @@ class StellarDynamicsCode(object):
             # Set the parameters explicitly to some default
             param.begin_time = 0.0 | units.Myr
             # self.parameters.block_steps = False
-            param.epsilon_squared = (0.01 | units.parsec)**2  # | units.AU**2
+            param.epsilon_squared = (0.02 | units.parsec)**2  # | units.AU**2
             # param.force_sync = False
             # param.gpu_id = something
             # param.initial_timestep_fac = 0.0625
@@ -63,10 +65,18 @@ class StellarDynamicsCode(object):
         elif star_code is Hermite:
             self.code = star_code(
                 self.converter,
-                number_of_workers=1,
+                number_of_workers=4,
                 redirection="none",
             )
             param = self.parameters
+            param.epsilon_squared = (0.01 | units.parsec)**2  # | units.AU**2
+        elif star_code is BHTree:
+            self.code = star_code(
+                self.converter,
+                redirection="none",
+            )
+            param = self.parameters
+            param.epsilon_squared = (0.01 | units.parsec)**2  # | units.AU**2
 
     def evolve_model(self, end_time):
         """

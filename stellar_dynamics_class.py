@@ -3,7 +3,8 @@ from __future__ import print_function, division
 import logging
 from amuse.community.bhtree.interface import BHTree
 from amuse.community.ph4.interface import ph4
-from amuse.community.hermite0.interface import Hermite
+from amuse.community.phigrape.interface import PhiGRAPE
+from amuse.community.hermite.interface import Hermite
 from amuse.datamodel import Particles, Particle
 from amuse.units import units, nbody_system
 
@@ -13,7 +14,7 @@ class StellarDynamicsCode(object):
     def __init__(
             self,
             converter=None,
-            star_code=BHTree,
+            star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
     ):
@@ -33,7 +34,7 @@ class StellarDynamicsCode(object):
         if star_code is ph4:
             self.code = star_code(
                 self.converter,
-                number_of_workers=2,
+                number_of_workers=4,
                 mode="cpu",
                 redirection="none",
             )
@@ -41,11 +42,11 @@ class StellarDynamicsCode(object):
             # Set the parameters explicitly to some default
             param.begin_time = 0.0 | units.Myr
             # self.parameters.block_steps = False
-            param.epsilon_squared = (0.02 | units.parsec)**2  # | units.AU**2
+            param.epsilon_squared = (0.01 | units.parsec)**2  # | units.AU**2
             # param.force_sync = False
             # param.gpu_id = something
-            # param.initial_timestep_fac = 0.0625
-            # param.initial_timestep_limit = 0.03125
+            param.initial_timestep_fac = 0.0625
+            param.initial_timestep_limit = 0.03125
             # param.initial_timestep_median = 8.0
             # param.manage_encounters = 4
             # # We won't use these stopping conditions anyway
@@ -65,11 +66,19 @@ class StellarDynamicsCode(object):
         elif star_code is Hermite:
             self.code = star_code(
                 self.converter,
+                number_of_workers=6,
+                redirection="none",
+            )
+            param = self.parameters
+            param.epsilon_squared = (0.05 | units.parsec)**2  # | units.AU**2
+        elif star_code is PhiGRAPE:
+            self.code = star_code(
+                self.converter,
                 number_of_workers=4,
                 redirection="none",
             )
             param = self.parameters
-            param.epsilon_squared = (0.01 | units.parsec)**2  # | units.AU**2
+            param.epsilon_squared = (0.1 | units.parsec)**2
         elif star_code is BHTree:
             self.code = star_code(
                 self.converter,

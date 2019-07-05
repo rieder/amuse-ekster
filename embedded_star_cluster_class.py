@@ -3,6 +3,7 @@ from __future__ import print_function, division
 import logging
 import numpy
 from amuse.community.fastkick.interface import FastKick
+from amuse.community.ph4.interface import ph4
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
 from amuse.units import units, nbody_system
 from amuse.units.quantities import VectorQuantity
@@ -367,7 +368,10 @@ class ClusterInPotential(
         self.evo_code.particles.remove_particles(stars)
         self.star_particles.remove_particles(stars)
 
-    def resolve_star_formation(self):
+    def resolve_star_formation(self, stop_star_forming_time=0.8 | units.Myr):
+        if self.model_time >= stop_star_forming_time:
+            self.logger.info("No star formation since time > %s" % stop_star_forming_time)
+            return None
         self.logger.info("Resolving star formation")
         mass_before = (
             self.sink_particles.total_mass() + (
@@ -383,7 +387,9 @@ class ClusterInPotential(
             # if i%100 == 99:
             #     print(i)
             new_stars = form_stars(sink)
+            formed_stars = False
             while new_stars is not None:
+                formed_stars = True
                 j = 0
                 self.add_stars(new_stars)
                 stellar_mass_formed += new_stars.total_mass()
@@ -410,6 +416,7 @@ class ClusterInPotential(
             stellar_mass_formed.in_(units.MSun),
         )
         self.sync_to_gas_code()
+        return formed_stars
 
     def _resolve_starformation(self):
         self.logger.info("Resolving star formation")
@@ -729,7 +736,11 @@ class ClusterInPotential(
                 self.sync_from_gas_code()
             if not self.sink_particles.is_empty():
                 print("Forming stars")
-                self.resolve_star_formation()
+                formed_stars = self.resolve_star_formation()
+                if formed_stars and self.star_code is ph4:
+                    self.star_code.zero_step_mode = True
+                    self.star_code.evolve_model(time)
+                    self.star_code.zero_step_mode = False
                 print("Formed stars")
                 self.logger.info(
                     "Average mass of stars: %s. Average mass of sinks: %s.",

@@ -66,11 +66,11 @@ class StellarDynamicsCode(object):
         elif star_code is Hermite:
             self.code = star_code(
                 self.converter,
-                number_of_workers=6,
+                number_of_workers=4,
                 redirection="none",
             )
             param = self.parameters
-            param.epsilon_squared = (0.05 | units.parsec)**2  # | units.AU**2
+            param.epsilon_squared = (0.1 | units.parsec)**2  # | units.AU**2
         elif star_code is PhiGRAPE:
             self.code = star_code(
                 self.converter,

@@ -331,8 +331,9 @@ class ClusterInPotential(
                     self.remove_gas(accreted_gas)
                     self.add_sink(new_sink)
                     self.logger.info(
-                        "Added sink %i with mass %s", i,
-                        new_sink.mass.in_(units.MSun)
+                        "Added sink %i with mass %s and radius %s", i,
+                        new_sink.mass.in_(units.MSun),
+                        new_sink.radius.in_(units.parsec),
                     )
                     # except:
                     #     print("Could not add another sink")
@@ -877,7 +878,11 @@ def main():
             start_time = 0.0 | units.Myr
         if start_time is None:
             start_time = 0.0 | units.Myr
-        del(gas_.u)
+        try:
+            del(gas_.u)
+        except:
+            del(gas_.pressure)
+            pass
         print("%i particles read" % len(gas_))
         if run_prefix == "Test_small_":
             plot_radius = 80 | units.parsec
@@ -984,7 +989,7 @@ def main():
             model.gas_code,
             stars=model.star_particles,
             sinks=model.sink_particles,
-            L=500,#2*plot_radius.value_in(units.parsec),
+            L=100,#2*plot_radius.value_in(units.parsec),
             N=500,
             filename=plotname,
             title="time = %06.2f %s" % (
@@ -1001,6 +1006,8 @@ def main():
             # alpha_sfe=model.alpha_sfe,
         )
         for i, sink in enumerate(model.sink_particles):
+            if i >= 5:
+                break
             plotname = "%sembedded-phantom-sink%04i-%04i.png" % (run_prefix, i, step)
             # TODO: center on centre_of_mass for all the stars + sink
             # so create a particle group to keep track of this

@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/187198836.svg)](https://zenodo.org/badge/latestdoi/187198836)
 # Ekster
 Ekster is an AMUSE module for simulations of embedded stellar regions.
 

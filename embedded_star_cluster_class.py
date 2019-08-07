@@ -1,18 +1,15 @@
 "Class for a star cluster embedded in a tidal field and a gaseous region"
 from __future__ import print_function, division
 import logging
-import numpy
-from amuse.community.fastkick.interface import FastKick
+# from amuse.community.fastkick.interface import FastKick
 from amuse.community.ph4.interface import ph4
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
 from amuse.units import units, nbody_system
 from amuse.units.quantities import VectorQuantity
 from amuse.io import write_set_to_file
 
-from bridge import (
-    Bridge, CalculateFieldForCodes,
-)
-from gas_class import GasCode  # , sfe_to_density
+from gas_class import GasCode
+from sinks_class import accrete_gas  # , sfe_to_density
 from star_cluster_class import StarCluster
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
@@ -20,36 +17,54 @@ from spiral_potential import (
 from plotting_class import plot_hydro_and_stars, plot_stars
 from merge_recipes import form_new_star
 from star_forming_region_class import form_stars  # StarFormingRegion
-from amuse.units.trigo import sin, cos, arccos, arctan
+from bridge import (
+    Bridge  # , CalculateFieldForCodes,
+)
+from setup_codes import new_field_code
 
 Tide = TimeDependentSpiralArmsDiskModel
 
 
-def accrete_gas(sink, gas):
-    accreted_gas = Particles()
-    distance_to_sink_squared = (
-        (gas.x - sink.x)**2
-        + (gas.y - sink.y)**2
-        + (gas.z - sink.z)**2
+def new_argument_parser():
+    "Parse command line arguments"
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-s',
+        dest='starsfilename',
+        default=None,
+        help='file containing stars (optional) []',
     )
-    accreted_gas.add_particles(gas[
-        numpy.where(distance_to_sink_squared < sink.radius**2)
-    ])
-
-    return accreted_gas
+    parser.add_argument(
+        '-i',
+        dest='sinksfilename',
+        default=None,
+        help='file containing sinks (optional) []',
+    )
+    parser.add_argument(
+        '-g',
+        dest='gasfilename',
+        default=None,
+        help='file containing gas (optional) []',
+    )
+    return parser.parse_args()
 
 
 class ClusterInPotential(
         StarCluster,
-        # Gas,
 ):
-    """Stellar cluster in an external potential"""
+    """
+    Stellar cluster in an external potential
+
+    This class builds on StarCluster, and extends it with support for gas, an
+    external tidal field, and star formation.
+    """
 
     def __init__(
             self,
-            stars=None,
+            stars,
             gas=None,
-            # epsilon=200 | units.AU,
+            sinks=None,
             epsilon=0.1 | units.parsec,
             star_converter=None,
             gas_converter=None,
@@ -60,12 +75,24 @@ class ClusterInPotential(
         self.logger = logger or logging.getLogger(__name__)
         if logger_level is None:
             self.logger.setLevel(logging.DEBUG)
-        # else:
-        #     self.logger.setLevel(logger_level)
+        else:
+            self.logger.setLevel(logger_level)
 
-        # self.objects = (StarCluster, Gas)
-        self.start_time = start_time if start_time is not None else 0.0 | units.Myr
+        self.start_time = (
+            start_time if start_time is not None else 0.0 | units.Myr
+        )
 
+        self.logger.info("Initialising StarCluster")
+        StarCluster.__init__(
+            self,
+            stars=stars,
+            converter=star_converter,
+            epsilon=epsilon,
+            start_time=start_time,
+        )
+        self.logger.info("Initialised StarCluster")
+
+        # This class stores particle data by itself, in contrast to StarCluster
         self.gas_particles = Particles()
         self.dm_particles = Particles()
         self.sink_particles = Particles()
@@ -80,127 +107,133 @@ class ClusterInPotential(
             )
         else:
             converter_for_stars = star_converter
-        self.logger.info("Initialising StarCluster")
-        StarCluster.__init__(
-            self, stars=stars, converter=converter_for_stars, epsilon=epsilon, start_time=start_time,
-        )
-        self.logger.info("Initialised StarCluster")
 
-        mass_scale_gas = gas.mass.sum()
-        length_scale_gas = 100 | units.parsec
-        if gas_converter is None:
-            converter_for_gas = nbody_system.nbody_to_si(
-                mass_scale_gas,
-                length_scale_gas,
+        if stars is not None:
+            self.initialise_starcluster(
+                stars, converter_for_stars, epsilon=epsilon,
+                start_time=start_time,
             )
-        else:
-            converter_for_gas = gas_converter
-        self.logger.info("Initialising Gas")
-        new_gas_converter = nbody_system.nbody_to_si(
-            gas.total_mass(),
-            100 | units.parsec,
-        )
-        self.gas_code = GasCode(converter=new_gas_converter)
-        # TODO: setting the start time to something
-        # if model_time is not None:
-        #     self.gas_code.model_time = model_time
-        # self.gas_code.gas_particles.add_particles(gas)
-        self.add_gas(gas)
-        print(self.gas_code.parameters)
-        # Gas.__init__(
-        #     self, gas=gas, converter=converter_for_gas, epsilon=epsilon,
-        #     internal_cooling=False,
-        # )
-        # self.gas_code.parameters.timestep = 0.005 | units.Myr
-        self.timestep = 0.01 | units.Myr
-        self.logger.info("Initialised Gas")
+
+        if gas is not None:
+            mass_scale_gas = gas.mass.sum()
+            length_scale_gas = 100 | units.parsec
+            if gas_converter is None:
+                converter_for_gas = nbody_system.nbody_to_si(
+                    mass_scale_gas,
+                    length_scale_gas,
+                )
+            else:
+                converter_for_gas = gas_converter
+            self.logger.info("Initialising Gas")
+            new_gas_converter = nbody_system.nbody_to_si(
+                gas.total_mass(),
+                100 | units.parsec,
+            )
+            self.gas_code = GasCode(
+                converter=new_gas_converter,
+                begin_time=self.start_time,
+            )
+            # TODO: setting the begin time to something
+            # if model_time is not None:
+            #     self.gas_code.model_time = model_time
+            # self.gas_code.gas_particles.add_particles(gas)
+            self.add_gas(gas)
+            print(self.gas_code.parameters)
+            self.timestep = 0.01 | units.Myr
+            self.logger.info("Initialised Gas")
+
         self.logger.info("Creating Tide object")
-        self.tidal_field = Tide()
+        self.tidal_field = Tide(t_start=self.start_time)
         self.logger.info("Created Tide object")
 
         self.epsilon = epsilon
         self.converter = converter_for_gas
 
-        def new_field_gravity_code():
-            "Create a new field code"
-            print("Creating field code")
-            result = FastKick(
-                self.converter,
-                redirection="none",
-                # redirect_file=(
-                #     p.dir_codelogs + "/field_gravity_code.log"
-                #     ),
-                mode="cpu",
-                number_of_workers=8,
-            )
-            result.parameters.epsilon_squared = (self.epsilon)**2
-            print(result.parameters)
-            return result
-
-        def new_field_code(
-                code,
-        ):
-            " something"
-            # result = CalculateFieldForCodesUsingReinitialize(
-            result = CalculateFieldForCodes(
-                new_field_gravity_code,
-                [code],
-                # required_attributes=[
-                #     'mass', 'radius',
-                #     'x', 'y', 'z',
-                #     'vx', 'vy', 'vz',
-                # ]
-                # required_attributes=[
-                #     'mass', 'u',
-                #     'x', 'y', 'z',
-                #     'vx', 'vy', 'vz',
-                # ]
-            )
-            return result
-
-        to_gas_codes = [
-            new_field_code(
-                self.star_code,
-            ),
-            self.tidal_field,
-        ]
-        to_stars_codes = [
-            new_field_code(
-                self.gas_code,
-            ),
-            self.tidal_field,
-        ]
+        if gas is not None:
+            to_gas_codes = []
+            if self.tidal_field:
+                to_gas_codes.append(self.tidal_field)
+            if stars is not None:
+                to_gas_codes.append(
+                    new_field_code(
+                        self.star_code,
+                    )
+                )
+        if stars is not None:
+            to_stars_codes = []
+            if self.tidal_field:
+                to_stars_codes.append(self.tidal_field)
+            if gas is not None:
+                to_stars_codes.append(
+                    new_field_code(
+                        self.gas_code,
+                    )
+                )
 
         self.system = Bridge(
             timestep=(
                 self.timestep
             ),
-            # use_threading=False,
         )
-        self.system.add_system(
-            self.star_code,
-            partners=to_stars_codes,
-            do_sync=True,
+        if stars is not None:
+            self.system.add_system(
+                self.star_code,
+                partners=to_stars_codes,
+                do_sync=True,
+            )
+            self.channel_from_star_dyn = \
+                self.star_code.particles.new_channel_to(self.star_particles)
+            self.channel_from_star_evo = \
+                self.evo_code.particles.new_channel_to(self.star_particles)
+            self.channel_to_star_dyn = \
+                self.star_particles.new_channel_to(self.star_code.particles)
+            self.channel_to_star_evo = \
+                self.star_particles.new_channel_to(self.evo_code.particles)
+        if gas is not None:
+            self.system.add_system(
+                self.gas_code,
+                partners=to_gas_codes,
+                do_sync=True,
+                h_smooth_is_eps=True,
+            )
+            self.channel_from_gas = \
+                self.gas_code.gas_particles.new_channel_to(self.gas_particles)
+            self.channel_from_sinks = \
+                self.gas_code.sink_particles.new_channel_to(
+                    self.sink_particles)
+            self.channel_from_dm = \
+                self.gas_code.dm_particles.new_channel_to(self.dm_particles)
+            self.channel_to_gas = \
+                self.gas_particles.new_channel_to(self.gas_code.gas_particles)
+            self.channel_to_sinks = \
+                self.sink_particles.new_channel_to(
+                    self.gas_code.sink_particles)
+            self.channel_to_dm = \
+                self.dm_particles.new_channel_to(self.gas_code.dm_particles)
+
+    def initialise_gas(
+            self, gas, converter,
+            start_time=0 | units.yr,
+    ):
+        self.logger.info("Initialising Gas")
+        self.gas_code = GasCode(
+            converter=converter,
         )
-        self.system.add_system(
-            self.gas_code,
-            partners=to_gas_codes,
-            do_sync=True,
-            h_smooth_is_eps=True,
-            # do_sync=False,
+
+    def initialise_starcluster(
+            self, stars, converter,
+            epsilon=0 | units.parsec,
+            start_time=0 | units.yr,
+    ):
+        self.logger.info("Initialising StarCluster")
+        StarCluster.__init__(
+            self,
+            stars=stars,
+            converter=converter,
+            epsilon=epsilon,
+            start_time=start_time,
         )
-        # self.system.timestep = 2 * self.gas_code.parameters.timestep
-        # 0.05 | units.Myr
-        self.channel_from_gas = self.gas_code.gas_particles.new_channel_to(self.gas_particles)
-        self.channel_from_sinks = self.gas_code.sink_particles.new_channel_to(self.sink_particles)
-        self.channel_from_dm = self.gas_code.dm_particles.new_channel_to(self.dm_particles)
-        self.channel_from_star_dyn = self.star_code.particles.new_channel_to(self.star_particles)
-        self.channel_from_star_evo = self.evo_code.particles.new_channel_to(self.star_particles)
-        self.channel_to_gas = self.gas_particles.new_channel_to(self.gas_code.gas_particles)
-        self.channel_to_sinks = self.sink_particles.new_channel_to(self.gas_code.sink_particles)
-        self.channel_to_dm = self.dm_particles.new_channel_to(self.gas_code.dm_particles)
-        self.channel_to_star_dyn = self.star_particles.new_channel_to(self.star_code.particles)
-        self.channel_to_star_evo = self.star_particles.new_channel_to(self.evo_code.particles)
+        self.logger.info("Initialised StarCluster")
 
     def sync_from_gas_code(self):
         self.channel_from_gas.copy_all_attributes()
@@ -241,26 +274,6 @@ class ClusterInPotential(
         self.channel_to_star_dyn.copy_attributes(
             ["x", "y", "z", "vx", "vy", "vz", "mass", ]
         )
-
-    # @property
-    # def gas_particles(self):
-    #     "Return gas particles"
-    #     return self.gas_code.gas_particles
-
-    # @property
-    # def dm_particles(self):
-    #     "Return dark matter particles"
-    #     return self.gas_code.dm_particles
-
-    # @property
-    # def sink_particles(self):
-    #     "Return sink particles"
-    #     return self.gas_code.sink_particles
-
-    # @property
-    # def star_particles(self):
-    #     "Return star particles"
-    #     return self.star_code.particles
 
     @property
     def particles(self):
@@ -307,7 +320,6 @@ class ClusterInPotential(
                 )
 
                 new_sink.radius = desired_sink_radius
-                # new_sink.radius = 1 | units.parsec # 100 | units.AU  # or something related to mass?
 
                 new_sink.accreted_mass = 0 | units.MSun
                 o_x, o_y, o_z = origin_gas.position
@@ -355,7 +367,8 @@ class ClusterInPotential(
         self.gas_particles.add_particles(gas)
 
     def remove_gas(self, gas_):
-        gas = gas_.copy()  # Workaround: to prevent either from not being removed.
+        # Workaround: to prevent either from not being removed.
+        gas = gas_.copy()
         self.gas_code.gas_particles.remove_particles(gas)
         self.gas_particles.remove_particles(gas)
 
@@ -371,12 +384,15 @@ class ClusterInPotential(
 
     def resolve_star_formation(self, stop_star_forming_time=0.8 | units.Myr):
         if self.model_time >= stop_star_forming_time:
-            self.logger.info("No star formation since time > %s" % stop_star_forming_time)
+            self.logger.info(
+                "No star formation since time > %s" % stop_star_forming_time
+            )
             return None
         self.logger.info("Resolving star formation")
         mass_before = (
             self.sink_particles.total_mass() + (
-                self.star_particles.total_mass() if not self.star_particles.is_empty()
+                self.star_particles.total_mass()
+                if not self.star_particles.is_empty()
                 else (0 | units.MSun)
             )
         )
@@ -385,8 +401,6 @@ class ClusterInPotential(
         for i, sink in enumerate(self.sink_particles):
             # TODO: this loop needs debugging/checking...
             self.logger.debug("Processing sink %i", i)
-            # if i%100 == 99:
-            #     print(i)
             new_stars = form_stars(sink)
             formed_stars = False
             while new_stars is not None:
@@ -399,14 +413,6 @@ class ClusterInPotential(
                     new_stars = form_stars(sink)
                 else:
                     new_stars = None
-                # while j < max_new_stars_per_timestep:
-                #     if new_stars is not None:
-                #         self.add_stars(new_stars)
-                #         stellar_mass_formed += new_stars.total_mass()
-                #         new_stars = form_stars(sink)
-                #         j += 1
-                #     else:
-                #         break
 
         mass_after = (
             self.sink_particles.total_mass() + self.star_particles.total_mass()
@@ -428,11 +434,8 @@ class ClusterInPotential(
         high_density_gas = self.gas_particles.select(
             lambda rho:
             rho >= maximum_density,
-            # sfe_to_density(
-            #     1, alpha=self.alpha_sfe,
-            # ),
             ["rho"],
-        )  # .sorted_by_attribute("rho")
+        )
 
         stars_formed = 0
         while not high_density_gas.is_empty():
@@ -543,37 +546,16 @@ class ClusterInPotential(
         return
 
     def _stellar_feedback(self):
-        # Extremely simplified stellar feedback onto gas
-        gas = self.gas_particles.copy()
-        mass_cutoff = 5 | units.MSun
-        rmax = 1000 | units.AU
-        massive_stars = self.star_particles.select(
-            lambda m:
-            m >= mass_cutoff,
-            ["mass"]
-        )
-        for i, star in enumerate(massive_stars):
-            gas.position -= star.position
-            gas.dist = gas.position.lengths()
-            gas = gas.sorted_by_attribute("dist")
-            gas_near_star = gas.select(
-                lambda r:
-                r < rmax,
-                ["dist"]
-            )
-            theta = arccos(gas_near_star.z/gas_near_star.dist)
-            phi = arctan(gas_near_star.y / gas_near_star.x)
-            # Something related to energy
-            # (Slow) solar wind is about 400 km/s
-            base_velocity = (400 | units.kms)  # (1 | units.AU) / self.feedback_timestep
-            gas_near_star.vx += sin(theta) * cos(phi) * base_velocity
-            gas_near_star.vy += sin(theta) * sin(phi) * base_velocity
-            gas_near_star.vz += cos(theta) * base_velocity
-
-            gas.position += star.position
+        return
+        # from feedback_class import stellar_feedback
+        # mod_gas = stellar_feedback(self.gas_particles, self.star_particles)
 
     def evolve_model(self, tend):
         "Evolve system to specified time"
+
+        dmax = self.gas_code.parameters.stopping_condition_maximum_density
+        Myr = units.Myr
+
         self.logger.info(
             "Evolving to time %s",
             tend,
@@ -600,13 +582,13 @@ class ClusterInPotential(
         step = 0
         minimum_steps = 1
         print(
-            (
-                ((self.model_time + self.start_time) < (tend - self.system.timestep))
-                or (step < minimum_steps)
-            )
+            ((self.model_time + self.start_time)
+             < (tend - self.system.timestep))
+            or (step < minimum_steps)
         )
         while (
-                ((self.model_time + self.start_time) < (tend - self.system.timestep))
+                ((self.model_time + self.start_time)
+                 < (tend - self.system.timestep))
                 or (step < minimum_steps)
         ):
             step += 1
@@ -614,14 +596,14 @@ class ClusterInPotential(
             # self.model_to_star_code.copy()
             evo_timestep = self.evo_code.particles.time_step.min()
             self.logger.info(
-                "Smallest evo timestep: %s", evo_timestep.in_(units.Myr)
+                "Smallest evo timestep: %s", evo_timestep.in_(Myr)
             )
             time = min(
                 # evo_time+evo_timestep,
                 tend,
                 10 * tend,
             )
-            self.logger.info("Evolving to %s", time.in_(units.Myr))
+            self.logger.info("Evolving to %s", time.in_(Myr))
             self.logger.info("Stellar evolution...")
             self.evo_code.evolve_model(time)
             self.sync_from_evo_code()
@@ -633,47 +615,16 @@ class ClusterInPotential(
 
             print("Evolving system")
             self.system.evolve_model(time)
-            # print("nr of model gas particles: %i" % len(self.gas_particles))
-            # print("nr of code gas particles: %i" % len(self.gas_code.gas_particles))
-            # print(self.gas_particles[0].position.in_(units.parsec))
-            # print(self.gas_particles[0].velocity.in_(units.kms))
-            # print(self.gas_particles[1].position.in_(units.parsec))
-            # print(self.gas_particles[1].velocity.in_(units.kms))
-            # print(self.gas_particles[-2].position.in_(units.parsec))
-            # print(self.gas_particles[-2].velocity.in_(units.kms))
-            # print(self.gas_particles[-1].position.in_(units.parsec))
-            # print(self.gas_particles[-1].velocity.in_(units.kms))
-            # print(self.gas_code.gas_particles[0].position.in_(units.parsec))
-            # print(self.gas_code.gas_particles[0].velocity.in_(units.kms))
-            # print(self.gas_code.gas_particles[1].position.in_(units.parsec))
-            # print(self.gas_code.gas_particles[1].velocity.in_(units.kms))
-            # print(self.gas_code.gas_particles[-2].position.in_(units.parsec))
-            # print(self.gas_code.gas_particles[-2].velocity.in_(units.kms))
-            # print(self.gas_code.gas_particles[-1].position.in_(units.parsec))
-            # print(self.gas_code.gas_particles[-1].velocity.in_(units.kms))
             self.sync_from_gas_code()
             self.sync_from_star_code()
-            if (self.gas_code.model_time + self.start_time) < (time - self.system.timestep):
+            if (
+                    (self.gas_code.model_time + self.start_time)
+                    < (time - self.system.timestep)
+            ):
                 print("Evolving gas code a bit more")
                 self.gas_code.evolve_model(time)
                 self.sync_from_gas_code()
             print("Evolved system")
-
-            # stopping_iteration = 0
-            # while (
-            #         collision_detection.is_set()
-            #         and stopping_iteration < (len(self.star_particles) / 2)
-            # ):
-            #     print("Merging colliding stars - %i" % stopping_iteration)
-            #     self.resolve_collision(collision_detection)
-            #     self.star_code.evolve_model(time)
-            #     stopping_iteration += 1
-            # if stopping_iteration >= (len(self.star_particles) / 2):
-            #     print(
-            #         "Stopping too often - disabling collision detection"
-            #     )
-            #     collision_detection.disable()
-            #     self.star_code.evolve_model(time)
 
             stopping_iteration = 0
             # max_number_of_iterations = 10
@@ -683,38 +634,42 @@ class ClusterInPotential(
                     # stopping_iteration < max_number_of_iterations
                     and density_limit_detection.is_set()
             ):
-                # Add this check since density detection isn't working perfectly yet
+                # Add this check since density detection isn't working
+                # perfectly yet
                 dens_frac = (
                     self.gas_particles.density.max()
-                    / self.gas_code.parameters.stopping_condition_maximum_density
+                    / dmax
                 )
                 if dens_frac < 1:
-                    self.logger.info("max density < stopping density but stopping condition still set?")
+                    self.logger.info(
+                        "max density < stopping density but stopping condition"
+                        " still set?"
+                    )
                     high_density_remaining = False
                     # stopping_iteration = max_number_of_iterations
                     break
 
                 self.logger.debug("Forming new stars - %i", stopping_iteration)
-                # print(
-                #     self.gas_particles.density.max()
-                #     / maximum_density
-                # )
                 self.logger.info("Gas code stopped - max density reached")
                 self.logger.debug(
                     "Highest density / max density: %s",
                     (
                         self.gas_particles.density.max()
-                        / self.gas_code.parameters.stopping_condition_maximum_density
+                        / dmax
                     )
                 )
                 self.sync_from_gas_code()
                 self.resolve_sink_formation()
                 self.logger.info(
-                    "Now we have %i stars; %i sinks and %i gas, %i particles in total.",
+                    "Now we have %i stars; %i sinks and %i gas, %i particles"
+                    " in total.",
                     len(self.star_particles),
                     len(self.sink_particles),
                     len(self.gas_particles),
-                    (len(self.gas_code.particles) + len(self.star_code.particles)),
+                    (
+                        len(self.gas_code.particles)
+                        + len(self.star_code.particles)
+                    ),
                 )
                 # Make sure we break the loop if the gas code is not going to
                 # evolve further
@@ -730,8 +685,11 @@ class ClusterInPotential(
                 )
                 self.sync_from_gas_code()
                 # stopping_iteration += 1
-            if high_density_remaining is False:  # stopping_iteration >= max_number_of_iterations:
-                self.logger.info("Remaining gas below critical density, disabling sink formation for now")
+            if high_density_remaining is False:
+                self.logger.info(
+                    "Remaining gas below critical density, disabling sink"
+                    " formation for now"
+                )
                 density_limit_detection.disable()
                 self.gas_code.evolve_model(time)
                 self.sync_from_gas_code()
@@ -756,18 +714,13 @@ class ClusterInPotential(
                         sink.mass.in_(units.MSun),
                     )
 
-            # self.system.evolve_model(time)
-
-            # if self.cooling:
-            #     self.logger.info("Second cooling gas...")
-            #     self.cooling.evolve_for(dt_cooling/2)
-
             self.logger.info(
-                "Evo time is now %s", (self.start_time + self.evo_code.model_time).in_(units.Myr)
+                "Evo time is now %s",
+                (self.start_time + self.evo_code.model_time).in_(Myr)
             )
             self.logger.info(
                 "Bridge time is now %s", (
-                    (self.start_time + self.system.model_time).in_(units.Myr)
+                    (self.start_time + self.system.model_time).in_(Myr)
                 )
             )
             # self.evo_code_to_model.copy()
@@ -778,7 +731,9 @@ class ClusterInPotential(
                 lambda x: x <= (0. | units.parsec),
                 ["h_smooth"]
             )
-            self.logger.info("Number of dead/accreted gas particles: %i", len(dead_gas))
+            self.logger.info(
+                "Number of dead/accreted gas particles: %i", len(dead_gas)
+            )
             self.remove_gas(dead_gas)
 
             self.feedback_timestep = self.timestep
@@ -788,18 +743,18 @@ class ClusterInPotential(
             self.logger.info(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s",
                 tend.in_(units.Myr),
-                (self.start_time + self.model_time).in_(units.Myr),
-                (self.start_time + self.gas_code.model_time).in_(units.Myr),
-                (self.start_time + self.star_code.model_time).in_(units.Myr),
-                (self.start_time + self.evo_code.model_time).in_(units.Myr),
+                (self.start_time + self.model_time).in_(Myr),
+                (self.start_time + self.gas_code.model_time).in_(Myr),
+                (self.start_time + self.star_code.model_time).in_(Myr),
+                (self.start_time + self.evo_code.model_time).in_(Myr),
             )
             print(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s" % (
                     tend.in_(units.Myr),
-                    (self.start_time + self.model_time).in_(units.Myr),
-                    (self.start_time + self.gas_code.model_time).in_(units.Myr),
-                    (self.start_time + self.star_code.model_time).in_(units.Myr),
-                    (self.start_time + self.evo_code.model_time).in_(units.Myr),
+                    (self.start_time + self.model_time).in_(Myr),
+                    (self.start_time + self.gas_code.model_time).in_(Myr),
+                    (self.start_time + self.star_code.model_time).in_(Myr),
+                    (self.start_time + self.evo_code.model_time).in_(Myr),
                 )
             )
 
@@ -815,10 +770,6 @@ class ClusterInPotential(
             force += parent.get_gravity_at_point(*args, **kwargs)
         return force
 
-    # @property
-    # def particles(self):
-    #     return self.code.particles
-
     @property
     def model_time(self):
         "Return time of the system"
@@ -827,17 +778,23 @@ class ClusterInPotential(
 
 def main():
     "Simulate an embedded star cluster (sph + dynamics + evolution)"
-    import sys
     import numpy
     from amuse.io import read_set_from_file
-    from amuse.ic.plummer import new_plummer_model
-    # from amuse.ic.salpeter import new_salpeter_mass_distribution
-    from amuse.ext.molecular_cloud import molecular_cloud
     from plotting_class import temperature_to_u
 
-    # numpy.random.seed(14)
-    numpy.random.seed(15)
-    # run_prefix = "Test_small_"
+    args = new_argument_parser()
+    gasfilename = args.gasfilename
+    starsfilename = args.starsfilename
+    sinksfilename = args.sinksfilename
+    # TODO: get time stamp from gas, stars, or sinks
+    # Default for the initial spiral gas is 1.4874E+15 seconds
+
+    seed = 15
+    have_stars = False
+    have_gas = False
+    have_sinks = False
+
+    numpy.random.seed(seed)
     run_prefix = ""
 
     logging_level = logging.INFO
@@ -848,83 +805,45 @@ def main():
         datefmt='%Y%m%d %H:%M:%S'
     )
 
-    number_of_stars = 100
-    # stellar_masses = new_salpeter_mass_distribution(number_of_stars)
     star_converter = nbody_system.nbody_to_si(
         150 | units.MSun,
         1 | units.parsec,
     )
-    # stars = read_set_from_file(sys.argv[1], "amuse")
-    stars = new_plummer_model(
-        number_of_stars,
-        convert_nbody=star_converter,
-    )
-    stars.mass = 0.05 | units.MSun  # stellar_masses
 
     gas_converter = nbody_system.nbody_to_si(
         10000 | units.MSun,
         10 | units.parsec,
     )
-    # gas = read_set_from_file(sys.argv[2], "amuse")
-    # gas = molecular_cloud(targetN=50000, convert_nbody=gas_converter).result
 
-    # print(sys.argv)
-    if len(sys.argv) > 1:
+    if starsfilename is not None:
+        stars = read_set_from_file(starsfilename, "amuse")
+        have_stars = True
+    if gasfilename is not None:
         print("reading gas")
-        gas_ = read_set_from_file(sys.argv[1], "amuse")
-        try:
-            start_time = gas_.get_timestamp()
-        except:
-            start_time = 0.0 | units.Myr
+        gas_ = read_set_from_file(gasfilename, "amuse")
+        start_time = gas_.get_timestamp()
         if start_time is None:
             start_time = 0.0 | units.Myr
         try:
-            del(gas_.u)
-        except:
-            del(gas_.pressure)
-            pass
+            del gas_.u
+        except KeyError:
+            del gas_.pressure
         print("%i particles read" % len(gas_))
-        if run_prefix == "Test_small_":
-            plot_radius = 80 | units.parsec
-            x = -1760 | units.parsec
-            y = -1908 | units.parsec
-            dx2 = (gas_.x - x)**2
-            x_selection = gas_#[numpy.where(dx2 < plot_radius**2)]
-            dy2 = (x_selection.y - y)**2
-            xy_selection = x_selection[numpy.where(dy2 < plot_radius**2)]
-
-            gas = xy_selection
-            print("Kept %i gas particles" % len(gas))
-        else:
-            gas = gas_
-    else:
-        gas = molecular_cloud(targetN=100000, convert_nbody=gas_converter).result
-
-        gastwo = molecular_cloud(
-            targetN=100000, convert_nbody=gas_converter
-        ).result
-
-        gas.x -= 5 | units.parsec
-        gastwo.x += 5 | units.parsec
-        gastwo.y += 0 | units.parsec
-        gastwo.z -= 0 | units.parsec
-        gas.vx += 2.5 | units.kms
-        gastwo.vx -= 2.5 | units.kms
-        # gas.vx += ((3 | units.parsec) / (2 | units.Myr))
-        # gastwo.vx -= ((3 | units.parsec) / (2 | units.Myr))
-
-        gas.add_particles(gastwo)
-    stars.position += gas.center_of_mass()
-    stars.velocity += gas.center_of_mass_velocity()
-    # if len(sys.argv) > 2:
-    #     print("reading sinks")
-
-    u = temperature_to_u(10 | units.K)
-    gas.u = u
+        gas = gas_
+        u = temperature_to_u(10 | units.K)
+        gas.u = u
+        have_gas = True
+    if sinksfilename is not None:
+        sinks = read_set_from_file(
+            sinksfilename,
+            "amuse",
+        )
+        have_sinks = True
 
     model = ClusterInPotential(
-        stars=stars,
-        gas=gas,
+        stars=stars if have_stars else None,
+        gas=gas if have_gas else None,
+        sinks=sinks if have_sinks else None,
         star_converter=star_converter,
         gas_converter=gas_converter,
         start_time=start_time,
@@ -978,10 +897,16 @@ def main():
         com = mtot * model.gas_particles.center_of_mass()
         if not model.sink_particles.is_empty():
             mtot += model.sink_particles.total_mass()
-            com += model.sink_particles.total_mass() * model.sink_particles.center_of_mass()
+            com += (
+                model.sink_particles.total_mass()
+                * model.sink_particles.center_of_mass()
+            )
         if not model.star_particles.is_empty():
             mtot += model.star_particles.total_mass()
-            com + model.star_particles.total_mass() * model.star_particles.center_of_mass()
+            com += (
+                model.star_particles.total_mass()
+                * model.star_particles.center_of_mass()
+            )
         com = com / mtot
         print("Centre of mass: %s" % com)
         plot_hydro_and_stars(
@@ -989,7 +914,7 @@ def main():
             model.gas_code,
             stars=model.star_particles,
             sinks=model.sink_particles,
-            L=100,#2*plot_radius.value_in(units.parsec),
+            L=100,  # 2*plot_radius.value_in(units.parsec),
             N=500,
             filename=plotname,
             title="time = %06.2f %s" % (
@@ -1008,7 +933,9 @@ def main():
         for i, sink in enumerate(model.sink_particles):
             if i >= 5:
                 break
-            plotname = "%sembedded-phantom-sink%04i-%04i.png" % (run_prefix, i, step)
+            plotname = "%sembedded-phantom-sink%04i-%04i.png" % (
+                run_prefix, i, step
+            )
             # TODO: center on centre_of_mass for all the stars + sink
             # so create a particle group to keep track of this
             center_x = sink.x
@@ -1035,19 +962,19 @@ def main():
         if step % 1 == 0:
             if not model.gas_particles.is_empty():
                 write_set_to_file(
-                    model.gas_particles,
+                    model.gas_particles.savepoint(model.gas_code.model_time),
                     "%sgas-%04i.hdf5" % (run_prefix, step),
                     "amuse",
                 )
             if not model.sink_particles.is_empty():
                 write_set_to_file(
-                    model.sink_particles,
+                    model.sink_particles.savepoint(model.gas_code.model_time),
                     "%ssinks-%04i.hdf5" % (run_prefix, step),
                     "amuse",
                 )
             if not model.star_particles.is_empty():
                 write_set_to_file(
-                    model.star_particles,
+                    model.star_particles.savepoint(model.star_code.model_time),
                     "%sstars-%04i.hdf5" % (run_prefix, step),
                     "amuse",
                 )

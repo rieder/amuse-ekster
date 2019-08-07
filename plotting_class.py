@@ -11,8 +11,8 @@ except:
     has_seaborn = False
 # import matplotlib.cm as cm
 
-# from amuse.datamodel import Particles
-# from amuse.io import read_set_from_file
+from amuse.datamodel import Particles
+from amuse.io import read_set_from_file
 from amuse.units import units, constants
 
 from prepare_figure import single_frame
@@ -78,10 +78,10 @@ def _make_density_map(
 
 def make_column_density_map(
         sph, N=70, L=1, offset_x=None, offset_y=None,
+        length_unit=units.parsec,
 ):
     "Create a density map from an SPH code"
     logger.info("Creating density map for gas")
-    length = units.parsec
 
     xmin = -0.5 * L
     ymin = -0.5 * L
@@ -95,12 +95,12 @@ def make_column_density_map(
     #     ymax += offset_y
 
     gas = sph.gas_particles.copy()
-    gas.x -= offset_x | length
-    gas.y -= offset_y | length
+    gas.x -= offset_x | length_unit
+    gas.y -= offset_y | length_unit
 
     n, x_edges, y_edges = numpy.histogram2d(
-        gas.x.value_in(length),
-        gas.y.value_in(length),
+        gas.x.value_in(length_unit),
+        gas.y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
@@ -108,18 +108,18 @@ def make_column_density_map(
         ],
     )
 
-    square = ((xmax-xmin) * (ymax-ymin) / L**2) | length**2
+    square = ((xmax-xmin) * (ymax-ymin) / L**2) | length_unit**2
     gas_coldens, xedges, yedges = numpy.histogram2d(
-        gas.x.value_in(length),
-        gas.y.value_in(length),
+        gas.x.value_in(length_unit),
+        gas.y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
             [-0.5*L, 0.5*L],
         ],
-        weights=gas.mass.value_in(units.MSun) / square.value_in(length**2),
+        weights=gas.mass.value_in(units.MSun) / square.value_in(length_unit**2),
     )
-    gas_coldens = (gas_coldens) | units.MSun / length**2
+    gas_coldens = (gas_coldens) | units.MSun / length_unit**2
 
     # Convolve with SPH kernel?
     return (gas_coldens, xedges, yedges)
@@ -127,10 +127,10 @@ def make_column_density_map(
 
 def make_density_map(
         sph, N=70, L=1, offset_x=None, offset_y=None,
+        length_unit=units.kpc,
 ):
     "Create a density map from an SPH code"
     logger.info("Creating density map for gas")
-    length = units.parsec
 
     xmin = -0.5 * L
     ymin = -0.5 * L
@@ -144,12 +144,12 @@ def make_density_map(
     #     ymax += offset_y
 
     gas = sph.gas_particles.copy()
-    gas.x -= offset_x | length
-    gas.y -= offset_y | length
+    gas.x -= offset_x | length_unit
+    gas.y -= offset_y | length_unit
 
     n, x_edges, y_edges = numpy.histogram2d(
-        gas.x.value_in(length),
-        gas.y.value_in(length),
+        gas.x.value_in(length_unit),
+        gas.y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
@@ -158,8 +158,8 @@ def make_density_map(
     )
 
     gas_rho, xedges, yedges = numpy.histogram2d(
-        gas.x.value_in(length),
-        gas.y.value_in(length),
+        gas.x.value_in(length_unit),
+        gas.y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
@@ -175,10 +175,10 @@ def make_density_map(
 
 def make_temperature_map(
         sph, N=70, L=1, offset_x=None, offset_y=None,
+        length_unit=units.parsec,
 ):
     "Create a temperature map from an SPH code"
     logger.info("Creating temperature map for gas")
-    length = units.parsec
     internal_energy = units.m**2 * units.s**-2
 
     xmin = -0.5 * L
@@ -195,8 +195,8 @@ def make_temperature_map(
     gas = sph.gas_particles
 
     n, x_edges, y_edges = numpy.histogram2d(
-        gas.x.value_in(length),
-        gas.y.value_in(length),
+        gas.x.value_in(length_unit),
+        gas.y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
@@ -205,8 +205,8 @@ def make_temperature_map(
     )
  
     gas_u, xedges, yedges = numpy.histogram2d(
-        gas.x.value_in(length),
-        gas.y.value_in(length),
+        gas.x.value_in(length_unit),
+        gas.y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
@@ -239,6 +239,7 @@ def plot_hydro_and_stars(
         alpha_sfe=0.02,
         stars_are_sinks=False,
         starscale=1,
+        length_unit=units.parsec,
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
@@ -257,9 +258,20 @@ def plot_hydro_and_stars(
         1,
         len(gasproperties),
     )
-    fig = pyplot.figure(figsize=(7*number_of_subplots, 5))
+    left = 0.21
+    bottom = 0.15
+    right = 1.0
+    top = 1.0
+    fig = pyplot.figure(figsize=(6, 5))
+    image_size = [N, N]
+    dpi = 150
+    figwidth = image_size[0] / dpi / (right - left)
+    figheight = image_size[1] / dpi / (top - bottom)
+    figsize = (figwidth, figheight)
+    fig, ax = pyplot.subplots(nrows=1, ncols=1, figsize=figsize, dpi=dpi)
+    fig.subplots_adjust(left=left, right=right, top=top, bottom=bottom)
     for i in range(number_of_subplots):
-        ax = fig.add_subplot(1, number_of_subplots, i+1)
+        #ax = fig.add_subplot(1, number_of_subplots, i+1)
         if colorbar:
             divider = make_axes_locatable(ax)
             cax = divider.append_axes('right', size='5%', pad=0.1)
@@ -271,6 +283,7 @@ def plot_hydro_and_stars(
 
                 rho, xedges, yedges = make_column_density_map(
                     sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
+                    length_unit=length_unit,
                 )
                 rho = rho.transpose()
                 print(xedges.min(), xedges.max())
@@ -282,7 +295,7 @@ def plot_hydro_and_stars(
                 # from gas_class import sfe_to_density
 
                 plot_data = numpy.log10(
-                    1.e-5 + rho.value_in(units.MSun/units.parsec**2)
+                    1.e-5 + rho.value_in(units.MSun/length_unit**2)
                     # 1.e-5 + rho.value_in(units.amu/units.cm**3)
                 )
                 extent = [xmin, xmax, ymin, ymax]
@@ -352,9 +365,9 @@ def plot_hydro_and_stars(
                         / sph.parameters.stopping_condition_maximum_density
                     )**(1/3)
                 ).value_in(units.parsec)
-                x = -sinks.x.value_in(units.parsec)
-                y = sinks.y.value_in(units.parsec)
-                ax.scatter(-x, y, s=s, c="red", lw=0)
+                x = sinks.x.value_in(length_unit)
+                y = sinks.y.value_in(length_unit)
+                ax.scatter(x, y, s=s, c="red", lw=0)
         if stars is not None:
             if not stars.is_empty():
             #if not stars_are_sinks:
@@ -364,14 +377,14 @@ def plot_hydro_and_stars(
                 # more physical, scale surface ~ with luminosity
                 # s = 0.1 * ((stars.mass / (1 | units.MSun))**(3.5 / 2))
                 # c = stars.mass/stars.mass.mean()
-                x = -stars.x.value_in(units.parsec)
-                y = stars.y.value_in(units.parsec)
-                ax.scatter(-x, y, s=s, c="white", lw=0)
+                x = stars.x.value_in(length_unit)
+                y = stars.y.value_in(length_unit)
+                ax.scatter(x, y, s=s, c="white", lw=0)
 
-        ax.set_xlim(xmax, xmin)
+        ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
-        ax.set_xlabel("x [pc]")
-        ax.set_ylabel("y [pc]")
+        ax.set_xlabel("x [%s]" % length_unit)
+        ax.set_ylabel("y [%s]" % length_unit)
     # pyplot.title(title)
     fig.suptitle(title)
     if filename is None:
@@ -500,17 +513,101 @@ def plot_stars(
         # just clear up
 
 
-def new_option_parser():
+def new_argument_parser():
     "Parse command line arguments"
-    from amuse.units.optparse import OptionParser
-    result = OptionParser()
-    result.add_option(
-        "-f", dest="filename", default="GMC_R2pcN20k_SE_T45Myr.amuse",
-        help="input filename [%default]",
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-s',
+        dest='starsfilename',
+        default='',
+        help='file containing stars (optional) []',
     )
-    return result
+    parser.add_argument(
+        '-i',
+        dest='sinksfilename',
+        default='',
+        help='file containing sinks (optional) []',
+    )
+    parser.add_argument(
+        '-g',
+        dest='gasfilename',
+        default='',
+        help='file containing gas (optional) []',
+    )
+    parser.add_argument(
+        '-o',
+        dest='imagefilename',
+        default='test',
+        help='write image to this file [test]',
+    )
+    return parser.parse_args()
 
 
-if __name__ in ('__main__', '__plot__'):
-    o, arguments = new_option_parser().parse_args()
-    # plot_molecular_cloud(o.filename)
+def main():
+    from amuse.community.phantom.interface import Phantom
+    from amuse.units import nbody_system
+    o = new_argument_parser()
+    gasfilename = o.gasfilename
+    starsfilename = o.starsfilename
+    sinksfilename = o.sinksfilename
+    stars = read_set_from_file(
+        starsfilename,
+        "amuse",
+    ) if starsfilename is not "" else Particles() 
+    sinks = read_set_from_file(
+        sinksfilename,
+        "amuse",
+    ) if sinksfilename is not "" else Particles() 
+    if gasfilename:
+        gas = read_set_from_file(
+            gasfilename,
+            "amuse",
+        )
+    else:
+        gas = Particles() 
+
+
+    mtot = gas.total_mass()
+    com = mtot * gas.center_of_mass()
+    if not sinks.is_empty():
+        mtot += sinks.total_mass()
+        com += sinks.total_mass() * sinks.center_of_mass()
+    if not stars.is_empty():
+        mtot += stars.total_mass()
+        com + stars.total_mass() * stars.center_of_mass()
+    com = com / mtot
+
+    time = 0.0 | units.Myr
+    converter = nbody_system.nbody_to_si(
+        1 | units.kpc,
+        1000 | units.MSun,
+    )
+    sph = Phantom(converter)
+    sph.parameters.stopping_condition_maximum_density = (
+        150 | units.MSun * units.parsec**-3
+    )
+    sph.gas_particles.add_particles(gas)
+    plot_hydro_and_stars(
+        time,
+        sph,
+        stars=stars,
+        sinks=sinks,
+        L=0.5,
+        N=500,
+        filename="test.png",
+        offset_x=com[0].value_in(units.kpc),
+        offset_y=com[1].value_in(units.kpc),
+        title="",
+        gasproperties=["density",],
+        colorbar=False,
+        # alpha_sfe=0.02,
+        # stars_are_sinks=False,
+        starscale=0.2,
+        length_unit=units.kpc,
+    )
+
+
+
+if __name__ == "__main__":
+    main()

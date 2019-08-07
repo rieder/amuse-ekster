@@ -17,6 +17,8 @@ class StellarDynamicsCode(object):
             star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
+            epsilon=0.01 | units.parsec,
+            **kwargs
     ):
         self.typestr = "Nbody"
         self.namestr = star_code.__name__
@@ -42,7 +44,7 @@ class StellarDynamicsCode(object):
             # Set the parameters explicitly to some default
             param.begin_time = 0.0 | units.Myr
             # self.parameters.block_steps = False
-            param.epsilon_squared = (0.01 | units.parsec)**2  # | units.AU**2
+            param.epsilon_squared = (epsilon)**2  # | units.AU**2
             # param.force_sync = False
             # param.gpu_id = something
             param.initial_timestep_fac = 0.0625
@@ -70,7 +72,7 @@ class StellarDynamicsCode(object):
                 redirection="none",
             )
             param = self.parameters
-            param.epsilon_squared = (0.1 | units.parsec)**2  # | units.AU**2
+            param.epsilon_squared = (epsilon)**2  # | units.AU**2
         elif star_code is PhiGRAPE:
             self.code = star_code(
                 self.converter,
@@ -78,14 +80,14 @@ class StellarDynamicsCode(object):
                 redirection="none",
             )
             param = self.parameters
-            param.epsilon_squared = (0.1 | units.parsec)**2
+            param.epsilon_squared = (epsilon)**2
         elif star_code is BHTree:
             self.code = star_code(
                 self.converter,
                 redirection="none",
             )
             param = self.parameters
-            param.epsilon_squared = (0.01 | units.parsec)**2  # | units.AU**2
+            param.epsilon_squared = (epsilon)**2  # | units.AU**2
 
     def evolve_model(self, end_time):
         """

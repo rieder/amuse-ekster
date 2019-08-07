@@ -50,7 +50,6 @@ class StellarEvolutionCode(
         "Evolve stellar evolution to time and sync"
         return self.code.evolve_model(tend)
 
-    @property
     def stop(self):
         "Stop stellar evolution code"
         return self.code.stop()

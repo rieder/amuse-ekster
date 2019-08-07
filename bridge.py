@@ -742,7 +742,7 @@ class Bridge(object):
         threads = []
 
         for x in self.codes:
-            logger.info("Drifting code %s", x.code.__name__)
+            # logger.info("Drifting code %s", x.code.__name__)
             offset = self.time_offsets[x]
             if hasattr(x, "drift"):
                 threads.append(threading.Thread(

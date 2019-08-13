@@ -2,6 +2,7 @@
 from __future__ import print_function, division
 import logging
 from amuse.datamodel import Particles
+from amuse.units import units
 from amuse.community.sse.interface import SSE
 from amuse.community.seba.interface import SeBa
 
@@ -15,11 +16,13 @@ class StellarEvolutionCode(
             self,
             evo_code=SSE,
             logger=None,
+            begin_time=0 | units.Myr,
             **keyword_arguments
     ):
         self.typestr = "Evolution"
         self.namestr = evo_code.__name__
         self.logger = logger or logging.getLogger(__name__)
+        self.__evo_code = evo_code
 
         if evo_code is SSE:
             self.code = SSE(
@@ -35,6 +38,9 @@ class StellarEvolutionCode(
                 **keyword_arguments
             )
         self.parameters = self.code.parameters
+        if begin_time is None:
+            begin_time = 0 | units.Myr
+        self.__begin_time = begin_time
 
     @property
     def particles(self):
@@ -44,13 +50,25 @@ class StellarEvolutionCode(
     @property
     def model_time(self):
         "return the time of the evolution code"
-        return self.code.model_time
+        return self.code.model_time + self.__begin_time
 
     def evolve_model(self, tend):
         "Evolve stellar evolution to time and sync"
         return self.code.evolve_model(tend)
 
-    def stop(self):
+    def save_state(self):
+        """
+        Store current settings
+        """
+        self.__state["parameters"] = self.code.parameters.copy()
+        self.__state["evo_code"] = self.__evo_code
+        self.__state["model_time"] = self.code.model_time
+        self.__begin_time = self.model_time
+
+    def stop(
+            self,
+            save_state=False,
+    ):
         "Stop stellar evolution code"
         return self.code.stop()
 

@@ -14,12 +14,15 @@ class StellarDynamicsCode(object):
     def __init__(
             self,
             converter=None,
-            star_code=Hermite,
+            star_code=ph4,
+            # star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
             # epsilon=0.01 | units.parsec,
             # redirection="none",
             # mode="cpu",
+            begin_time=0 | nbody_system.time,
+            stop_after_each_step=False,
             **kwargs
     ):
         self.typestr = "Nbody"
@@ -31,6 +34,8 @@ class StellarDynamicsCode(object):
             handle_stopping_conditions
         self.__current_state = "stopped"
         self.__state = {}
+        self.__particles = Particles()
+        self.__stop_after_each_step = stop_after_each_step
         if converter is not None:
             self.unit_converter = converter
         else:
@@ -38,18 +43,29 @@ class StellarDynamicsCode(object):
                 1 | units.MSun,
                 1 | units.parsec,
             )
+            # TODO: modify to allow N-body units
+
+        if begin_time is None:
+            begin_time = 0. | units.Myr
+        self.__begin_time = converter.to_si(begin_time)
+
         self.code = self.new_code(
             converter=self.unit_converter,
             star_code=star_code, **kwargs)
-        self.save_state()
+        if self.__stop_after_each_step:
+            self.code.commit_particles()
+            self.stop(save_state=True)
+            # print("Stopped/saved")
+        else:
+            self.save_state()
 
     def new_code(
             self,
             converter=None,
             star_code=Hermite,
-            begin_time=0 | units.Myr,
             epsilon_squared=(0.01 | units.parsec)**2,
-            redirection="none",
+            # redirection="none",
+            redirection="null",
             mode="cpu",
             # handle_stopping_conditions=False,
             **kwargs
@@ -105,103 +121,128 @@ class StellarDynamicsCode(object):
                 redirection=redirection,
             )
             param = code.parameters
-        param.begin_time = begin_time
         param.epsilon_squared = epsilon_squared
         self.__current_state = "started"
         return code
 
-    def evolve_model(self, end_time, stop=False):
+    def evolve_model(self, end_time):
         """
         Evolve model, handle collisions when they occur
         """
-        if stop:
+        # print("Evo step")
+        if self.__stop_after_each_step:
             # print("Code will be stopped after each step")
             if self.__current_state == "stopped":
                 # print("Code is currently stopped - restarting")
                 self.restart()
-        code_dt = end_time #  - self.code.parameters.begin_time
         collision_detection = \
             self.code.stopping_conditions.collision_detection
         # collision_detection.enable()
         # ph4 has a dynamical timestep, so it will stop on or slightly after
         # 'end_time'
         result = 0
-        while self.code.model_time < code_dt:
-            result = self.code.evolve_model(code_dt)
-            while collision_detection.is_set():
-                # If we don't handle stopping conditions, return instead
-                if self.handle_stopping_conditions:
-                    self.resolve_collision(collision_detection)
-                    result = self.code.evolve_model(code_dt)
-                else:
-                    return result
-        if stop:
+        while self.model_time < end_time:
+            # print("step", end_time, self.__begin_time)
+            result = self.code.evolve_model(
+                end_time-self.__begin_time
+            )
+            # print("step done")
+            # while collision_detection.is_set():
+            #     # If we don't handle stopping conditions, return instead
+            #     if self.handle_stopping_conditions:
+            #         self.resolve_collision(collision_detection)
+            #         result = self.code.evolve_model(code_dt)
+            #     else:
+            #         return result
+        # print(
+        #     "Reached BT=%s MT=%s CT=%s Nc=%s Nm=%s" % (
+        #         self.__begin_time,
+        #         self.model_time,
+        #         self.code.model_time,
+        #         len(self.code.particles),
+        #         len(self.particles),
+        #     )
+        # )
+
+        if self.__stop_after_each_step:
             # print("Now stopping code")
             self.stop(save_state=True)
         return result
 
-    def resolve_collision(self, collision_detection):
-        "Determine how to solve a collision and resolve it"
-        coll = collision_detection
-        for i, primary in enumerate(coll.particles(0)):
-            secondary = coll.particles(1)[i]
-            # Optionally, we could do something else.
-            # For now, we are just going to merge.
-            self.merge_two_stars(primary, secondary)
+    # def resolve_collision(self, collision_detection):
+    #     "Determine how to solve a collision and resolve it"
+    #     coll = collision_detection
+    #     for i, primary in enumerate(coll.particles(0)):
+    #         secondary = coll.particles(1)[i]
+    #         # Optionally, we could do something else.
+    #         # For now, we are just going to merge.
+    #         self.merge_two_stars(primary, secondary)
 
-    def merge_two_stars(self, primary, secondary):
-        "Merge two colliding stars into one new one"
-        massunit = units.MSun
-        colliders = Particles()
-        colliders.add_particle(primary)
-        colliders.add_particle(secondary)
-        new_particle = Particle()
-        new_particle.mass = colliders.mass.sum()
-        new_particle.position = colliders.center_of_mass()
-        new_particle.velocity = colliders.center_of_mass_velocity()
-        # This should/will be calculated by stellar evolution
-        new_particle.radius = colliders.radius.max()
-        # new_particle.age = max(colliders.age)
-        new_particle.parents = colliders.key
-        # This should not just be the oldest or youngest.
-        # But youngest seems slightly better.
-        new_particle.age = colliders.age.min()
-        new_particle.birth_age = colliders.birth_age.min()
-        self.particles.add_particle(new_particle)
-        self.logger.info(
-            "Two stars (M1=%s, M2=%s %s) collided at t=%s",
-            colliders[0].mass.value_in(massunit),
-            colliders[1].mass.value_in(massunit),
-            massunit,
-            self.model_time,
-        )
-        self.particles.remove_particles(colliders)
+    # def merge_two_stars(self, primary, secondary):
+    #     "Merge two colliding stars into one new one"
+    #     massunit = units.MSun
+    #     colliders = Particles()
+    #     colliders.add_particle(primary)
+    #     colliders.add_particle(secondary)
+    #     new_particle = Particle()
+    #     new_particle.mass = colliders.mass.sum()
+    #     new_particle.position = colliders.center_of_mass()
+    #     new_particle.velocity = colliders.center_of_mass_velocity()
+    #     # This should/will be calculated by stellar evolution
+    #     new_particle.radius = colliders.radius.max()
+    #     # new_particle.age = max(colliders.age)
+    #     new_particle.parents = colliders.key
+    #     # This should not just be the oldest or youngest.
+    #     # But youngest seems slightly better.
+    #     new_particle.age = colliders.age.min()
+    #     new_particle.birth_age = colliders.birth_age.min()
+    #     self.particles.add_particle(new_particle)
+    #     self.logger.info(
+    #         "Two stars (M1=%s, M2=%s %s) collided at t=%s",
+    #         colliders[0].mass.value_in(massunit),
+    #         colliders[1].mass.value_in(massunit),
+    #         massunit,
+    #         self.model_time,
+    #     )
+    #     self.particles.remove_particles(colliders)
 
-        return
+    #     return
+
+    @property
+    def begin_time(self):
+        """Return begin_time"""
+        begin_time = self.__begin_time
+        return begin_time
 
     @property
     def model_time(self):
         """Return code model_time"""
         if self.__current_state is not "stopped":
-            # begin_time = self.code.parameters.begin_time
+            begin_time = self.__begin_time
             model_time = self.code.model_time
-            # return begin_time + model_time
-            return model_time
-        begin_time = self.__state["parameters"].begin_time
-        return begin_time
+            time = self.__begin_time + self.code.model_time
+            return time
+        time = self.__begin_time
+        return time
 
     @property
     def particles(self):
         """Return particles"""
-        if self.__current_state is not "stopped":
-            return self.code.particles
-        else:
+        if self.__stop_after_each_step:
             return self.__particles
+        # if self.__current_state is not "stopped":
+        #     return self.code.particles
+        else:
+            return self.code.particles
 
     @property
     def parameters(self):
         """Return code parameters"""
-        return self.code.parameters
+        if self.__current_state is not "stopped":
+            parameters = self.code.parameters
+        else:
+            parameters = self.__state["parameters"]
+        return parameters
 
     # TODO: make sure this parameter set is synchronised with code.parameters
     # def parameters(self):
@@ -234,19 +275,18 @@ class StellarDynamicsCode(object):
         self.__state["converter"] = self.unit_converter
         self.__state["star_code"] = self.star_code
         self.__state["model_time"] = self.code.model_time
-        self.__state["redirection"] = "none" #FIXME
+        self.__state["redirection"] = "null" #FIXME
         self.__state["mode"] = "cpu" #FIXME
         self.__state["handle_stopping_conditions"] = \
             self.handle_stopping_conditions
-        self.__state["parameters"].begin_time =\
-            self.model_time
-        #self.__state["begin_time"] += self.code.model_time
+        self.__begin_time = self.model_time
 
     def save_particles(self):
         """
-        Store the current particleset
+        Store the current particleset, but keep the same particleset!
         """
-        self.__particles = self.code.particles.copy()
+        self.__particles.remove_particles(self.__particles)
+        self.__particles.add_particles(self.code.particles)
 
     def stop_and_restart(self):
         """
@@ -259,6 +299,7 @@ class StellarDynamicsCode(object):
         """
         Restart gravity code from saved state
         """
+        # print("Restarting")
         self.code = self.new_code(
             converter=self.__state["converter"],
             star_code=self.__state["star_code"],
@@ -267,20 +308,27 @@ class StellarDynamicsCode(object):
             handle_stopping_conditions=\
                 self.__state["handle_stopping_conditions"],
         )
-        self.code.parameters.reset_from_memento(
-            self.__state["parameters"]
-        )
         self.code.particles.add_particles(
             self.__particles
+        )
+        self.code.parameters.reset_from_memento(
+            self.__state["parameters"]
         )
         self.__current_state = "restarted"
 
     def stop(
             self,
-            save_state=False,
+            save_state=True,
             **keyword_arguments
     ):
         """Stop code"""
+        # print(
+        #     "Stopping at BT=%s MT=%s CT=%s" % (
+        #         self.__begin_time,
+        #         self.model_time,
+        #         self.code.model_time,
+        #     )
+        # )
         if save_state:
             self.save_state(**keyword_arguments)
             self.save_particles(**keyword_arguments)
@@ -371,6 +419,8 @@ class StellarDynamics(object):
 def main():
     "Test class with a Plummer sphere"
     import sys
+    import numpy
+    numpy.random.seed(52)
     try:
         from amuse.ext.masc import new_star_cluster
         use_masc = True
@@ -399,15 +449,29 @@ def main():
         stars = new_plummer_model(1000, convert_nbody=converter)
 
     for stop in [True, False]:
-        code = StellarDynamicsCode(code=ph4, converter=converter)
+        code = StellarDynamicsCode(
+            code=ph4, converter=converter,
+            stop_after_each_step=stop,
+        )
         code.particles.add_particles(stars)
         # print(code.parameters)
         timestep = 0.1 | units.Myr
+        cumulative_time = 0. * timestep
         for step in range(10):
             time = step * timestep
-            code.evolve_model(time, stop=stop)
-            print("Evolved to %s" % code.model_time.in_(units.Myr))
-        print(code.particles[0])
+            cumulative_time += time
+            code.evolve_model(time)
+            # print("Evolved to %s" % code.model_time.in_(units.Myr))
+            print(
+                code.model_time.in_(units.Myr),
+                code.particles[0].x.in_(units.parsec),
+                code.particles[0].vx.in_(units.kms),
+                cumulative_time.in_(units.Myr),
+                #code.code.model_time.in_(units.Myr),
+                code.begin_time.in_(units.Myr),
+            )
+        # print(code.particles[0])
+        print("\n\n")
 
 
 def _main():

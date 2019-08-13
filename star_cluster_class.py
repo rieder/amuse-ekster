@@ -11,6 +11,7 @@ from stellar_dynamics_class import (
     # StellarDynamics,
     StellarDynamicsCode,
 )
+from amuse.support.console import set_preferred_units
 
 
 class StarCluster(
@@ -27,23 +28,28 @@ class StarCluster(
             converter=None,
             epsilon=0.1 | units.parsec,
             logger=None,
-            start_time=None,
+            begin_time=None,
             **kwargs
     ):
         self.logger = logger or logging.getLogger(__name__)
         self.logger.info("Initialising StellarDynamics")
         self.star_code = StellarDynamicsCode(
             converter=converter,
-            epsilon=epsilon,
-            start_time=start_time,
+            # star_code=ph4,
+            logger=logger,
+            redirection="none",
+            begin_time=begin_time,
+            # stop_after_each_step=True,
             **kwargs
         )
+        self.star_code.parameters.epsilon_squared=epsilon**2
         self.star_code.particles.add_particles(stars)
         self.logger.info("Initialised StellarDynamics")
         self.logger.info("Initialising StellarEvolution")
         self.evo_code = StellarEvolutionCode(
             redirection="none",
-            start_time=start_time,
+            begin_time=begin_time,
+            logger=logger,
             **kwargs
         )
         self.evo_code.particles.add_particles(stars)
@@ -114,7 +120,12 @@ class StarCluster(
 def main():
     "Simulate a star cluster (dynamics + evolution)"
     import sys
+    import numpy
     from amuse.units import nbody_system
+
+    numpy.random.seed(52)
+    
+    set_preferred_units(units.MSun, units.kms, units.parsec, units.Myr)
 
     if len(sys.argv) > 1:
         from amuse.io import read_set_from_file
@@ -125,20 +136,25 @@ def main():
         )
     else:
         import numpy
-        from amuse.ic.plummer import new_plummer_model
-        from amuse.ic.salpeter import new_salpeter_mass_distribution
+        from amuse.ext.masc import new_star_cluster
+        # from amuse.ic.plummer import new_plummer_model
+        # from amuse.ic.salpeter import new_salpeter_mass_distribution
 
         numpy.random.seed(12)
         converter = nbody_system.nbody_to_si(
             1000 | units.MSun,
             3 | units.parsec,
         )
-        stars = new_plummer_model(1000, convert_nbody=converter)
-        stars.mass = new_salpeter_mass_distribution(len(stars))
+        # stars = new_plummer_model(1000, convert_nbody=converter)
+        # stars.mass = new_salpeter_mass_distribution(len(stars))
+        stars = new_star_cluster(
+            number_of_stars=1000,
+            effective_radius=3 | units.parsec,
+        )
 
     model = StarCluster(stars=stars, converter=converter)
 
-    timestep = 0.1 | units.Myr
+    timestep = 1 | units.Myr
     for step in range(10):
         time = step * timestep
         model.evolve_model(time)

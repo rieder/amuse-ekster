@@ -6,7 +6,7 @@ import numpy
 from amuse.community.fi.interface import Fi
 from amuse.community.phantom.interface import Phantom
 from amuse.datamodel import Particles, Particle
-from amuse.units import units, nbody_system
+from amuse.units import units, nbody_system, constants
 
 from basic_class import BasicCode
 from cooling_class import SimplifiedThermalModelEvolver
@@ -47,29 +47,32 @@ class GasCode(BasicCode):
         self.logger = logger or logging.getLogger(__name__)
         self.internal_star_formation = internal_star_formation
         if converter is not None:
-            self.converter = converter
+            self.unit_converter = converter
         else:
-            self.converter = nbody_system.nbody_to_si(
+            self.unit_converter = nbody_system.nbody_to_si(
                 1.0e5 | units.MSun,
                 5.0 | units.parsec,
             )
+        if begin_time is None:
+            begin_time = 0. | units.Myr
+        self.__begin_time = self.unit_converter.to_si(begin_time)
+
         self.cooling_type = cooling_type
 
         self.epsilon = 0.1 | units.parsec
-        self.density_threshold = (1e-16 | units.g * units.cm**-3)
+        self.density_threshold = (1e-19 | units.g * units.cm**-3)
         print(
             "Density threshold for sink formation: %s"
             % self.density_threshold.in_(units.MSun * units.parsec**-3)
         )
         # self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
         self.code = sph_code(
-            self.converter,
+            self.unit_converter,
             redirection="none",
             **keyword_arguments
         )
         self.parameters = self.code.parameters
         if sph_code is Fi:
-            self.parameters.begin_time = 0.0 | units.Myr
             self.parameters.use_hydro_flag = True
             self.parameters.self_gravity_flag = True
             # Maybe make these depend on the converter?
@@ -81,6 +84,17 @@ class GasCode(BasicCode):
                 self.density_threshold
         elif sph_code is Phantom:
             self.parameters.alpha = 0.1  # art. viscosity parameter (min)
+            self.parameters.gamma = 1.0
+            self.parameters.ieos = 1  # isothermal
+            # self.parameters.ieos = 1  # adiabatic
+            mu = self.parameters.mu  # mean molecular weight
+            temperature = 10 | units.K
+            polyk = (
+                constants.kB
+                * temperature
+                / mu
+            )
+            self.parameters.polyk = polyk
             self.parameters.rho_crit = self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
@@ -132,16 +146,10 @@ class GasCode(BasicCode):
             eps, x, y, z, **keyword_arguments
         )
 
-    def set_begin_time(self, begin_time=None):
-        if begin_time is None:
-            self.begin_time = 0.0 | units.Myr
-        else:
-            self.begin_time = begin_time
-
     @property
     def model_time(self):
         """Return the current time"""
-        return self.code.model_time + self.begin_time
+        return self.code.model_time + self.__begin_time
 
     @property
     def stopping_conditions(self):
@@ -173,7 +181,7 @@ class GasCode(BasicCode):
         """Stop the simulation code"""
         return self.code.stop
 
-    def evolve_model(self, end_time):
+    def evolve_model(self, real_end_time):
         """
         Evolve model, and manage these stopping conditions:
         - density limit detection
@@ -186,10 +194,11 @@ class GasCode(BasicCode):
           (end_time - model_time) is smaller than half a code timestep (for
           Fi). Because we don't want to do cooling then either!
         """
+        end_time = real_end_time - self.__begin_time
 
         # if code_name is Fi:
         timestep = 0.005 | units.Myr  # self.code.parameters.timestep
-        if self.model_time >= (end_time - timestep/2):
+        if self.code.model_time >= (end_time - timestep/2):
             return
         # if code_name is something_else:
         # some_other_condition
@@ -204,10 +213,10 @@ class GasCode(BasicCode):
         if self.cooling and first:
             self.cooling.evolve_for(timestep/2)
             first = False
-        while self.model_time < (end_time - timestep/2):
+        while self.code.model_time < (end_time - timestep/2):
             if self.cooling and not first:
                 self.cooling.evolve_for(timestep)
-            next_time = self.model_time + timestep
+            next_time = self.code.model_time + timestep
             # temp = self.code.gas_particles[0].u
             self.code.evolve_model(next_time)
             # temp2 = self.code.gas_particles[0].u
@@ -396,8 +405,10 @@ class Gas(object):
 
     @property
     def model_time(self):
-        """Return the current time in the code"""
-        return self.gas_code.model_time
+        """
+        Return the current time in the code modified with the begin time
+        """
+        return self.gas_code.model_time + self.__begin_time
 
     def get_gravity_at_point(self, *args, **kwargs):
         """Return gravity at specified location"""
@@ -554,7 +565,7 @@ class Gas(object):
             star_code_particles = self.star_code.particles
         except AttributeError:
             star_code_particles = self.gas_code.dm_particles
-        new_stars.birth_age = self.gas_code.model_time
+        new_stars.birth_age = self.model_time
         self.logger.debug("Adding %i new stars to star code", len(new_stars))
         star_code_particles.add_particles(new_stars)
         self.logger.debug("Added %i new stars to star code", len(new_stars))
@@ -576,6 +587,8 @@ class Gas(object):
 
     def evolve_model(self, tend):
         "Evolve model to specified time and synchronise model"
+        stopping_density = \
+            self.gas_code.parameters.stopping_condition_maximum_density
         self.gas_stopping_conditions = \
             self.gas_code.stopping_conditions.density_limit_detection
         self.gas_stopping_conditions.enable()
@@ -643,7 +656,7 @@ class Gas(object):
                 print(len(self.gas_code.gas_particles))
                 print(
                     self.gas_code.gas_particles.density.max()
-                    / self.gas_code.parameters.stopping_condition_maximum_density
+                    / stopping_density
                 )
 
             # ? self.gas_code_to_model.copy()
@@ -671,6 +684,7 @@ def main():
     u = temperature_to_u(temperature)
     gas = molecular_cloud(targetN=200000, convert_nbody=converter).result
     gas.u = u
+    print("We have %i gas particles" % (len(gas)))
 
     # gastwo = molecular_cloud(targetN=100000, convert_nbody=converter).result
     # gastwo.u = u
@@ -683,15 +697,15 @@ def main():
     # gas.add_particles(gastwo)
     print("Number of gas particles: %i" % (len(gas)))
 
-    model = Gas(
-        gas=gas,
+    model = GasCode(
         converter=converter,
         # internal_cooling=False,
     )
-    print(model.gas_code.parameters)
+    model.gas_particles.add_particles(gas)
+    print(model.parameters)
     # print(model.gas_code.gas_particles[0])
     # exit()
-    timestep = 0.002 | units.Myr  # model.gas_code.parameters.timestep
+    timestep = 0.01 | units.Myr  # model.gas_code.parameters.timestep
 
     times = [] | units.Myr
     # kinetic_energies = [] | units.J
@@ -699,14 +713,19 @@ def main():
     # thermal_energies = [] | units.J
     time = 0 | units.Myr
     step = 0
-    while time < 4 | units.Myr:
+    while time < 0.3 | units.Myr:
         time += timestep
+        print("Starting at %s, evolving to %s" % (
+            model.model_time.in_(units.Myr),
+            time.in_(units.Myr),
+        )
+              )
         model.evolve_model(time)
-        print("Evolved to %s" % model.model_time)
+        print("Evolved to %s" % model.model_time.in_(units.Myr))
         print(
             "Maximum density / stopping density = %s" % (
                 model.gas_particles.density.max()
-                / model.gas_code.parameters.stopping_condition_maximum_density,
+                / model.parameters.stopping_condition_maximum_density,
             )
         )
         if not model.sink_particles.is_empty():
@@ -716,22 +735,22 @@ def main():
                 )
             )
 
-        plotname = "gastest-%04i.png" % (step)
-        print("Creating plot")
-        plot_hydro_and_stars(
-            model.model_time,
-            model.gas_code,
-            model.gas_code.sink_particles,
-            L=20,
-            N=150,
-            filename=plotname,
-            title="time = %06.1f %s" % (
-                model.model_time.value_in(units.Myr),
-                units.Myr,
-            ),
-            gasproperties=["density"],  # , "temperature"],
-            colorbar=True,
-        )
+        # plotname = "gastest-%04i.png" % (step)
+        # print("Creating plot")
+        # plot_hydro_and_stars(
+        #     model.model_time,
+        #     model,
+        #     model.sink_particles,
+        #     L=20,
+        #     N=150,
+        #     filename=plotname,
+        #     title="time = %06.1f %s" % (
+        #         model.model_time.value_in(units.Myr),
+        #         units.Myr,
+        #     ),
+        #     gasproperties=["density"],  # , "temperature"],
+        #     colorbar=True,
+        # )
         times.append(time)
         # ekin = model.gas_code.kinetic_energy
         # starkin = model.gas_code.dm_particles.kinetic_energy()

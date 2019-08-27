@@ -2,6 +2,8 @@
 from __future__ import print_function, division
 import logging
 from amuse.units import units
+from amuse.datamodel import Particles
+from amuse.support.console import set_preferred_units
 # from basic_class import BasicCode
 from stellar_evolution_class import (
     # StellarEvolution,
@@ -11,7 +13,6 @@ from stellar_dynamics_class import (
     # StellarDynamics,
     StellarDynamicsCode,
 )
-from amuse.support.console import set_preferred_units
 
 
 class StarCluster(
@@ -24,9 +25,9 @@ class StarCluster(
 
     def __init__(
             self,
-            stars=None,
+            stars=Particles(),
             converter=None,
-            epsilon=0.1 | units.parsec,
+            epsilon_squared=(0.1 | units.parsec)**2,
             logger=None,
             begin_time=None,
             **kwargs
@@ -37,22 +38,24 @@ class StarCluster(
             converter=converter,
             # star_code=ph4,
             logger=logger,
-            redirection="none",
+            redirection="null",
             begin_time=begin_time,
-            # stop_after_each_step=True,
+            stop_after_each_step=True,
             **kwargs
         )
-        self.star_code.parameters.epsilon_squared=epsilon**2
-        self.star_code.particles.add_particles(stars)
+        self.star_code.parameters.epsilon_squared = epsilon_squared
+        if not stars.is_empty():
+            self.star_code.particles.add_particles(stars)
         self.logger.info("Initialised StellarDynamics")
         self.logger.info("Initialising StellarEvolution")
         self.evo_code = StellarEvolutionCode(
-            redirection="none",
+            redirection="null",
             begin_time=begin_time,
             logger=logger,
             **kwargs
         )
-        self.evo_code.particles.add_particles(stars)
+        if not stars.is_empty():
+            self.evo_code.particles.add_particles(stars)
         self.logger.info("Initialised StellarEvolution")
         self.setup_channels()
 
@@ -124,7 +127,7 @@ def main():
     from amuse.units import nbody_system
 
     numpy.random.seed(52)
-    
+
     set_preferred_units(units.MSun, units.kms, units.parsec, units.Myr)
 
     if len(sys.argv) > 1:
@@ -135,7 +138,6 @@ def main():
             3 | units.parsec,
         )
     else:
-        import numpy
         from amuse.ext.masc import new_star_cluster
         # from amuse.ic.plummer import new_plummer_model
         # from amuse.ic.salpeter import new_salpeter_mass_distribution

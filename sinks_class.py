@@ -1,7 +1,52 @@
 "Sink particles"
 import numpy
 from amuse.units import units
-from amuse.datamodel import Particles, ParticlesOverlay
+from amuse.datamodel import Particles  # , ParticlesOverlay
+
+
+def should_a_sink_form(origin_gas, gas):
+    # Check if conditions for forming a sink are met
+    # This applies to the ~50 SPH neighbour particles
+    # - ratio of thermal to gravitational energies is <= 1/2
+    # - sum of thermal and rotational energies over gravitational energy
+    #   is <= 1
+    # - total energy is negative
+    # - divergence of particles' acceleration is negative
+    # OR
+    # - density = 10 * critical
+    # 1) get the 50 neighbour particles
+    neighbour_radius = origin_gas.h_smooth * 5
+    neighbours = gas[
+        numpy.where(
+            (gas.position - origin_gas.position).lengths()
+            < neighbour_radius
+        )
+    ].copy()
+    neighbours.position -= origin_gas.position
+    neighbours.velocity -= origin_gas.velocity
+    neighbours.distance = neighbours.position.lengths()
+    neighbours = neighbours.sorted_by_attribute("distance")
+    e_kin = neighbours[:50].kinetic_energy()
+    # e_rot = #FIXME
+    e_pot = neighbours[:50].potential_energy()
+    e_th = neighbours[:50].thermal_energy()
+
+    if not e_th/e_pot <= 0.5:
+        return False
+    # if not (e_th + e_rot) / e_pot <= 1:
+    #     break
+    if (e_th+e_kin+e_pot) >= 0 | units.erg:
+        return False
+    # if accelleration is diverging:
+    #     break
+
+    #    these must be in a sensible-sized sphere around the central one
+    #    so make a cutout, then calculate distance, then sort and use [:50]
+    #    particles.thermal_energy (make sure u corresponds to 10K)
+    #    particles.kinetic_energy
+    #    particles.potential_energy
+    return True
+
 
 # 
 # class SinkParticles(ParticlesOverlay):

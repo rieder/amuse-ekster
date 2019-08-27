@@ -4,11 +4,6 @@ import logging
 import numpy
 
 from matplotlib import pyplot
-try:
-    import seaborn as sns
-    has_seaborn = False
-except:
-    has_seaborn = False
 # import matplotlib.cm as cm
 
 from amuse.datamodel import Particles
@@ -230,6 +225,7 @@ def plot_hydro_and_stars(
         sinks=None,
         L=10,
         N=200,
+        image_size_scale=1,
         filename=None,
         offset_x=None,
         offset_y=None,
@@ -259,11 +255,11 @@ def plot_hydro_and_stars(
         len(gasproperties),
     )
     left = 0.21
-    bottom = 0.15
-    right = 1.0
-    top = 1.0
-    fig = pyplot.figure(figsize=(6, 5))
-    image_size = [N, N]
+    bottom = 0.11
+    right = 0.9
+    top = 0.9
+    # fig = pyplot.figure(figsize=(6, 5))
+    image_size = [image_size_scale*N, image_size_scale*N]
     dpi = 150
     figwidth = image_size[0] / dpi / (right - left)
     figheight = image_size[1] / dpi / (top - bottom)

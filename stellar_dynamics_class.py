@@ -5,7 +5,7 @@ from amuse.community.bhtree.interface import BHTree
 from amuse.community.ph4.interface import ph4
 from amuse.community.phigrape.interface import PhiGRAPE
 from amuse.community.hermite.interface import Hermite
-from amuse.datamodel import Particles, Particle
+from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
 
@@ -18,8 +18,7 @@ class StellarDynamicsCode(object):
             # star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
-            # epsilon=0.01 | units.parsec,
-            # redirection="none",
+            epsilon_squared=(0.01 | units.parsec)**2,
             # mode="cpu",
             begin_time=0 | nbody_system.time,
             stop_after_each_step=False,
@@ -47,11 +46,13 @@ class StellarDynamicsCode(object):
 
         if begin_time is None:
             begin_time = 0. | units.Myr
-        self.__begin_time = converter.to_si(begin_time)
+        self.__begin_time = self.unit_converter.to_si(begin_time)
 
         self.code = self.new_code(
             converter=self.unit_converter,
-            star_code=star_code, **kwargs)
+            star_code=star_code,
+            epsilon_squared=epsilon_squared,
+            **kwargs)
         if self.__stop_after_each_step:
             self.code.commit_particles()
             self.stop(save_state=True)
@@ -64,13 +65,12 @@ class StellarDynamicsCode(object):
             converter=None,
             star_code=Hermite,
             epsilon_squared=(0.01 | units.parsec)**2,
-            # redirection="none",
             redirection="null",
             mode="cpu",
             # handle_stopping_conditions=False,
             **kwargs
     ):
-        number_of_workers = 4
+        number_of_workers = 6
         if star_code is ph4:
             code = star_code(
                 converter,
@@ -135,8 +135,8 @@ class StellarDynamicsCode(object):
             if self.__current_state == "stopped":
                 # print("Code is currently stopped - restarting")
                 self.restart()
-        collision_detection = \
-            self.code.stopping_conditions.collision_detection
+        # collision_detection = \
+        #     self.code.stopping_conditions.collision_detection
         # collision_detection.enable()
         # ph4 has a dynamical timestep, so it will stop on or slightly after
         # 'end_time'
@@ -217,9 +217,7 @@ class StellarDynamicsCode(object):
     @property
     def model_time(self):
         """Return code model_time"""
-        if self.__current_state is not "stopped":
-            begin_time = self.__begin_time
-            model_time = self.code.model_time
+        if self.__current_state != "stopped":
             time = self.__begin_time + self.code.model_time
             return time
         time = self.__begin_time
@@ -238,7 +236,7 @@ class StellarDynamicsCode(object):
     @property
     def parameters(self):
         """Return code parameters"""
-        if self.__current_state is not "stopped":
+        if self.__current_state != "stopped":
             parameters = self.code.parameters
         else:
             parameters = self.__state["parameters"]
@@ -275,8 +273,8 @@ class StellarDynamicsCode(object):
         self.__state["converter"] = self.unit_converter
         self.__state["star_code"] = self.star_code
         self.__state["model_time"] = self.code.model_time
-        self.__state["redirection"] = "null" #FIXME
-        self.__state["mode"] = "cpu" #FIXME
+        self.__state["redirection"] = "null"  # FIXME
+        self.__state["mode"] = "cpu"  # FIXME
         self.__state["handle_stopping_conditions"] = \
             self.handle_stopping_conditions
         self.__begin_time = self.model_time
@@ -305,8 +303,8 @@ class StellarDynamicsCode(object):
             star_code=self.__state["star_code"],
             redirection=self.__state["redirection"],
             mode=self.__state["mode"],
-            handle_stopping_conditions=\
-                self.__state["handle_stopping_conditions"],
+            handle_stopping_conditions=self.__state[
+                "handle_stopping_conditions"],
         )
         self.code.particles.add_particles(
             self.__particles
@@ -374,7 +372,7 @@ class StellarDynamics(object):
         self.star_code.parameters.epsilon_squared = (epsilon)**2
         # self.star_code.parameters.timestep_parameter = 0.14
         # self.star_code.parameters.block_steps = 1
-        print(self.star_code.parameters)
+        # print(self.star_code.parameters)
         self.star_code.particles.add_particles(self.star_particles)
         self.model_to_star_code = self.star_particles.new_channel_to(
             self.star_code.particles,
@@ -467,7 +465,7 @@ def main():
                 code.particles[0].x.in_(units.parsec),
                 code.particles[0].vx.in_(units.kms),
                 cumulative_time.in_(units.Myr),
-                #code.code.model_time.in_(units.Myr),
+                # code.code.model_time.in_(units.Myr),
                 code.begin_time.in_(units.Myr),
             )
         # print(code.particles[0])
@@ -504,7 +502,7 @@ def _main():
         stars = new_plummer_model(1000, convert_nbody=converter)
 
     model = StellarDynamics(stars=stars, converter=converter)
-    #print(model.star_code.parameters)
+    # print(model.star_code.parameters)
     timestep = 0.1 | units.Myr
     for step in range(10):
         time = step * timestep

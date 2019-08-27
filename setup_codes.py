@@ -8,7 +8,7 @@ from bridge import CalculateFieldForCodes
 
 
 def new_field_gravity_code(
-        converter, epsilon=0. | units.m,
+        converter, epsilon_squared=0.1 | units.parsec**2,
 ):
     "Create a new field code"
     print("Creating field code")
@@ -21,23 +21,23 @@ def new_field_gravity_code(
         mode="cpu",
         number_of_workers=8,
     )
-    result.parameters.epsilon_squared = (epsilon)**2
+    result.parameters.epsilon_squared = epsilon_squared
     print(result.parameters)
     return result
 
 
 def new_field_code(
         code,
-        converter=None,
-        epsilon=0. | units.m,
+        # converter=None,
+        # epsilon_squared=0. | units.m**2,
 ):
     " something"
     # result = CalculateFieldForCodesUsingReinitialize(
     result = CalculateFieldForCodes(
         new_field_gravity_code,
         [code],
-        converter=converter,
-        epsilon=epsilon,
+        # converter=converter,
+        # epsilon_squared=epsilon_squared,
         # required_attributes=[
         #     'mass', 'radius',
         #     'x', 'y', 'z',

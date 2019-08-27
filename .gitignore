@@ -1,3 +1,8 @@
 *.swp
 *.pyc
 tests/*
+*.png
+*.hdf5
+binev.data
+*.log
+.pytest_cache

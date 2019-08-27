@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy
-from amuse.units import units  # , nbody_system
+from amuse.units import units  # , constants, nbody_system
 from amuse.datamodel import Particle, Particles
 # from amuse.ic.plummer import new_plummer_model
 from amuse.ic.brokenimf import MultiplePartIMF
@@ -62,6 +62,7 @@ def generate_next_mass(
 def form_stars(
         sink,
         upper_mass_limit=100 | units.MSun,
+        local_sound_speed=0.2 | units.kms,
         **keyword_arguments
 ):
     "Let sink form stars"
@@ -82,6 +83,7 @@ def form_stars(
     if sink.mass < sink.next_total_mass:
         return None
     new_stars = Particles(sink.next_number_of_stars)
+    new_stars.age = 0 | units.Myr
     new_stars[0].mass = sink.next_primary_mass
     if sink.next_number_of_stars > 1:
         new_stars[1].mass = sink.next_secondary_mass
@@ -108,8 +110,9 @@ def form_stars(
     new_stars.z += z
     # Random velocity, sample magnitude from gaussian with local sound speed
     # like Wall et al (2019)
-    local_sound_speed = 2 | units.kms
-    # TODO: do this properly - see e.g. formula 5.17 in AMUSE book
+    # temperature = 10 | units.K
+    local_sound_speed = local_sound_speed
+    # or (gamma * local_pressure / density).sqrt()
     velocity_magnitude = numpy.random.normal(
         # loc=0.0,  # <- since we already added the velocity of the sink
         scale=local_sound_speed.value_in(units.kms),
@@ -134,12 +137,14 @@ def form_stars(
     sink.mass -= new_stars.total_mass()
     # TODO: fix sink's momentum etc
 
-    # Shrink the sink's (accretion) radius to prevent it from accreting
-    # relatively far away gas and moving a lot
-    sink.radius = (
-        (sink.mass / sink_initial_density)
-        / (4/3 * numpy.pi)
-    )**(1/3)
+    # EDIT: Do not shrink the sinks at this point, but rather when finished
+    # forming stars.
+    # # Shrink the sink's (accretion) radius to prevent it from accreting
+    # # relatively far away gas and moving a lot
+    # sink.radius = (
+    #     (sink.mass / sink_initial_density)
+    #     / (4/3 * numpy.pi)
+    # )**(1/3)
 
     # cleanup
     sink.initialised = False

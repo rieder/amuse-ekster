@@ -14,7 +14,7 @@ class StellarEvolutionCode(
 
     def __init__(
             self,
-            evo_code=SSE,
+            evo_code=SeBa,
             logger=None,
             begin_time=0 | units.Myr,
             **keyword_arguments

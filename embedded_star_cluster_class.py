@@ -462,7 +462,8 @@ class ClusterInPotential(
                     new_sink.initial_density = origin_gas.density
                     # Average of accreted gas is better but for isothermal this
                     # is fine
-                    new_sink.u = origin_gas.u
+                    # new_sink.u = origin_gas.u
+                    new_sink.u = 0 | units.kms**2
 
                     new_sink.accreted_mass = 0 | units.MSun
                     o_x, o_y, o_z = origin_gas.position
@@ -484,6 +485,17 @@ class ClusterInPotential(
                         new_sink.accreted_mass = (
                             accreted_gas.total_mass() - origin_gas.mass
                         )
+                        # Sink's "internal energy" is the velocity dispersion
+                        # of the infalling gas
+                        new_sink.u = (
+                            accreted_gas.velocity
+                            - accreted_gas.center_of_mass_velocity()
+                        ).lengths_squared.mean()
+                        # TODO: think about preferential directions for this
+                        # (radial?)
+                        # Alternatively, it could be based on the gas sound speed
+                        # new_sink.u = accreted_gas.u.mean()
+
                         removed_gas.add_particles(accreted_gas.copy())
                         self.remove_gas(accreted_gas)
                         # Which high-density gas particles are accreted and

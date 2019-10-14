@@ -559,7 +559,12 @@ class ClusterInPotential(
             return None
         self.logger.info("Resolving star formation")
         mass_before = (
-            self.sink_particles.total_mass() + (
+            (
+                self.sink_particles.total_mass()
+                if not self.sink_particles.is_empty()
+                else (0 | units.MSun)
+            )
+            + (
                 self.star_particles.total_mass()
                 if not self.star_particles.is_empty()
                 else (0 | units.MSun)

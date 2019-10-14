@@ -612,7 +612,16 @@ class ClusterInPotential(
                 )**(1/3)
 
         mass_after = (
-            self.sink_particles.total_mass() + self.star_particles.total_mass()
+            (
+                self.sink_particles.total_mass()
+                if not self.sink_particles.is_empty()
+                else (0 | units.MSun)
+            )
+            + (
+                self.star_particles.total_mass()
+                if not self.star_particles.is_empty()
+                else (0 | units.MSun)
+            )
         )
         self.logger.debug(
             "dM = %s, mFormed = %s ",

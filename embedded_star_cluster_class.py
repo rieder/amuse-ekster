@@ -1048,7 +1048,7 @@ def main(
     # TODO: get time stamp from gas, stars, or sinks
     # Default for the initial spiral gas is 1.4874E+15 seconds
 
-    if randomfilename is not None:
+    if randomfilename is None:
         numpy.random.seed(seed)
     else:
         numpy.random.set_state(

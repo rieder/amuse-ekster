@@ -70,12 +70,13 @@ class StellarDynamicsCode(object):
             # handle_stopping_conditions=False,
             **kwargs
     ):
-        number_of_workers = 6
+        number_of_workers = 8
         if star_code is ph4:
             code = star_code(
                 converter,
                 mode=mode,
                 redirection=redirection,
+                number_of_workers=number_of_workers,
                 **kwargs
             )
             param = code.parameters

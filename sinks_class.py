@@ -15,6 +15,8 @@ def should_a_sink_form(origin_gas, gas):
     # OR
     # - density = 10 * critical
     # 1) get the 50 neighbour particles
+    if len(gas) < 50:
+        return False, "not enough gas particles (this should never happen)"
     neighbour_radius = origin_gas.h_smooth * 5
     neighbours = gas[
         numpy.where(
@@ -22,6 +24,8 @@ def should_a_sink_form(origin_gas, gas):
             < neighbour_radius
         )
     ].copy()
+    if len(neighbours) < 50:
+        return False, "not enough neighbours"
     neighbours.position -= origin_gas.position
     neighbours.velocity -= origin_gas.velocity
     neighbours.distance = neighbours.position.lengths()
@@ -31,12 +35,19 @@ def should_a_sink_form(origin_gas, gas):
     e_pot = neighbours[:50].potential_energy()
     e_th = neighbours[:50].thermal_energy()
 
-    if not e_th/e_pot <= 0.5:
-        return False
+    try:
+        if not e_th/e_pot <= 0.5:
+            return False, "e_th/e_pot > 0.5"
+    except AttributeError:
+        print(
+            "ERROR: e_th = %s e_pot = %s"
+            % (e_th, e_pot)
+        )
+        return False, "error"
     # if not (e_th + e_rot) / e_pot <= 1:
     #     break
     if (e_th+e_kin+e_pot) >= 0 | units.erg:
-        return False
+        return False, "e_tot < 0"
     # if accelleration is diverging:
     #     break
 
@@ -45,7 +56,7 @@ def should_a_sink_form(origin_gas, gas):
     #    particles.thermal_energy (make sure u corresponds to 10K)
     #    particles.kinetic_energy
     #    particles.potential_energy
-    return True
+    return True, "forming"
 
 
 # 

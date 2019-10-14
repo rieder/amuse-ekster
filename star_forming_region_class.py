@@ -1,5 +1,7 @@
 """
-Module for star formation from sinks
+Faster module for star formation from sinks
+
+This module omits multiple stars for simplicity
 """
 from __future__ import division, print_function
 import logging
@@ -9,6 +11,7 @@ from amuse.datamodel import Particle, Particles
 # from amuse.ic.plummer import new_plummer_model
 from amuse.ic.brokenimf import MultiplePartIMF
 from amuse.units.trigo import sin, cos
+from amuse.ext.masc import new_star_cluster
 
 
 def new_kroupa_mass_distribution(
@@ -74,12 +77,7 @@ def form_stars(
 ):
     """
     Let a sink form stars.
-    This will create one stellar system (primary + possible secondary/more) at
-    a time.
-    As a result, this isn't a very fast method...
     """
-    # TODO make this method faster
-
     logger = logger or logging.getLogger(__name__)
 
     # sink_initial_density = sink.mass / (4/3 * numpy.pi * sink.radius**3)
@@ -88,38 +86,52 @@ def form_stars(
     if not initialised:
         logger.debug("Initialising sink %i for star formation", sink.key)
         next_mass = generate_next_mass()
-        sink.next_number_of_stars = len(next_mass)
-        sink.next_total_mass = next_mass.sum()
+        # sink.next_number_of_stars = len(next_mass)
+        # sink.next_total_mass = next_mass.sum()
         sink.next_primary_mass = next_mass[0]
-        if sink.next_number_of_stars > 1:
-            sink.next_secondary_mass = next_mass[1]
-        if sink.next_number_of_stars > 2:
-            sink.next_tertiary_mass = next_mass[2]
+        # if sink.next_number_of_stars > 1:
+        #     sink.next_secondary_mass = next_mass[1]
+        # if sink.next_number_of_stars > 2:
+        #     sink.next_tertiary_mass = next_mass[2]
         sink.initialised = True
-    if sink.mass < sink.next_total_mass:
+    if sink.mass < sink.next_primary_mass:
         logger.debug(
             "Sink %i is not massive enough for the next star", sink.key
         )
         return None
-    new_stars = Particles(sink.next_number_of_stars)
+
+    # We now have the first star that will be formed.
+    # Next, we generate a list of stellar masses, so that the last star in the
+    # list is just one too many for the sink's mass.
+
+    mass_left = sink.mass - sink.next_primary_mass
+    masses = new_star_cluster(
+        stellar_mass=mass_left,
+        upper_mass_limit=upper_mass_limit,
+    ).mass
+    number_of_stars = len(masses)
+
+    new_stars = Particles(number_of_stars)
     new_stars.age = 0 | units.Myr
     new_stars[0].mass = sink.next_primary_mass
-    if sink.next_number_of_stars > 1:
-        new_stars[1].mass = sink.next_secondary_mass
-    if sink.next_number_of_stars > 2:
-        new_stars[2].mass = sink.next_tertiary_mass
+    new_stars[1:].mass = masses[:-1]
+    sink.next_primary_mass = masses[-1]
+    # if sink.next_number_of_stars > 1:
+    #     new_stars[1].mass = sink.next_secondary_mass
+    # if sink.next_number_of_stars > 2:
+    #     new_stars[2].mass = sink.next_tertiary_mass
     new_stars.position = sink.position
     new_stars.velocity = sink.velocity
 
     # Random position within the sink radius
     radius = sink.radius
-    rho = numpy.random.random(sink.next_number_of_stars) * radius
+    rho = numpy.random.random(number_of_stars) * radius
     theta = (
-        numpy.random.random(sink.next_number_of_stars)
+        numpy.random.random(number_of_stars)
         * (2 * numpy.pi | units.rad)
     )
     phi = (
-        numpy.random.random(sink.next_number_of_stars) * numpy.pi | units.rad
+        numpy.random.random(number_of_stars) * numpy.pi | units.rad
     )
     x = rho * sin(phi) * cos(theta)
     y = rho * sin(phi) * sin(theta)
@@ -138,14 +150,14 @@ def form_stars(
     velocity_magnitude = numpy.random.normal(
         # loc=0.0,  # <- since we already added the velocity of the sink
         scale=local_sound_speed.value_in(units.kms),
-        size=sink.next_number_of_stars,
+        size=number_of_stars,
     ) | units.kms
     velocity_theta = (
-        numpy.random.random(sink.next_number_of_stars)
+        numpy.random.random(number_of_stars)
         * (2 * numpy.pi | units.rad)
     )
     velocity_phi = (
-        numpy.random.random(sink.next_number_of_stars)
+        numpy.random.random(number_of_stars)
         * (numpy.pi | units.rad)
     )
     vx = velocity_magnitude * sin(velocity_phi) * cos(velocity_theta)
@@ -169,7 +181,7 @@ def form_stars(
     # )**(1/3)
 
     # cleanup
-    sink.initialised = False
+    # sink.initialised = False
     return new_stars
 
 

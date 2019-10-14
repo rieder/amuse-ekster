@@ -19,7 +19,7 @@ from spiral_potential import (
 )
 from plotting_class import plot_hydro_and_stars  # , plot_stars
 from merge_recipes import form_new_star
-from new_star_forming_region_class import form_stars  # StarFormingRegion
+from star_forming_region_class import form_stars  # StarFormingRegion
 from bridge import (
     Bridge, CalculateFieldForCodes,
 )

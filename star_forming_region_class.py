@@ -1,4 +1,8 @@
-from __future__ import division
+"""
+Module for star formation from sinks
+"""
+from __future__ import division, print_function
+import logging
 import numpy
 from amuse.units import units  # , constants, nbody_system
 from amuse.datamodel import Particle, Particles
@@ -47,30 +51,42 @@ def generate_next_mass(
     elif rnd < triple_fraction + binary_fraction:
         is_binary = True
     if not (is_binary or is_triple):
-        n = 1
+        number_of_stars = 1
     elif is_binary:
-        n = 2
+        number_of_stars = 2
     elif is_triple:
-        n = 3
+        number_of_stars = 3
 
-    return new_kroupa_mass_distribution(
-        n,
-        mass_max=upper_mass_limit,
-    )
+    if initial_mass_function == "kroupa":
+        return new_kroupa_mass_distribution(
+            number_of_stars,
+            mass_max=upper_mass_limit,
+        )
+    return False
 
 
 def form_stars(
         sink,
         upper_mass_limit=100 | units.MSun,
         local_sound_speed=0.2 | units.kms,
+        logger=None,
         **keyword_arguments
 ):
-    "Let sink form stars"
+    """
+    Let a sink form stars.
+    This will create one stellar system (primary + possible secondary/more) at
+    a time.
+    As a result, this isn't a very fast method...
+    """
+    # TODO make this method faster
 
-    sink_initial_density = sink.mass / (4/3 * numpy.pi * sink.radius**3)
+    logger = logger or logging.getLogger(__name__)
+
+    # sink_initial_density = sink.mass / (4/3 * numpy.pi * sink.radius**3)
 
     initialised = sink.initialised or False
     if not initialised:
+        logger.debug("Initialising sink %i for star formation", sink.key)
         next_mass = generate_next_mass()
         sink.next_number_of_stars = len(next_mass)
         sink.next_total_mass = next_mass.sum()
@@ -81,6 +97,9 @@ def form_stars(
             sink.next_tertiary_mass = next_mass[2]
         sink.initialised = True
     if sink.mass < sink.next_total_mass:
+        logger.debug(
+            "Sink %i is not massive enough for the next star", sink.key
+        )
         return None
     new_stars = Particles(sink.next_number_of_stars)
     new_stars.age = 0 | units.Myr
@@ -111,7 +130,10 @@ def form_stars(
     # Random velocity, sample magnitude from gaussian with local sound speed
     # like Wall et al (2019)
     # temperature = 10 | units.K
-    local_sound_speed = local_sound_speed
+    try:
+        local_sound_speed = sink.u.sqrt()
+    except AttributeError:
+        local_sound_speed = local_sound_speed
     # or (gamma * local_pressure / density).sqrt()
     velocity_magnitude = numpy.random.normal(
         # loc=0.0,  # <- since we already added the velocity of the sink
@@ -214,14 +236,14 @@ class StarFormingRegion(
             is_binary = True
 
         if not (is_binary or is_triple):
-            n = 1
+            number_of_stars = 1
         elif is_binary:
-            n = 2
+            number_of_stars = 2
         elif is_triple:
-            n = 3
+            number_of_stars = 3
 
         self.next_mass = new_kroupa_mass_distribution(
-            n,
+            number_of_stars,
             mass_max=self.upper_mass_limit,
         )
 
@@ -235,7 +257,8 @@ class StarFormingRegion(
             #     self.mass,
             #     self.radius,
             # )
-            # new_stars = new_plummer_distribution(converter, len(self.next_mass))
+            # new_stars = new_plummer_distribution(
+            #     converter, len(self.next_mass))
             new_stars = Particles(number_of_stars)
             new_stars.mass = self.next_mass
             new_stars.position = self.position
@@ -244,7 +267,9 @@ class StarFormingRegion(
             # Random position within the sink radius
             radius = self.radius
             rho = numpy.random.random(number_of_stars) * radius
-            theta = numpy.random.random(number_of_stars) * 2 * numpy.pi | units.rad
+            theta = (
+                numpy.random.random(number_of_stars) * 2 * numpy.pi | units.rad
+            )
             phi = numpy.random.random(number_of_stars) * numpy.pi | units.rad
             x = rho * sin(phi) * cos(theta)
             y = rho * sin(phi) * sin(theta)
@@ -253,17 +278,22 @@ class StarFormingRegion(
             new_stars.y += y
             new_stars.z += z
 
-            # Random velocity, sample magnitude from gaussian with local sound speed
-            # like Wall et al (2019)
+            # Random velocity, sample magnitude from gaussian with local sound
+            # speed like Wall et al (2019)
             local_sound_speed = 2 | units.kms
             # TODO: do this properly - see e.g. formula 5.17 in AMUSE book
             velocity_magnitude = numpy.random.normal(
-                # loc=0.0,  # <- since we already added the velocity of the sink
+                # loc=0.0,  # <- since we already added the velocity of the
+                # sink
                 scale=local_sound_speed.value_in(units.kms),
                 size=number_of_stars,
             ) | units.kms
-            velocity_theta = numpy.random.random(number_of_stars) * 2 * numpy.pi | units.rad
-            velocity_phi = numpy.random.random(number_of_stars) * numpy.pi | units.rad
+            velocity_theta = (
+                numpy.random.random(number_of_stars) * 2 * numpy.pi | units.rad
+            )
+            velocity_phi = (
+                numpy.random.random(number_of_stars) * numpy.pi | units.rad
+            )
             vx = velocity_magnitude * sin(velocity_phi) * cos(velocity_theta)
             vy = velocity_magnitude * sin(velocity_phi) * sin(velocity_theta)
             vz = velocity_magnitude * cos(velocity_phi)
@@ -272,32 +302,32 @@ class StarFormingRegion(
             new_stars.vz += vz
 
             new_stars.origin_cloud = self.key
-            
+
             # Make sure quantities are (mostly) conserved
             # - mass
             self.mass -= new_stars.total_mass()
             # - momentum
 
-            
             # Determine which star(s) should form next
             self.generate_next_mass()
             return new_stars
         return Particles()
 
+
 def main():
     star_forming_region = StarFormingRegion(
-            key=None,
-            particles_set=None,
-            set_index=None,
-            set_version=-1,
-            mass=150 | units.MSun,
-            radius=1000 | units.AU,
-            position=[0,0,0] | units.parsec,
-            velocity=[0,0,0] | units.kms,
-            initial_mass_function="kroupa",
-            binary_fraction=0,
-            triple_fraction=0,
-            upper_mass_limit=100 | units.MSun,
+        key=None,
+        particles_set=None,
+        set_index=None,
+        set_version=-1,
+        mass=150 | units.MSun,
+        radius=1000 | units.AU,
+        position=[0, 0, 0] | units.parsec,
+        velocity=[0, 0, 0] | units.kms,
+        initial_mass_function="kroupa",
+        binary_fraction=0,
+        triple_fraction=0,
+        upper_mass_limit=100 | units.MSun,
     )
     print(star_forming_region)
     p = []
@@ -310,13 +340,14 @@ def main():
     print(q[0] == star_forming_region)
     print(p[0] == q[0])
     new_stars = p[0].yield_next()
-    active_sfr = q[0]
-    q_new_stars = active_sfr.yield_next()
+    # active_sfr = q[0]
+    # q_new_stars = active_sfr.yield_next()
     i = 0
     while not new_stars.is_empty():
         print(i, new_stars.total_mass(), star_forming_region.mass)
         new_stars = p[0].yield_next()
         i += 1
+
 
 if __name__ == "__main__":
     main()

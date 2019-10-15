@@ -490,7 +490,7 @@ class ClusterInPotential(
                         new_sink.u = (
                             accreted_gas.velocity
                             - accreted_gas.center_of_mass_velocity()
-                        ).lengths_squared.mean()
+                        ).lengths_squared().mean()
                         # TODO: think about preferential directions for this
                         # (radial?)
                         # Alternatively, it could be based on the gas sound speed

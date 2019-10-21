@@ -1058,7 +1058,7 @@ def main(
     gasfilename = args.gasfilename
     starsfilename = args.starsfilename
     sinksfilename = args.sinksfilename
-    randomfilename = args.sinksfilename
+    randomfilename = args.randomfilename
     # TODO: get time stamp from gas, stars, or sinks
     # Default for the initial spiral gas is 1.4874E+15 seconds
 

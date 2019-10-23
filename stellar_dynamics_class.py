@@ -1,10 +1,24 @@
 "Class for stellar dynamics"
 from __future__ import print_function, division
 import logging
-from amuse.community.bhtree.interface import BHTree
-from amuse.community.ph4.interface import ph4
-from amuse.community.phigrape.interface import PhiGRAPE
-from amuse.community.hermite.interface import Hermite
+
+try:
+    from amuse.community.bhtree.interface import BHTree
+except ImportError:
+    BHTree = None
+try:
+    from amuse.community.ph4.interface import ph4
+except ImportError:
+    ph4 = None
+try:
+    from amuse.community.phigrape.interface import PhiGRAPE
+except ImportError:
+    PhiGRAPE = None
+try:
+    from amuse.community.hermite.interface import Hermite
+except ImportError:
+    Hermite = None
+
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
@@ -82,7 +96,7 @@ class StellarDynamicsCode(object):
             param = code.parameters
             # Set the parameters explicitly to some default
             # param.block_steps = False
-            # param.force_sync = False
+            param.force_sync = True
             # param.gpu_id = something
             param.initial_timestep_fac = 0.0625
             param.initial_timestep_limit = 0.03125

@@ -187,7 +187,9 @@ def make_temperature_map(
         ymin += offset_y
         ymax += offset_y
 
-    gas = sph.gas_particles
+    gas = sph.gas_particles.copy()
+    gas.x -= offset_x | length_unit
+    gas.y -= offset_y | length_unit
 
     n, x_edges, y_edges = numpy.histogram2d(
         gas.x.value_in(length_unit),
@@ -230,7 +232,7 @@ def plot_hydro_and_stars(
         offset_x=None,
         offset_y=None,
         title="",
-        gasproperties="density",
+        gasproperties=["density",],
         colorbar=False,
         alpha_sfe=0.02,
         stars_are_sinks=False,
@@ -260,20 +262,22 @@ def plot_hydro_and_stars(
     top = 0.9
     # fig = pyplot.figure(figsize=(6, 5))
     image_size = [image_size_scale*N, image_size_scale*N]
-    dpi = 150
+    dpi = 75
+    naxes = len(gasproperties)
     figwidth = image_size[0] / dpi / (right - left)
     figheight = image_size[1] / dpi / (top - bottom)
-    figsize = (figwidth, figheight)
-    fig, ax = pyplot.subplots(nrows=1, ncols=1, figsize=figsize, dpi=dpi)
+    figsize = (figwidth + (naxes-1)*0.5*figwidth, figheight)
+    fig = pyplot.figure(figsize=figsize, dpi=dpi)
+    # fig, ax = pyplot.subplots(nrows=1, ncols=naxes, figsize=figsize, dpi=dpi)
     fig.subplots_adjust(left=left, right=right, top=top, bottom=bottom)
     for i in range(number_of_subplots):
-        #ax = fig.add_subplot(1, number_of_subplots, i+1)
+        ax = fig.add_subplot(1, naxes, i+1)
         if colorbar:
             divider = make_axes_locatable(ax)
             cax = divider.append_axes('right', size='5%', pad=0.1)
         if gasproperties:
             gasproperty = gasproperties[i]
-            print("plotting %s" % gasproperty)
+            # print("plotting %s" % gasproperty)
             ax.set_title(gasproperty)
             if gasproperty == "density":
 
@@ -282,8 +286,8 @@ def plot_hydro_and_stars(
                     length_unit=length_unit,
                 )
                 rho = rho.transpose()
-                print(xedges.min(), xedges.max())
-                print(yedges.min(), yedges.max())
+                # print(xedges.min(), xedges.max())
+                # print(yedges.min(), yedges.max())
 
                 # content = numpy.log10(
                 #     1.e-5+rho.value_in(units.amu/units.cm**3)
@@ -295,7 +299,7 @@ def plot_hydro_and_stars(
                     # 1.e-5 + rho.value_in(units.amu/units.cm**3)
                 )
                 extent = [xmin, xmax, ymin, ymax]
-                vmin = 0
+                vmin = -2
                 vmax = 1 + numpy.log10(
                     (
                         sph.parameters.stopping_condition_maximum_density.value_in(
@@ -336,8 +340,8 @@ def plot_hydro_and_stars(
                 img = ax.imshow(
                     numpy.log10(1.e-5+temp.value_in(units.K)),
                     extent=[xmin, xmax, ymin, ymax],
-                    vmin=1,
-                    vmax=4,
+                    vmin=0,
+                    vmax=5,
                     cmap="inferno",
                     origin="lower",
                 )

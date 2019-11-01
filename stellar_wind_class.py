@@ -25,21 +25,30 @@ from cooling_class import SimplifiedThermalModelEvolver, Cooling
 
 COOLING = False  # True
 
+def determine_short_timestep(sph, gas, h_min=0.1 | units.parsec):
+    gamma = sph.parameters.gamma
+    C_cour = sph.parameters.C_cour
+    eni = gas.u.max()  # eni is the energy of the injected particle
+    spsound = sqrt(gamma*(gamma-1.)*eni)
+    return C_cour*h_min/spsound
+
 def main():
     numpy.random.seed(42)
-    evo_headstart = 5.5 | units.Myr
-    dt = 0.01 | units.Myr
+    evo_headstart = 2.0 | units.Myr
+    dt_base = 0.01 | units.Myr
+    dt = dt_base
     time = 0 | units.Myr
     time_end = 8 | units.Myr
     Tmin = 10 | units.K
     
-    stars = new_star_cluster(stellar_mass=2000 | units.MSun)
-    stars.velocity *= 2
+    stars = new_star_cluster(
+        stellar_mass=1000 | units.MSun, effective_radius=7 | units.parsec)
+    stars.velocity *= 3
     stars.vx += 0 | units.kms
     stars.vy += 0 | units.kms
 
-    NGas = 320000
-    MGas = (NGas/80) | units.MSun
+    NGas = 160000
+    MGas = (NGas/8) | units.MSun
     M = stars.total_mass() + MGas
     R = stars.position.lengths().mean()
     converter = nbody_system.nbody_to_si(M, R)
@@ -81,7 +90,8 @@ def main():
     # sph.parameters.C_cour = sph.parameters.C_cour / 4
     # sph.parameters.C_force = sph.parameters.C_force / 4
     print(sph.parameters)
-    stars_in_sph = stars.copy()  # sph.sink_particles.add_particles(stars)
+    # stars_in_sph = stars.copy()  # sph.sink_particles.add_particles(stars)
+    stars_in_sph = sph.sink_particles.add_particles(stars)
     channel_stars_grav_to_code = stars.new_channel_to(
         # sph.sink_particles,
         # sph.dm_particles,
@@ -169,9 +179,9 @@ def main():
         stars=stars,
         sinks=None,
         L=50,
-        N=100,
+        N=200,
         image_size_scale=3,
-        filename="LRphantom-coolthermalwindtestplot-%04i.png"%step,
+        filename="phantom-coolthermalwindtestplot-%04i.png"%step,
         title="time = %06.2f %s" % (time.value_in(units.Myr), units.Myr),
         gasproperties=["density", "temperature"],
         colorbar=True,
@@ -180,6 +190,9 @@ def main():
         offset_y=com[1].value_in(units.parsec),
     )
 
+    dt = dt_base
+    delta_t = 0.1 | units.yr
+    small_step = False
     while time < time_end:
         print("Gas mean u: %s" % (gas.u.mean().in_(units.erg/units.MSun)))
         step += 1
@@ -197,6 +210,8 @@ def main():
                 converter.to_nbody(gas_in_code.u.max()),
             )
         )
+        if small_step:
+            sph.evolve_model(time - dt + delta_t)
         sph.evolve_model(time)
         channel_gas_from_code.copy()
         channel_stars_grav_from_code.copy()
@@ -238,6 +253,14 @@ def main():
             # for wp in wind_p:
             #     print(wp)
             print("Wind particles added")
+            if True:  # wind_p.u.max() > gas_in_code.u.max():
+                print("Setting dt to very short")
+                small_step = True  # dt = 0.1 | units.yr
+                h_min = gas.h_smooth.min()
+                delta_t = determine_short_timestep(sph, wind_p, h_min=h_min)
+                print("delta_t is set to %s" % delta_t.in_(units.yr))
+        else:
+            small_step = False
         print(
             "time: %s sph: %s dM: %s" % (
                 time,
@@ -260,9 +283,9 @@ def main():
             stars=stars,
             sinks=None,
             L=50,
-            N=100,
+            N=200,
             image_size_scale=3,
-            filename="LRphantom-coolthermalwindtestplot-%04i.png"%step,
+            filename="phantom-coolthermalwindtestplot-%04i.png"%step,
             title="time = %06.2f %s" % (time.value_in(units.Myr), units.Myr),
             gasproperties=["density","temperature"],
             colorbar=True,

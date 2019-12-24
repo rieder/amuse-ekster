@@ -16,11 +16,15 @@ try:
     from amuse.community.pentacle.interface import Pentacle
 except ImportError:
     Pentacle = None
+
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
 from amuse.units import units, nbody_system  # , constants
 from amuse.units.quantities import VectorQuantity
+
 from amuse.io import write_set_to_file
+
 from amuse.ext.masc import new_star_cluster
+
 from gas_class import GasCode
 from sinks_class import accrete_gas, should_a_sink_form  # , sfe_to_density
 from star_cluster_class import StarCluster
@@ -98,7 +102,10 @@ class ClusterInPotential(
             self.logger.setLevel(logger_level)
 
         self.__begin_time = (
-            begin_time if begin_time is not None else 0.0 | units.Myr
+            # begin_time if begin_time is not None else 0.0 | units.Myr
+            begin_time
+            if begin_time is not None
+            else (5.0802 * 1.4874E+15 | units.s)
         )
         self.new_stars_added = False
 
@@ -173,12 +180,7 @@ class ClusterInPotential(
             result = code(
                 self.converter,
                 redirection="null",
-                # redirect_file=(
-                #     p.dir_codelogs + "/field_gravity_code.log"
-                #     ),
-                # mode="cpu",
                 mode="openmp",
-                # number_of_workers=8,
             )
             result.parameters.epsilon_squared = self.epsilon**2
             return result
@@ -200,8 +202,6 @@ class ClusterInPotential(
             # self.star_code,
             new_field_code(
                 self.star_code,
-                # converter=self.converter,
-                # epsilon_squared=self.epsilon**2
             )
         )
         to_stars_codes = []
@@ -210,8 +210,6 @@ class ClusterInPotential(
         to_stars_codes.append(
             new_field_code(
                 self.gas_code,
-                # converter=self.converter,
-                # epsilon_squared=self.epsilon**2
             )
         )
 
@@ -382,6 +380,7 @@ class ClusterInPotential(
         return self.system
 
     def resolve_sink_formation(self):
+        "Identify high-density gas, and form sink(s) when needed"
         dump_saved = False
         removed_gas = Particles()
         maximum_density = (
@@ -402,12 +401,19 @@ class ClusterInPotential(
         while not high_density_gas.is_empty():
             i = 0
             origin_gas = high_density_gas[i]
-            # print("Processing gas %i, %i remain" % (origin_gas.key, len(high_density_gas)))
+            # print(
+            #     "Processing gas %i, %i remain" % (
+            #         origin_gas.key, len(high_density_gas)
+            #     )
+            # )
             # if i >= 1:
             #     # For now, do one sink at a time
             #     break
             if origin_gas in removed_gas:
-                # print("Gas particle %s removed by accretion, skipping" % origin_gas.key)
+                # print(
+                #     "Gas particle %s removed by accretion, skipping" %
+                #     origin_gas.key
+                # )
                 high_density_gas.remove_particle(origin_gas)
             else:
                 form_sink = False
@@ -483,7 +489,7 @@ class ClusterInPotential(
                     accreted_gas = accrete_gas(new_sink, self.gas_particles)
                     if accreted_gas.is_empty():
                         self.logger.info("Empty gas so no sink %i", i)
-                        high_density_gas.remove_particle(origin_particle)
+                        high_density_gas.remove_particle(origin_gas)
                     else:
                         self.logger.info(
                             "Number of accreted gas particles: %i",
@@ -504,7 +510,8 @@ class ClusterInPotential(
                         ).lengths_squared().mean()
                         # TODO: think about preferential directions for this
                         # (radial?)
-                        # Alternatively, it could be based on the gas sound speed
+                        # Alternatively, it could be based on the gas sound
+                        # speed
                         # new_sink.u = accreted_gas.u.mean()
 
                         removed_gas.add_particles(accreted_gas.copy())
@@ -512,7 +519,9 @@ class ClusterInPotential(
                         # Which high-density gas particles are accreted and
                         # should no longer be considered?
                         accreted_high_density_gas = \
-                            high_density_gas.get_intersecting_subset_in(accreted_gas)
+                            high_density_gas.get_intersecting_subset_in(
+                                accreted_gas
+                            )
                         high_density_gas.remove_particles(
                             accreted_high_density_gas
                         )
@@ -524,7 +533,6 @@ class ClusterInPotential(
                         )
                         # except:
                         #     print("Could not add another sink")
-
 
     def add_sink(self, sink):
         self.gas_code.sink_particles.add_particle(sink)

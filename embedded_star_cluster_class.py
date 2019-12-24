@@ -9,6 +9,10 @@ except ImportError:
 # from amuse.community.bhtree.interface import BHTree
 # from amuse.community.fastkick.interface import FastKick
 try:
+    from amuse.community.hermite.interface import Hermite
+except ImportError:
+    Hermite = None
+try:
     from amuse.community.ph4.interface import ph4
 except ImportError:
     ph4 = None
@@ -132,6 +136,7 @@ class ClusterInPotential(
             # stars=stars,
             converter=converter_for_stars,
             epsilon=epsilon,
+            star_code=Hermite,
             # star_code=Pentacle,
             # begin_time=self.__begin_time,
         )
@@ -1157,15 +1162,15 @@ def main(
     if not (have_stars or have_gas or have_sinks):
         print("No particles!")
         exit()
-    if not have_stars:
-        # This is a workaround. Don't like it but hard to run with zero stars.
-        stars = new_star_cluster(
-            number_of_stars=2
-        )
-        stars.mass *= 0.0001
-        stars.position += gas.center_of_mass()
-        stars.velocity += gas.center_of_mass_velocity()
-        have_stars = True
+    # if not have_stars:
+    #     # This is a ph4 workaround. Don't like it but hard to run with zero stars.
+    #     stars = new_star_cluster(
+    #         number_of_stars=2
+    #     )
+    #     stars.mass *= 0.0001
+    #     stars.position += gas.center_of_mass()
+    #     stars.velocity += gas.center_of_mass_velocity()
+    #     have_stars = True
     model = ClusterInPotential(
         stars=stars if have_stars else Particles(),
         gas=gas if have_gas else Particles(),

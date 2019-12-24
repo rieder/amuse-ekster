@@ -7,7 +7,10 @@ try:
 except ImportError:
     Fi = None
 # from amuse.community.bhtree.interface import BHTree
-# from amuse.community.fastkick.interface import FastKick
+try:
+    from amuse.community.fastkick.interface import FastKick
+except ImportError:
+    FastKick = None
 try:
     from amuse.community.hermite.interface import Hermite
 except ImportError:
@@ -177,8 +180,8 @@ class ClusterInPotential(
         self.converter = converter_for_gas
 
         def new_field_gravity_code(
-                # code=FastKick,
-                code=Fi,
+                code=FastKick,
+                # code=Fi,
         ):
             "Create a new field code"
             print("Creating field code")

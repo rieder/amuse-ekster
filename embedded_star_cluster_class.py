@@ -2,10 +2,20 @@
 from __future__ import print_function, division
 import logging
 import numpy
-from amuse.community.fi.interface import Fi
+try:
+    from amuse.community.fi.interface import Fi
+except ImportError:
+    Fi = None
 # from amuse.community.bhtree.interface import BHTree
 # from amuse.community.fastkick.interface import FastKick
-from amuse.community.ph4.interface import ph4
+try:
+    from amuse.community.ph4.interface import ph4
+except ImportError:
+    ph4 = None
+try:
+    from amuse.community.pentacle.interface import Pentacle
+except ImportError:
+    Pentacle = None
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
 from amuse.units import units, nbody_system  # , constants
 from amuse.units.quantities import VectorQuantity
@@ -115,6 +125,7 @@ class ClusterInPotential(
             # stars=stars,
             converter=converter_for_stars,
             epsilon=epsilon,
+            # star_code=Pentacle,
             # begin_time=self.__begin_time,
         )
         self.add_stars(stars)
@@ -251,7 +262,7 @@ class ClusterInPotential(
         """
         from_gas_attributes = [
             "x", "y", "z", "vx", "vy", "vz",
-            "density", "h_smooth",
+            "density", "h_smooth", "u",
         ]
         from_sink_attributes = [
             "x", "y", "z", "vx", "vy", "vz", "mass",
@@ -1100,14 +1111,16 @@ def main(
         begin_time = gas_.get_timestamp()
         if begin_time is None:
             begin_time = 0.0 | units.Myr
-        try:
-            del gas_.u
-        except KeyError:
-            pass
-        try:
-            del gas_.pressure
-        except KeyError:
-            pass
+            try:
+                del gas_.u
+            except KeyError:
+                pass
+            try:
+                del gas_.pressure
+            except KeyError:
+                pass
+            u = temperature_to_u(100 | units.K)
+            gas_.u = u
 
         # gas = gas_.select(
         #     lambda x, y:
@@ -1118,8 +1131,6 @@ def main(
         # )
         gas = gas_
         print("Using %i particles" % len(gas))
-        u = temperature_to_u(10 | units.K)
-        gas.u = u
         have_gas = True
     else:
         from amuse.ext.molecular_cloud import molecular_cloud

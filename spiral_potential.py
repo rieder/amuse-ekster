@@ -332,5 +332,47 @@ def main():
         )
 
 
+def plot():
+    import numpy
+    # import matplotlib
+    import matplotlib.pyplot as plt
+
+    t_start = (5.0802 * 1.4874E+15 | units.s)
+    N = 200
+    xmin = -2100 | units.parsec
+    xmax = -1500 | units.parsec
+    ymin = -2100 | units.parsec
+    ymax = -1500 | units.parsec
+
+    pot = TimeDependentSpiralArmsDiskModel(t_start=t_start)
+    # pot = SpiralArmsProfile(t_start=t_start)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    x, y = numpy.indices((N+1, N+1))
+    xwidth = (xmax-xmin)
+    ywidth = (ymax-ymin)
+    x = xmin + xwidth*(x.flatten())/N
+    y = ymin + ywidth*(y.flatten())/N
+    z = x * 0.
+    eps = x * 0.
+
+    fi = pot.get_potential_at_point(eps, x, y, z).value_in(units.kms**2)
+    fi = fi.reshape((N+1, N+1)).transpose()
+
+    fiplot = ax.imshow(
+        fi, origin='lower',
+        extent=[
+            xmin.value_in(units.parsec), xmax.value_in(units.parsec),
+            ymin.value_in(units.parsec), ymax.value_in(units.parsec),
+        ]
+    )
+    plt.colorbar(fiplot)
+    # ax.set_xlim((xmin.value_in(units.parsec), xmax.value_in(units.parsec)))
+    # ax.set_ylim((ymin.value_in(units.parsec), ymax.value_in(units.parsec)))
+    plt.show()
+
+
 if __name__ == "__main__":
-    main()
+    plot()

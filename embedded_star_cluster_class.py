@@ -1113,7 +1113,6 @@ def main(
     from version import version
 
     logger = logging.getLogger(__name__)
-    logger.info("git revision: %s", version())
 
     args = new_argument_parser()
     gasfilename = args.gasfilename
@@ -1142,6 +1141,7 @@ def main(
         format='%(asctime)s - %(name)s - %(levelname)s: %(message)s',
         datefmt='%Y%m%d %H:%M:%S'
     )
+    logger.info("git revision: %s", version())
 
     star_converter = nbody_system.nbody_to_si(
         150 | units.MSun,

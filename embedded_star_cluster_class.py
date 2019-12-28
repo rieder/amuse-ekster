@@ -801,8 +801,8 @@ class ClusterInPotential(
 
         density_limit_detection = \
             self.gas_code.stopping_conditions.density_limit_detection
-        density_limit_detection.enable()
-        # density_limit_detection.disable()
+        # density_limit_detection.enable()
+        density_limit_detection.disable()
 
         # TODO: re-enable at some point?
         # collision_detection = \
@@ -930,40 +930,15 @@ class ClusterInPotential(
                     return_working_copy=False,
                 )
 
-            stopping_iteration = 0
-            max_number_of_iterations = 2
-            high_density_remaining = True
-            while (
-                    high_density_remaining
-                    and stopping_iteration < max_number_of_iterations
-                    and density_limit_detection.is_set()
-            ):
-                # Add this check since density detection isn't working
-                # perfectly yet
-                dens_frac = (
-                    self.gas_particles.density.max()
-                    / dmax
-                )
-                if dens_frac < 1:
-                    self.logger.info(
-                        "max density < stopping density but stopping condition"
-                        " still set?"
-                    )
-                    high_density_remaining = False
-                    # stopping_iteration = max_number_of_iterations
-                    break
-
-                self.logger.debug("Forming new stars - %i", stopping_iteration)
-                self.logger.info("Gas code stopped - max density reached")
-                self.logger.debug(
-                    "Highest density / max density: %s",
-                    (
-                        self.gas_particles.density.max()
-                        / dmax
-                    )
-                )
-                self.sync_from_gas_code()
+            check_for_new_sinks = True
+            while check_for_new_sinks:
+                n_sink = len(self.sink_particles)
                 self.resolve_sink_formation()
+                if len(self.sink_particles) == n_sink:
+                    self.logger.info("No new sinks")
+                    check_for_new_sinks = False
+                else:
+                    self.logger.info("New sink formed")
                 self.logger.info(
                     "Now we have %i stars; %i sinks and %i gas, %i particles"
                     " in total.",
@@ -975,28 +950,75 @@ class ClusterInPotential(
                         + len(self.star_code.particles)
                     ),
                 )
-                # Make sure we break the loop if the gas code is not going to
-                # evolve further
-                # if (
-                #         self.gas_code.model_time
-                #         < (time - self.gas_code.parameters.timestep)
-                # ):
-                #     break
-                self.gas_code.evolve_model(
-                    relative_tend
-                    # self.gas_code.model_time
-                    # + self.gas_code.parameters.timestep
-                )
-                self.sync_from_gas_code()
-                stopping_iteration += 1
-            if high_density_remaining is False:
-                self.logger.info(
-                    "Remaining gas below critical density, disabling sink"
-                    " formation for now"
-                )
-                density_limit_detection.disable()
-                self.gas_code.evolve_model(relative_tend)
-                self.sync_from_gas_code()
+
+
+            # stopping_iteration = 0
+            # max_number_of_iterations = 2
+            # high_density_remaining = True
+            # while (
+            #         high_density_remaining
+            #         and stopping_iteration < max_number_of_iterations
+            #         and density_limit_detection.is_set()
+            # ):
+            #     # Add this check since density detection isn't working
+            #     # perfectly yet
+            #     dens_frac = (
+            #         self.gas_particles.density.max()
+            #         / dmax
+            #     )
+            #     if dens_frac < 1:
+            #         self.logger.info(
+            #             "max density < stopping density but stopping condition"
+            #             " still set?"
+            #         )
+            #         high_density_remaining = False
+            #         # stopping_iteration = max_number_of_iterations
+            #         break
+
+            #     self.logger.debug("Forming new stars - %i", stopping_iteration)
+            #     self.logger.info("Gas code stopped - max density reached")
+            #     self.logger.debug(
+            #         "Highest density / max density: %s",
+            #         (
+            #             self.gas_particles.density.max()
+            #             / dmax
+            #         )
+            #     )
+            #     self.sync_from_gas_code()
+            #     self.resolve_sink_formation()
+            #     self.logger.info(
+            #         "Now we have %i stars; %i sinks and %i gas, %i particles"
+            #         " in total.",
+            #         len(self.star_particles),
+            #         len(self.sink_particles),
+            #         len(self.gas_particles),
+            #         (
+            #             len(self.gas_code.particles)
+            #             + len(self.star_code.particles)
+            #         ),
+            #     )
+            #     # Make sure we break the loop if the gas code is not going to
+            #     # evolve further
+            #     # if (
+            #     #         self.gas_code.model_time
+            #     #         < (time - self.gas_code.parameters.timestep)
+            #     # ):
+            #     #     break
+            #     self.gas_code.evolve_model(
+            #         relative_tend
+            #         # self.gas_code.model_time
+            #         # + self.gas_code.parameters.timestep
+            #     )
+            #     self.sync_from_gas_code()
+            #     stopping_iteration += 1
+            # if high_density_remaining is False:
+            #     self.logger.info(
+            #         "Remaining gas below critical density, disabling sink"
+            #         " formation for now"
+            #     )
+            #     density_limit_detection.disable()
+            #     self.gas_code.evolve_model(relative_tend)
+            #     self.sync_from_gas_code()
             if not self.sink_particles.is_empty():
                 for i, sink in enumerate(self.sink_particles):
                     self.logger.info(

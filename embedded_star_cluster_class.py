@@ -1133,7 +1133,7 @@ def main(
                 allow_pickle=True,
             )
         )
-    run_prefix = ""
+    run_prefix = rundir + "/"
 
     logging_level = logging.INFO
     logging.basicConfig(

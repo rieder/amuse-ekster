@@ -355,8 +355,8 @@ class GravityCodeInField(object):
 
         if not hasattr(self.code, "parameters"):
             self.zero_smoothing = True
-        elif not hasattr(self.code.parameters, "epsilon_squared"):
-            self.zero_smoothing = True
+        # elif not hasattr(self.code.parameters, "epsilon_squared"):
+        #     self.zero_smoothing = True
         else:
             self.zero_smoothing = zero_smoothing
 

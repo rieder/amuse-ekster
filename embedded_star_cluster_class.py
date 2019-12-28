@@ -1082,8 +1082,10 @@ def main(
     "Simulate an embedded star cluster (sph + dynamics + evolution)"
     from amuse.io import read_set_from_file
     from plotting_class import temperature_to_u
+    from version import version
 
     logger = logging.getLogger(__name__)
+    logger.info("git revision: %s", version())
 
     args = new_argument_parser()
     gasfilename = args.gasfilename

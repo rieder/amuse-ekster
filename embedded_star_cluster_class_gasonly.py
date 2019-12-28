@@ -1373,7 +1373,7 @@ def main(
                     version='2.0',
                     return_working_copy=False,
                 )
-        if not self.sink_particles.is_empty():
+        if not model.sink_particles.is_empty():
             print("Formed sinks, stopping gas-only mode")
             exit()
     return

@@ -145,9 +145,9 @@ class ClusterInPotential(
             # stars=stars,
             converter=converter_for_stars,
             epsilon=epsilon,
-            star_code=Hermite,
+            # star_code=Hermite,
             # star_code=Pentacle,
-            # star_code=ph4,
+            star_code=ph4,
             # begin_time=self.__begin_time,
         )
         self.add_stars(stars)
@@ -187,8 +187,8 @@ class ClusterInPotential(
         self.converter = converter_for_gas
 
         def new_field_gravity_code(
-                code=FastKick,
-                # code=Fi,
+                # code=FastKick,
+                code=Fi,
         ):
             "Create a new field code"
             print("Creating field code")

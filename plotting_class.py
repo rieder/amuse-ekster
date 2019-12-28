@@ -238,6 +238,7 @@ def plot_hydro_and_stars(
         stars_are_sinks=False,
         starscale=1,
         length_unit=units.parsec,
+        dpi=100,
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
@@ -262,7 +263,6 @@ def plot_hydro_and_stars(
     top = 0.9
     # fig = pyplot.figure(figsize=(6, 5))
     image_size = [image_size_scale*N, image_size_scale*N]
-    dpi = 75
     naxes = len(gasproperties)
     figwidth = image_size[0] / dpi / (right - left)
     figheight = image_size[1] / dpi / (top - bottom)
@@ -299,7 +299,7 @@ def plot_hydro_and_stars(
                     # 1.e-5 + rho.value_in(units.amu/units.cm**3)
                 )
                 extent = [xmin, xmax, ymin, ymax]
-                vmin = -2
+                vmin = 0
                 vmax = 1 + numpy.log10(
                     (
                         sph.parameters.stopping_condition_maximum_density.value_in(
@@ -389,7 +389,7 @@ def plot_hydro_and_stars(
     fig.suptitle(title)
     if filename is None:
         filename = "test.png"
-    pyplot.savefig(filename, dpi=300)
+    pyplot.savefig(filename, dpi=dpi)
     # pyplot.show()
     pyplot.close(fig)
 
@@ -554,11 +554,11 @@ def main():
     stars = read_set_from_file(
         starsfilename,
         "amuse",
-    ) if starsfilename is not "" else Particles() 
+    ) if starsfilename != "" else Particles() 
     sinks = read_set_from_file(
         sinksfilename,
         "amuse",
-    ) if sinksfilename is not "" else Particles() 
+    ) if sinksfilename != "" else Particles() 
     if gasfilename:
         gas = read_set_from_file(
             gasfilename,
@@ -593,21 +593,23 @@ def main():
         sph,
         stars=stars,
         sinks=sinks,
-        L=0.5,
-        N=500,
+        L=500,
+        N=600,
+        image_size_scale=1.,
         filename="test.png",
-        offset_x=com[0].value_in(units.kpc),
-        offset_y=com[1].value_in(units.kpc),
-        title="",
+        offset_x=com[0].value_in(units.parsec),
+        offset_y=com[1].value_in(units.parsec),
+        title="time = %06.2f %s" % (
+            time.value_in(units.Myr),
+            units.Myr,
+        ),
         gasproperties=["density",],
-        colorbar=False,
+        colorbar=True,
         # alpha_sfe=0.02,
         # stars_are_sinks=False,
         starscale=0.2,
-        length_unit=units.kpc,
+        length_unit=units.parsec,
     )
-
-
 
 if __name__ == "__main__":
     main()

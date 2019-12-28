@@ -13,6 +13,14 @@ from stellar_dynamics_class import (
     # StellarDynamics,
     StellarDynamicsCode,
 )
+try:
+    from amuse.community.ph4.interface import ph4
+except ImportError:
+    ph4 = None
+try:
+    from amuse.community.pentacle.interface import Pentacle
+except ImportError:
+    Pentacle = None
 
 
 class StarCluster(
@@ -30,13 +38,14 @@ class StarCluster(
             epsilon_squared=(0.1 | units.parsec)**2,
             logger=None,
             begin_time=None,
+            star_code=Pentacle,
             **kwargs
     ):
         self.logger = logger or logging.getLogger(__name__)
         self.logger.info("Initialising StellarDynamics")
         self.star_code = StellarDynamicsCode(
             converter=converter,
-            # star_code=ph4,
+            star_code=star_code,
             logger=logger,
             redirection="null",
             begin_time=begin_time,

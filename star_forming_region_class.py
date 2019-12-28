@@ -168,6 +168,7 @@ def form_stars(
     new_stars.vz += vz
 
     new_stars.origin_cloud = sink.key
+    new_stars.radius = 0.05 | units.parsec  # For Pentacle, this is the PP radius
     sink.mass -= new_stars.total_mass()
     # TODO: fix sink's momentum etc
 

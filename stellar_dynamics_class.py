@@ -18,6 +18,10 @@ try:
     from amuse.community.hermite.interface import Hermite
 except ImportError:
     Hermite = None
+try:
+    from amuse.community.pentacle.interface import Pentacle
+except ImportError:
+    Pentacle = None
 
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
@@ -28,14 +32,14 @@ class StellarDynamicsCode(object):
     def __init__(
             self,
             converter=None,
-            star_code=ph4,
+            star_code=Pentacle,
             # star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
             epsilon_squared=(0.01 | units.parsec)**2,
             # mode="cpu",
             begin_time=0 | nbody_system.time,
-            stop_after_each_step=False,
+            stop_after_each_step=True,
             **kwargs
     ):
         self.typestr = "Nbody"
@@ -53,7 +57,7 @@ class StellarDynamicsCode(object):
             self.unit_converter = converter
         else:
             self.unit_converter = nbody_system.nbody_to_si(
-                1 | units.MSun,
+                200 | units.MSun,
                 1 | units.parsec,
             )
             # TODO: modify to allow N-body units
@@ -68,7 +72,7 @@ class StellarDynamicsCode(object):
             epsilon_squared=epsilon_squared,
             **kwargs)
         if self.__stop_after_each_step:
-            self.code.commit_particles()
+            # self.code.commit_particles()
             self.stop(save_state=True)
             # print("Stopped/saved")
         else:
@@ -84,7 +88,7 @@ class StellarDynamicsCode(object):
             # handle_stopping_conditions=False,
             **kwargs
     ):
-        number_of_workers = 8
+        number_of_workers = 1
         if star_code is ph4:
             code = star_code(
                 converter,
@@ -96,7 +100,11 @@ class StellarDynamicsCode(object):
             param = code.parameters
             # Set the parameters explicitly to some default
             # param.block_steps = False
+
+            # Force ph4 to synchronise to the exact time requested - important
+            # for Bridge!
             param.force_sync = True
+
             # param.gpu_id = something
             param.initial_timestep_fac = 0.0625
             param.initial_timestep_limit = 0.03125
@@ -123,6 +131,9 @@ class StellarDynamicsCode(object):
                 redirection=redirection,
             )
             param = code.parameters
+
+            # Force Hermite to sync to the exact time requested - see force_sync for ph4
+            param.end_time_accuracy_factor = 0
         elif star_code is PhiGRAPE:
             code = star_code(
                 converter,
@@ -136,6 +147,13 @@ class StellarDynamicsCode(object):
                 redirection=redirection,
             )
             param = code.parameters
+        elif star_code is Pentacle:
+            code = star_code(
+                converter,
+                redirection=redirection,
+            )
+            param = code.parameters
+            param.time_step = 0.005 | units.Myr
         param.epsilon_squared = epsilon_squared
         self.__current_state = "started"
         return code
@@ -463,7 +481,7 @@ def main():
 
     for stop in [True, False]:
         code = StellarDynamicsCode(
-            code=ph4, converter=converter,
+            code=Pentacle, converter=converter,
             stop_after_each_step=stop,
         )
         code.particles.add_particles(stars)

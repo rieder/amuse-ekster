@@ -3,8 +3,15 @@ from __future__ import print_function, division
 import logging
 from amuse.datamodel import Particles
 from amuse.units import units
-from amuse.community.sse.interface import SSE
-from amuse.community.seba.interface import SeBa
+
+try:
+    from amuse.community.sse.interface import SSE
+except ImportError:
+    SSE = None
+try:
+    from amuse.community.seba.interface import SeBa
+except ImportError:
+    SeBa = None
 
 
 class StellarEvolutionCode(

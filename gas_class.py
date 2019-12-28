@@ -60,10 +60,13 @@ class GasCode(BasicCode):
         self.cooling_type = cooling_type
 
         self.epsilon = 0.1 | units.parsec
-        self.density_threshold = (5e-20 | units.g * units.cm**-3)
+        # self.density_threshold = (5e-20 | units.g * units.cm**-3)
+        self.density_threshold = (5e5 | units.amu * units.cm**-3)
         print(
-            "Density threshold for sink formation: %s"
-            % self.density_threshold.in_(units.MSun * units.parsec**-3)
+            "Density threshold for sink formation: %s (%s)" % (
+                self.density_threshold.in_(units.MSun * units.parsec**-3),
+                self.density_threshold.in_(units.g * units.cm**-3),
+            )
         )
         # self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
         self.code = sph_code(
@@ -86,7 +89,7 @@ class GasCode(BasicCode):
             self.parameters.alpha = 0.1  # art. viscosity parameter (min)
             self.parameters.gamma = 1.0
             self.parameters.ieos = 1  # isothermal
-            # self.parameters.ieos = 1  # adiabatic
+            # self.parameters.ieos = 2  # adiabatic
             mu = self.parameters.mu  # mean molecular weight
             temperature = 10 | units.K
             polyk = (

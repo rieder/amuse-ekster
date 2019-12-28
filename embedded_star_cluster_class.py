@@ -77,6 +77,12 @@ def new_argument_parser():
         default=None,
         help='file containing random state (optional) []',
     )
+    parser.add_argument(
+        '-d',
+        dest='rundir',
+        default="./",
+        help='directory to store run in (optional) [./]',
+    )
     return parser.parse_args()
 
 
@@ -1092,6 +1098,7 @@ def main(
     starsfilename = args.starsfilename
     sinksfilename = args.sinksfilename
     randomfilename = args.randomfilename
+    rundir = args.rundir
     # TODO: get time stamp from gas, stars, or sinks
     # Default for the initial spiral gas is 1.4874E+15 seconds
 

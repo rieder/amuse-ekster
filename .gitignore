@@ -11,3 +11,6 @@ makemovie.sh
 matplotlibrc
 archive/
 .ipynb_checkpoints/
+runs/
+movies/
+scripts/

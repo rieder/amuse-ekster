@@ -1200,15 +1200,15 @@ def main(
     if not (have_stars or have_gas or have_sinks):
         print("No particles!")
         exit()
-    if not have_stars:
-        # This is a ph4 workaround. Don't like it but hard to run with zero stars.
-        stars = new_star_cluster(
-            number_of_stars=2
-        )
-        stars.mass *= 0.0001
-        stars.position += gas.center_of_mass()
-        stars.velocity += gas.center_of_mass_velocity()
-        have_stars = True
+    # if not have_stars:
+    #     # This is a ph4 workaround. Don't like it but hard to run with zero stars.
+    #     stars = new_star_cluster(
+    #         number_of_stars=2
+    #     )
+    #     stars.mass *= 0.0001
+    #     stars.position += gas.center_of_mass()
+    #     stars.velocity += gas.center_of_mass_velocity()
+    #     have_stars = True
     model = ClusterInPotential(
         stars=stars if have_stars else Particles(),
         gas=gas if have_gas else Particles(),

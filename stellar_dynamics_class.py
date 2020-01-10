@@ -39,7 +39,7 @@ class StellarDynamicsCode(object):
             epsilon_squared=(0.01 | units.parsec)**2,
             # mode="cpu",
             begin_time=0 | nbody_system.time,
-            stop_after_each_step=True,
+            stop_after_each_step=False,
             **kwargs
     ):
         self.typestr = "Nbody"

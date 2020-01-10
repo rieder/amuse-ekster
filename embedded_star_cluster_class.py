@@ -6,7 +6,10 @@ try:
     from amuse.community.fi.interface import Fi
 except ImportError:
     Fi = None
-# from amuse.community.bhtree.interface import BHTree
+try:
+    from amuse.community.bhtree.interface import BHTree
+except ImportError:
+    BHTree = None
 try:
     from amuse.community.fastkick.interface import FastKick
 except ImportError:
@@ -46,7 +49,8 @@ from bridge import (
 )
 # from setup_codes import new_field_code
 
-Tide = TimeDependentSpiralArmsDiskModel
+# Tide = TimeDependentSpiralArmsDiskModel
+Tide = None
 
 
 def new_argument_parser():
@@ -179,15 +183,19 @@ class ClusterInPotential(
             self.timestep = 0.01 | units.Myr
             self.logger.info("Initialised Gas")
 
-        self.logger.info("Creating Tide object")
-        self.tidal_field = Tide(t_start=self.__begin_time)
-        self.logger.info("Created Tide object")
+        if Tide is not None:
+            self.logger.info("Creating Tide object")
+            self.tidal_field = Tide(t_start=self.__begin_time)
+            self.logger.info("Created Tide object")
+        else:
+            self.tidal_field = False
 
         self.epsilon = epsilon
         self.converter = converter_for_gas
 
         def new_field_gravity_code(
-                code=FastKick,
+                code=BHTree,
+                # code=FastKick,
                 # code=Fi,
         ):
             "Create a new field code"
@@ -1095,7 +1103,8 @@ class ClusterInPotential(
             unit=units.m * units.s**-2,
         )
         for parent in [self.star_code, self.gas_code, self.tidal_field]:
-            force += parent.get_gravity_at_point(*args, **kwargs)
+            if parent:
+                force += parent.get_gravity_at_point(*args, **kwargs)
         return force
 
     @property
@@ -1111,6 +1120,21 @@ def main(
     from amuse.io import read_set_from_file
     from plotting_class import temperature_to_u
     from version import version
+    import signal
+
+    def graceful_exit(sig, frame):
+        print("Gracefully exiting - writing backups")
+        write_set_to_file(
+            model.gas_particles.savepoint(model.model_time),
+            "sph-gas-particles.backup", "amuse"
+        )
+        write_set_to_file(
+            model.particles.savepoint(model.model_time),
+            "grav-particles.backup", "amuse"
+        )
+        model.stop()
+        sys.exit(0)
+    signal.signal(signal.SIGINT, graceful_exit)
 
     logger = logging.getLogger(__name__)
 
@@ -1217,6 +1241,7 @@ def main(
         gas_converter=gas_converter,
         begin_time=begin_time,
     )
+    model.sync_from_gas_code()
 
     timestep = 0.01 | units.Myr
     starting_step = int(begin_time / timestep)
@@ -1225,7 +1250,7 @@ def main(
     #     "Maximum density before forming sinks: %s"
     #     % model.gas_particles.density.max().in_(units.g * units.cm**-3)
     # )
-    model.resolve_sink_formation()
+    # model.resolve_sink_formation()
     # print(
     #     "Maximum density after forming sinks: %s"
     #     % model.gas_particles.density.max().in_(units.g * units.cm**-3)
@@ -1236,10 +1261,10 @@ def main(
     #     % model.gas_particles.density.max().in_(units.g * units.cm**-3)
     # )
     # exit()
-    print("Formed sinks, now forming stars")
-    print("Forming stars")
-    model.resolve_star_formation()
-    print("Formed stars")
+    # print("Formed sinks, now forming stars")
+    # print("Forming stars")
+    # model.resolve_star_formation()
+    # print("Formed stars")
     for step in range(starting_step, 500):
         time_unit = units.Myr
         print(
@@ -1317,8 +1342,8 @@ def main(
             model.gas_code,
             stars=model.star_particles,
             sinks=model.sink_particles,
-            L=500,  # 2*plot_radius.value_in(units.parsec),
-            N=600,
+            L=10,  # 2*plot_radius.value_in(units.parsec),
+            N=300,
             image_size_scale=2.,
             filename=plotname,
             title="time = %06.2f %s" % (
@@ -1329,7 +1354,7 @@ def main(
             offset_y=com[1].value_in(units.parsec),
             gasproperties=["density", ],
             colorbar=True,
-            starscale=0.2,
+            starscale=0.4,
             # stars_are_sinks=True,
             # stars_are_sinks=False,
             # alpha_sfe=model.alpha_sfe,

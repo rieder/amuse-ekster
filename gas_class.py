@@ -198,11 +198,13 @@ class GasCode(BasicCode):
           Fi). Because we don't want to do cooling then either!
         """
         end_time = real_end_time - self.__begin_time
+        time_unit = real_end_time.unit
+        print("Evolve gas until %s" % end_time.in_(time_unit))
 
         # if code_name is Fi:
         timestep = 0.005 | units.Myr  # self.code.parameters.timestep
-        if self.code.model_time >= (end_time - timestep/2):
-            return
+        # if self.code.model_time >= (end_time - timestep/2):
+        #     return
         # if code_name is something_else:
         # some_other_condition
 
@@ -216,12 +218,14 @@ class GasCode(BasicCode):
         if self.cooling and first:
             self.cooling.evolve_for(timestep/2)
             first = False
-        while self.code.model_time < (end_time - timestep/2):
+        while self.code.model_time < end_time:
             if self.cooling and not first:
                 self.cooling.evolve_for(timestep)
             next_time = self.code.model_time + timestep
             # temp = self.code.gas_particles[0].u
+            print("Calling evolve_model of code")
             self.code.evolve_model(next_time)
+            print("evolve_model of code is done")
             # temp2 = self.code.gas_particles[0].u
             # if temp != temp2:
             #     print(

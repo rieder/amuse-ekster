@@ -1,7 +1,11 @@
+#!/usr/bin/env python3
 "Class for a star cluster embedded in a tidal field and a gaseous region"
-from __future__ import print_function, division
+
+import sys
+import os
 import logging
 import numpy
+
 try:
     from amuse.community.fi.interface import Fi
 except ImportError:
@@ -33,7 +37,7 @@ from amuse.units.quantities import VectorQuantity
 
 from amuse.io import write_set_to_file
 
-from amuse.ext.masc import new_star_cluster
+# from amuse.ext.masc import new_star_cluster
 
 from gas_class import GasCode
 from sinks_class import accrete_gas, should_a_sink_form  # , sfe_to_density
@@ -180,7 +184,7 @@ class ClusterInPotential(
             self.add_gas(gas)
             self.add_sinks(sinks)
             print(self.gas_code.parameters)
-            self.timestep = 0.01 | units.Myr
+            self.timestep = 0.005 | units.Myr
             self.logger.info("Initialised Gas")
 
         if Tide is not None:
@@ -238,8 +242,9 @@ class ClusterInPotential(
 
         self.system = Bridge(
             timestep=(
-                self.timestep
+                2*self.timestep
             ),
+            use_threading=False,
         )
         self.system.add_system(
             self.star_code,
@@ -1144,6 +1149,8 @@ def main(
     sinksfilename = args.sinksfilename
     randomfilename = args.randomfilename
     rundir = args.rundir
+    if not os.path.exists(rundir):
+        os.makedirs(rundir)
     # TODO: get time stamp from gas, stars, or sinks
     # Default for the initial spiral gas is 1.4874E+15 seconds
 
@@ -1173,7 +1180,7 @@ def main(
     )
 
     gas_converter = nbody_system.nbody_to_si(
-        100000 | units.MSun,
+        1000 | units.MSun,
         1 | units.parsec,
     )
 
@@ -1276,7 +1283,7 @@ def main(
             )
         )
         time = (1+step) * timestep
-        while model.model_time < time - timestep/2:
+        while model.model_time < time - timestep*0.000001:
             model.evolve_model(time)
         print(
             "Evolved to %s" % model.model_time.in_(time_unit)

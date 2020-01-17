@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 "Class for stellar dynamics"
-from __future__ import print_function, division
+import sys
 import logging
 
 try:
@@ -174,11 +175,19 @@ class StellarDynamicsCode(object):
         # ph4 has a dynamical timestep, so it will stop on or slightly after
         # 'end_time'
         result = 0
-        while self.model_time < end_time:
+        time_unit = end_time.unit
+        time_fraction = 1 | units.s
+        while self.model_time < (end_time-self.__begin_time):
+            print("%s < (%s-%s), continuing" % (self.model_time.in_(time_unit), end_time.in_(time_unit), self.__begin_time.in_(time_unit)))
+            if self.model_time >= (end_time - self.__begin_time - time_fraction):
+                print("but %s >= (%s-%s-%s), not continuing" % (self.model_time.in_(time_unit), end_time.in_(time_unit), self.__begin_time.in_(time_unit), time_fraction.in_(time_unit)))
+                break
             # print("step", end_time, self.__begin_time)
+            print("Starting evolve_model of stellar_dynamics")
             result = self.code.evolve_model(
                 end_time-self.__begin_time
             )
+            print("Finished evolve_model of stellar_dynamics")
             # print("step done")
             # while collision_detection.is_set():
             #     # If we don't handle stopping conditions, return instead

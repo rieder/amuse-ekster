@@ -103,8 +103,12 @@ class StarCluster(
                 time+timestep,
                 tend,
             )
+            print("calling evolve_model of evo_code")
             self.evo_code.evolve_model(time)
+            print("finished evolve_model of evo_code")
+            print("calling evolve_model of star_code")
             self.star_code.evolve_model(time)
+            print("finished evolve_model of star_code")
             self.model_from_evo_code.copy_attributes(
                 ["radius", "mass"],
             )

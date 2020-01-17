@@ -61,7 +61,10 @@ class StellarEvolutionCode(
 
     def evolve_model(self, tend):
         "Evolve stellar evolution to time and sync"
-        return self.code.evolve_model(tend)
+        print("Starting stellar evolution evolve_model")
+        result = self.code.evolve_model(tend)
+        print("Finished stellar evolution evolve_model")
+        return result
 
     def save_state(self):
         """

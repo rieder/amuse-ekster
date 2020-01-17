@@ -62,7 +62,7 @@ class GasCode(BasicCode):
 
         self.cooling_type = cooling_type
 
-        self.epsilon = default_settings.gas_epsilon
+        self.epsilon = default_settings.epsilon_gas
         # self.density_threshold = (5e-20 | units.g * units.cm**-3)
         # self.density_threshold = (5e5 | units.amu * units.cm**-3)
         self.density_threshold = default_settings.density_threshold

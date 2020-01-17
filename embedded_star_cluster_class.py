@@ -128,7 +128,7 @@ class ClusterInPotential(
             # begin_time if begin_time is not None else 0.0 | units.Myr
             begin_time
             if begin_time is not None
-            else (5.0802 * 1.4874E+15 | units.s)
+            else 0.0 | units.Myr
         )
         self.new_stars_added = False
 
@@ -191,7 +191,7 @@ class ClusterInPotential(
 
         if Tide is not None:
             self.logger.info("Creating Tide object")
-            self.tidal_field = Tide(t_start=self.__begin_time)
+            self.tidal_field = Tide(t_start=self.__begin_time + default_settings.tide_time_offset)
             self.logger.info("Created Tide object")
         else:
             self.tidal_field = False

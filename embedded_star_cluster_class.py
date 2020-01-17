@@ -174,7 +174,7 @@ class ClusterInPotential(
             self.logger.info("Initialising Gas")
             new_gas_converter = nbody_system.nbody_to_si(
                 gas.total_mass(),
-                100 | units.parsec,
+                1 | units.parsec,
             )
             self.gas_code = GasCode(
                 converter=new_gas_converter,
@@ -1128,16 +1128,16 @@ def main(
     import signal
 
     def graceful_exit(sig, frame):
-        print("Gracefully exiting - writing backups")
-        write_set_to_file(
-            model.gas_particles.savepoint(model.model_time),
-            "sph-gas-particles.backup", "amuse"
-        )
-        write_set_to_file(
-            model.particles.savepoint(model.model_time),
-            "grav-particles.backup", "amuse"
-        )
-        model.stop()
+        # print("Gracefully exiting - writing backups")
+        # write_set_to_file(
+        #     model.gas_particles.savepoint(model.model_time),
+        #     "sph-gas-particles.backup", "amuse"
+        # )
+        # write_set_to_file(
+        #     model.particles.savepoint(model.model_time),
+        #     "grav-particles.backup", "amuse"
+        # )
+        # model.stop()
         sys.exit(0)
     signal.signal(signal.SIGINT, graceful_exit)
 
@@ -1203,6 +1203,8 @@ def main(
                 pass
             u = temperature_to_u(100 | units.K)
             gas_.u = u
+
+        # gas_.h_smooth = 1 | units.parsec
 
         # gas = gas_.select(
         #     lambda x, y:

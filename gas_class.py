@@ -33,6 +33,7 @@ class GasCode(BasicCode):
     def __init__(
             self,
             sph_code=Phantom,
+            # sph_code=Fi,
             converter=None,
             logger=None,
             internal_star_formation=False,
@@ -87,6 +88,7 @@ class GasCode(BasicCode):
                 self.density_threshold
         elif sph_code is Phantom:
             self.parameters.alpha = 0.1  # art. viscosity parameter (min)
+            # self.parameters.gamma = 5./3.
             self.parameters.gamma = 1.0
             self.parameters.ieos = 1  # isothermal
             # self.parameters.ieos = 2  # adiabatic
@@ -98,7 +100,7 @@ class GasCode(BasicCode):
                 / mu
             )
             self.parameters.polyk = polyk
-            self.parameters.rho_crit = self.density_threshold
+            self.parameters.rho_crit = 0*self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
             self.parameters.h_soft_sinkgas = 0.1 | units.parsec
@@ -173,6 +175,7 @@ class GasCode(BasicCode):
     def sink_particles(self):
         """Return all sink particles"""
         return self.code.sink_particles
+        # return self.code.dm_particles
 
     @property
     def particles(self):

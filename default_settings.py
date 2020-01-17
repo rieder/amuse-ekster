@@ -9,8 +9,8 @@ from spiral_potential import (
 
 
 dpi = 200
-L = 10
-N = 300
+L = 500
+N = 600
 image_size_scale = 2
 starscale = 0.5
 
@@ -23,12 +23,12 @@ timestep = 0.01 | units.Myr
 epsilon_gas = 0.1 | units.parsec
 epsilon_stars = 0.1 | units.parsec
 
-density_threshold = 1e7 | units.amu * units.cm**-3
+density_threshold = 5e5 | units.amu * units.cm**-3
 alpha = 0.1
 gamma = 1.0
 ieos = 1  # 1 = isothermal, 2 = adiabatic
 
-Tide = None
-# Tide = TimeDependentSpiralArmsDiskModel
+# Tide = None
+Tide = TimeDependentSpiralArmsDiskModel
 
 stop_after_each_step = False

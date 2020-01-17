@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 "Class for stellar dynamics"
-from __future__ import print_function, division
+import sys
 import logging
 
 try:
@@ -26,6 +27,8 @@ except ImportError:
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
+import default_settings
+
 
 class StellarDynamicsCode(object):
     """Wraps around stellar dynamics code, supports collisions"""
@@ -36,7 +39,7 @@ class StellarDynamicsCode(object):
             # star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
-            epsilon_squared=(0.01 | units.parsec)**2,
+            epsilon_squared=(default_settings.epsilon_stars)**2,
             # mode="cpu",
             begin_time=0 | nbody_system.time,
             stop_after_each_step=False,
@@ -57,8 +60,8 @@ class StellarDynamicsCode(object):
             self.unit_converter = converter
         else:
             self.unit_converter = nbody_system.nbody_to_si(
-                200 | units.MSun,
-                1 | units.parsec,
+                default_settings.star_mscale,
+                default_settings.star_rscale,
             )
             # TODO: modify to allow N-body units
 
@@ -82,7 +85,7 @@ class StellarDynamicsCode(object):
             self,
             converter=None,
             star_code=Hermite,
-            epsilon_squared=(0.01 | units.parsec)**2,
+            epsilon_squared=(default_settings.epsilon_stars)**2,
             redirection="null",
             mode="cpu",
             # handle_stopping_conditions=False,
@@ -153,7 +156,7 @@ class StellarDynamicsCode(object):
                 redirection=redirection,
             )
             param = code.parameters
-            param.time_step = 0.005 | units.Myr
+            param.time_step = 0.5 * default_settings.timestep
         param.epsilon_squared = epsilon_squared
         self.__current_state = "started"
         return code
@@ -174,11 +177,19 @@ class StellarDynamicsCode(object):
         # ph4 has a dynamical timestep, so it will stop on or slightly after
         # 'end_time'
         result = 0
-        while self.model_time < end_time:
+        time_unit = end_time.unit
+        time_fraction = 1 | units.s
+        while self.model_time < (end_time-self.__begin_time):
+            print("%s < (%s-%s), continuing" % (self.model_time.in_(time_unit), end_time.in_(time_unit), self.__begin_time.in_(time_unit)))
+            if self.model_time >= (end_time - self.__begin_time - time_fraction):
+                print("but %s >= (%s-%s-%s), not continuing" % (self.model_time.in_(time_unit), end_time.in_(time_unit), self.__begin_time.in_(time_unit), time_fraction.in_(time_unit)))
+                break
             # print("step", end_time, self.__begin_time)
+            print("Starting evolve_model of stellar_dynamics")
             result = self.code.evolve_model(
                 end_time-self.__begin_time
             )
+            print("Finished evolve_model of stellar_dynamics")
             # print("step done")
             # while collision_detection.is_set():
             #     # If we don't handle stopping conditions, return instead
@@ -486,7 +497,7 @@ def main():
         )
         code.particles.add_particles(stars)
         # print(code.parameters)
-        timestep = 0.1 | units.Myr
+        timestep = default_settings.timestep
         cumulative_time = 0. * timestep
         for step in range(10):
             time = step * timestep

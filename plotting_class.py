@@ -15,6 +15,8 @@ from prepare_figure import single_frame
 # from distinct_colours import get_distinct
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+import default_settings
+
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +74,7 @@ def _make_density_map(
 
 
 def make_column_density_map(
-        sph, N=70, L=1, offset_x=None, offset_y=None,
+        sph, N=default_settings.N, L=default_settings.L, offset_x=None, offset_y=None,
         length_unit=units.parsec,
 ):
     "Create a density map from an SPH code"
@@ -121,7 +123,7 @@ def make_column_density_map(
 
 
 def make_density_map(
-        sph, N=70, L=1, offset_x=None, offset_y=None,
+        sph, N=default_settings.N, L=default_settings.L, offset_x=None, offset_y=None,
         length_unit=units.kpc,
 ):
     "Create a density map from an SPH code"
@@ -169,7 +171,7 @@ def make_density_map(
 
 
 def make_temperature_map(
-        sph, N=70, L=1, offset_x=None, offset_y=None,
+        sph, N=default_settings.N, L=default_settings.L, offset_x=None, offset_y=None,
         length_unit=units.parsec,
 ):
     "Create a temperature map from an SPH code"
@@ -225,9 +227,9 @@ def plot_hydro_and_stars(
         sph,
         stars=None,
         sinks=None,
-        L=10,
-        N=200,
-        image_size_scale=1,
+        L=default_settings.L,
+        N=default_settings.N,
+        image_size_scale=default_settings.image_size_scale,
         filename=None,
         offset_x=None,
         offset_y=None,
@@ -236,9 +238,9 @@ def plot_hydro_and_stars(
         colorbar=False,
         alpha_sfe=0.02,
         stars_are_sinks=False,
-        starscale=1,
+        starscale=default_settings.starscale,
         length_unit=units.parsec,
-        dpi=100,
+        dpi=default_settings.dpi,
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
@@ -299,7 +301,7 @@ def plot_hydro_and_stars(
                     # 1.e-5 + rho.value_in(units.amu/units.cm**3)
                 )
                 extent = [xmin, xmax, ymin, ymax]
-                vmin = 0
+                vmin = -2
                 vmax = 1 + numpy.log10(
                     (
                         sph.parameters.stopping_condition_maximum_density.value_in(
@@ -341,7 +343,7 @@ def plot_hydro_and_stars(
                     numpy.log10(1.e-5+temp.value_in(units.K)),
                     extent=[xmin, xmax, ymin, ymax],
                     vmin=0,
-                    vmax=5,
+                    vmax=3,
                     cmap="inferno",
                     origin="lower",
                 )
@@ -433,7 +435,7 @@ def plot_stars(
         sph=None,
         stars=None,
         sinks=None,
-        L=10,
+        L=default_settings.L,
         N=None,
         filename=None,
         offset_x=None,
@@ -443,7 +445,7 @@ def plot_stars(
         colorbar=False,
         alpha_sfe=0.02,
         stars_are_sinks=False,
-        starscale=1,
+        starscale=default_settings.starscale,
         fig=None,
 ):
     "Plot stars, but still accept sph keyword for compatibility reasons"
@@ -505,7 +507,7 @@ def plot_stars(
     fig.suptitle(title)
     if filename is None:
         filename = "test.png"
-    pyplot.savefig(filename, dpi=300)
+    pyplot.savefig(filename, dpi=default_settings.dpi)
 
     if close_fig_when_done:
         pyplot.close(fig)
@@ -551,6 +553,7 @@ def main():
     gasfilename = o.gasfilename
     starsfilename = o.starsfilename
     sinksfilename = o.sinksfilename
+    imagefilename = o.imagefilename
     stars = read_set_from_file(
         starsfilename,
         "amuse",
@@ -578,14 +581,19 @@ def main():
         com + stars.total_mass() * stars.center_of_mass()
     com = com / mtot
 
-    time = 0.0 | units.Myr
+    try:
+        time = gas.get_timestamp()
+    except:
+        time = 0.0 | units.Myr
+    if time is None:
+        time = 0.0 | units.Myr
     converter = nbody_system.nbody_to_si(
-        1 | units.kpc,
-        1000 | units.MSun,
+        default_settings.gas_rscale,
+        default_settings.gas_mscale,
     )
     sph = Phantom(converter)
     sph.parameters.stopping_condition_maximum_density = (
-        150 | units.MSun * units.parsec**-3
+        default_settings.density_threshold
     )
     sph.gas_particles.add_particles(gas)
     plot_hydro_and_stars(
@@ -593,21 +601,21 @@ def main():
         sph,
         stars=stars,
         sinks=sinks,
-        L=500,
-        N=600,
-        image_size_scale=1.,
-        filename="test.png",
+        L=default_settings.L,
+        N=default_settings.N,
+        image_size_scale=default_settings.image_size_scale,
+        filename=imagefilename+".png",
         offset_x=com[0].value_in(units.parsec),
         offset_y=com[1].value_in(units.parsec),
-        title="time = %06.2f %s" % (
+        title="time = %06.3f %s" % (
             time.value_in(units.Myr),
             units.Myr,
         ),
-        gasproperties=["density",],
+        gasproperties=["density", "temperature"],
         colorbar=True,
         # alpha_sfe=0.02,
         # stars_are_sinks=False,
-        starscale=0.2,
+        starscale=default_settings.starscale,
         length_unit=units.parsec,
     )
 

@@ -4,7 +4,11 @@ from amuse.units import units
 from amuse.datamodel import Particles  # , ParticlesOverlay
 
 
-def should_a_sink_form(origin_gas, gas):
+def should_a_sink_form(
+        origin_gas,
+        gas,
+        check_thermal=False,
+    ):
     # Check if conditions for forming a sink are met
     # This applies to the ~50 SPH neighbour particles
     # - ratio of thermal to gravitational energies is <= 1/2
@@ -35,19 +39,23 @@ def should_a_sink_form(origin_gas, gas):
     e_pot = neighbours[:50].potential_energy()
     e_th = neighbours[:50].thermal_energy()
 
-    try:
-        if not e_th/e_pot <= 0.5:
-            return False, "e_th/e_pot > 0.5"
-    except AttributeError:
-        print(
-            "ERROR: e_th = %s e_pot = %s"
-            % (e_th, e_pot)
-        )
-        return False, "error"
-    # if not (e_th + e_rot) / e_pot <= 1:
-    #     break
-    if (e_th+e_kin+e_pot) >= 0 | units.erg:
-        return False, "e_tot < 0"
+    if check_thermal:
+        try:
+            if not e_th/e_pot <= 0.5:
+                return False, "e_th/e_pot > 0.5"
+        except AttributeError:
+            print(
+                "ERROR: e_th = %s e_pot = %s"
+                % (e_th, e_pot)
+            )
+            return False, "error"
+        # if not (e_th + e_rot) / e_pot <= 1:
+        #     break
+        if (e_th+e_kin+e_pot) >= 0 | units.erg:
+            return False, "e_tot < 0"
+    else:
+        if (e_pot+e_kin) >= 0 | units.erg:
+            return False, "e_tot < 0"
     # if accelleration is diverging:
     #     break
 

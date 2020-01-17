@@ -14,6 +14,8 @@ from plotting_class import plot_hydro_and_stars  # , u_to_temperature
 # from sinks_class import accrete_gas  # , SinkParticles
 # from amuse.ext.sink import SinkParticles
 
+import default_settings
+
 
 def sfe_to_density(e_loc, alpha=0.02):
     "Calculate density needed for specified star formation efficiency"
@@ -33,6 +35,7 @@ class GasCode(BasicCode):
     def __init__(
             self,
             sph_code=Phantom,
+            # sph_code=Fi,
             converter=None,
             logger=None,
             internal_star_formation=False,
@@ -50,8 +53,8 @@ class GasCode(BasicCode):
             self.unit_converter = converter
         else:
             self.unit_converter = nbody_system.nbody_to_si(
-                1.0e5 | units.MSun,
-                5.0 | units.parsec,
+                default_settings.gas_mscale,
+                default_settings.gas_rscale,
             )
         if begin_time is None:
             begin_time = 0. | units.Myr
@@ -59,13 +62,10 @@ class GasCode(BasicCode):
 
         self.cooling_type = cooling_type
 
-        self.epsilon = 0.1 | units.parsec
+        self.epsilon = default_settings.gas_epsilon
         # self.density_threshold = (5e-20 | units.g * units.cm**-3)
         # self.density_threshold = (5e5 | units.amu * units.cm**-3)
-        self.density_threshold = (
-            (50 | units.MSun)  # ~ smoothed number of gas particles
-            / (4/3 * numpy.pi * (0.1 | units.pc)**3)  # ~sphere with radius smoothing/softening length
-        )
+        self.density_threshold = default_settings.density_threshold
         print(
             "Density threshold for sink formation: %s (%s / %s)" % (
                 self.density_threshold.in_(units.MSun * units.parsec**-3),
@@ -90,17 +90,17 @@ class GasCode(BasicCode):
             self.parameters.use_hydro_flag = True
             self.parameters.self_gravity_flag = True
             # Maybe make these depend on the converter?
-            self.parameters.periodic_box_size = 10 | units.kpc
-            self.parameters.timestep = 0.0025 | units.Myr
+            self.parameters.periodic_box_size = 100 * default_settings.gas_rscale
+            self.parameters.timestep = default_settings.timestep * 0.5
             self.parameters.verbosity = 0
             self.parameters.integrate_entropy_flag = False
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
         elif sph_code is Phantom:
-            self.parameters.alpha = 0.1  # art. viscosity parameter (min)
-            self.parameters.gamma = 1.0
-            self.parameters.ieos = 1  # isothermal
-            # self.parameters.ieos = 2  # adiabatic
+            self.parameters.alpha = default_settings.alpha
+            # self.parameters.gamma = 5./3.
+            self.parameters.gamma = default_settings.gamma
+            self.parameters.ieos = default_settings.ieos
             mu = self.parameters.mu  # mean molecular weight
             temperature = 10 | units.K
             polyk = (
@@ -109,11 +109,11 @@ class GasCode(BasicCode):
                 / mu
             )
             self.parameters.polyk = polyk
-            self.parameters.rho_crit = self.density_threshold
+            self.parameters.rho_crit = 0*self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
-            self.parameters.h_soft_sinkgas = 0.1 | units.parsec
-            self.parameters.h_soft_sinksink = 0.1 | units.parsec
+            self.parameters.h_soft_sinkgas = default_settings.epsilon_gas
+            self.parameters.h_soft_sinksink = default_settings.epsilon_gas
             self.parameters.h_acc = 0.01 | units.parsec
 
         if self.cooling_type == "thermal_model":
@@ -184,6 +184,7 @@ class GasCode(BasicCode):
     def sink_particles(self):
         """Return all sink particles"""
         return self.code.sink_particles
+        # return self.code.dm_particles
 
     @property
     def particles(self):
@@ -209,11 +210,13 @@ class GasCode(BasicCode):
           Fi). Because we don't want to do cooling then either!
         """
         end_time = real_end_time - self.__begin_time
+        time_unit = real_end_time.unit
+        print("Evolve gas until %s" % end_time.in_(time_unit))
 
         # if code_name is Fi:
         timestep = 0.005 | units.Myr  # self.code.parameters.timestep
-        if self.code.model_time >= (end_time - timestep/2):
-            return
+        # if self.code.model_time >= (end_time - timestep/2):
+        #     return
         # if code_name is something_else:
         # some_other_condition
 
@@ -227,13 +230,14 @@ class GasCode(BasicCode):
         if self.cooling and first:
             self.cooling.evolve_for(timestep/2)
             first = False
-        # while self.code.model_time < (end_time - timestep/2):
         while self.code.model_time < (end_time - timestep*0.0001):  # half a timestep seems too big an offset
             if self.cooling and not first:
                 self.cooling.evolve_for(timestep)
             next_time = self.code.model_time + timestep
             # temp = self.code.gas_particles[0].u
+            print("Calling evolve_model of code")
             self.code.evolve_model(next_time)
+            print("evolve_model of code is done")
             # temp2 = self.code.gas_particles[0].u
             # if temp != temp2:
             #     print(

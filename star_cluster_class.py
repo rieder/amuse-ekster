@@ -22,6 +22,8 @@ try:
 except ImportError:
     Pentacle = None
 
+import default_settings
+
 
 class StarCluster(
         object,
@@ -49,7 +51,7 @@ class StarCluster(
             logger=logger,
             redirection="null",
             begin_time=begin_time,
-            stop_after_each_step=False,  # NOTE this doesn't seem to work properly anymore?
+            stop_after_each_step=default_settings.stop_after_each_step,
             **kwargs
         )
         self.star_code.parameters.epsilon_squared = epsilon_squared
@@ -103,8 +105,12 @@ class StarCluster(
                 time+timestep,
                 tend,
             )
+            print("calling evolve_model of evo_code")
             self.evo_code.evolve_model(time)
+            print("finished evolve_model of evo_code")
+            print("calling evolve_model of star_code")
             self.star_code.evolve_model(time)
+            print("finished evolve_model of star_code")
             self.model_from_evo_code.copy_attributes(
                 ["radius", "mass"],
             )

@@ -51,10 +51,12 @@ from star_forming_region_class import form_stars  # StarFormingRegion
 from bridge import (
     Bridge, CalculateFieldForCodes,
 )
+
+import default_settings
 # from setup_codes import new_field_code
 
 # Tide = TimeDependentSpiralArmsDiskModel
-Tide = None
+Tide = default_settings.Tide
 
 
 def new_argument_parser():
@@ -184,7 +186,7 @@ class ClusterInPotential(
             self.add_gas(gas)
             self.add_sinks(sinks)
             print(self.gas_code.parameters)
-            self.timestep = 0.005 | units.Myr
+            self.timestep = 0.5 * default_settings.timestep
             self.logger.info("Initialised Gas")
 
         if Tide is not None:
@@ -1175,13 +1177,13 @@ def main(
     logger.info("git revision: %s", version())
 
     star_converter = nbody_system.nbody_to_si(
-        150 | units.MSun,
-        1 | units.parsec,
+        default_settings.star_mscale,
+        default_settings.star_rscale,
     )
 
     gas_converter = nbody_system.nbody_to_si(
-        1000 | units.MSun,
-        1 | units.parsec,
+        default_settings.gas_mscale,
+        default_settings.gas_rscale,
     )
 
     if starsfilename is not None:
@@ -1252,7 +1254,7 @@ def main(
     )
     model.sync_from_gas_code()
 
-    timestep = 0.01 | units.Myr
+    timestep = default_settings.timestep
     starting_step = int(begin_time / timestep)
     print("Forming sinks")
     # print(
@@ -1351,9 +1353,9 @@ def main(
             model.gas_code,
             stars=model.star_particles,
             sinks=model.sink_particles,
-            L=10,  # 2*plot_radius.value_in(units.parsec),
-            N=300,
-            image_size_scale=2.,
+            L=default_settings.L,  # 2*plot_radius.value_in(units.parsec),
+            N=default_settings.N,
+            image_size_scale=default_settings.image_size_scale,
             filename=plotname,
             title="time = %06.2f %s" % (
                 model.model_time.value_in(units.Myr),
@@ -1363,7 +1365,7 @@ def main(
             offset_y=com[1].value_in(units.parsec),
             gasproperties=["density", ],
             colorbar=True,
-            starscale=0.4,
+            starscale=default_settings.starscale,
             # stars_are_sinks=True,
             # stars_are_sinks=False,
             # alpha_sfe=model.alpha_sfe,

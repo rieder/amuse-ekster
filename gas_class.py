@@ -14,6 +14,8 @@ from plotting_class import plot_hydro_and_stars  # , u_to_temperature
 # from sinks_class import accrete_gas  # , SinkParticles
 # from amuse.ext.sink import SinkParticles
 
+import default_settings
+
 
 def sfe_to_density(e_loc, alpha=0.02):
     "Calculate density needed for specified star formation efficiency"
@@ -51,8 +53,8 @@ class GasCode(BasicCode):
             self.unit_converter = converter
         else:
             self.unit_converter = nbody_system.nbody_to_si(
-                1.0e5 | units.MSun,
-                5.0 | units.parsec,
+                default_settings.gas_mscale,
+                default_settings.gas_rscale,
             )
         if begin_time is None:
             begin_time = 0. | units.Myr
@@ -60,9 +62,9 @@ class GasCode(BasicCode):
 
         self.cooling_type = cooling_type
 
-        self.epsilon = 0.1 | units.parsec
+        self.epsilon = default_settings.gas_epsilon
         # self.density_threshold = (5e-20 | units.g * units.cm**-3)
-        self.density_threshold = (1e7 | units.amu * units.cm**-3)
+        self.density_threshold = default_settings.density_threshold
         print(
             "Density threshold for sink formation: %s (%s)" % (
                 self.density_threshold.in_(units.MSun * units.parsec**-3),
@@ -80,18 +82,17 @@ class GasCode(BasicCode):
             self.parameters.use_hydro_flag = True
             self.parameters.self_gravity_flag = True
             # Maybe make these depend on the converter?
-            self.parameters.periodic_box_size = 10 | units.kpc
-            self.parameters.timestep = 0.01 | units.Myr
+            self.parameters.periodic_box_size = 100 * default_settings.gas_rscale
+            self.parameters.timestep = default_settings.timestep * 0.5
             self.parameters.verbosity = 0
             self.parameters.integrate_entropy_flag = False
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
         elif sph_code is Phantom:
-            self.parameters.alpha = 0.1  # art. viscosity parameter (min)
+            self.parameters.alpha = default_settings.alpha
             # self.parameters.gamma = 5./3.
-            self.parameters.gamma = 1.0
-            self.parameters.ieos = 1  # isothermal
-            # self.parameters.ieos = 2  # adiabatic
+            self.parameters.gamma = default_settings.gamma
+            self.parameters.ieos = default_settings.ieos
             mu = self.parameters.mu  # mean molecular weight
             temperature = 10 | units.K
             polyk = (
@@ -103,8 +104,8 @@ class GasCode(BasicCode):
             self.parameters.rho_crit = 0*self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
-            self.parameters.h_soft_sinkgas = 0.1 | units.parsec
-            self.parameters.h_soft_sinksink = 0.1 | units.parsec
+            self.parameters.h_soft_sinkgas = default_settings.epsilon_gas
+            self.parameters.h_soft_sinksink = default_settings.epsilon_gas
             self.parameters.h_acc = 0.01 | units.parsec
 
         if self.cooling_type == "thermal_model":

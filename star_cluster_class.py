@@ -22,6 +22,8 @@ try:
 except ImportError:
     Pentacle = None
 
+import default_settings
+
 
 class StarCluster(
         object,
@@ -49,7 +51,7 @@ class StarCluster(
             logger=logger,
             redirection="null",
             begin_time=begin_time,
-            stop_after_each_step=False,
+            stop_after_each_step=default_settings.stop_after_each_step,
             **kwargs
         )
         self.star_code.parameters.epsilon_squared = epsilon_squared

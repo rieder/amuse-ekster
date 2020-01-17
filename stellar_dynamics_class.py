@@ -27,6 +27,8 @@ except ImportError:
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
+import default_settings
+
 
 class StellarDynamicsCode(object):
     """Wraps around stellar dynamics code, supports collisions"""
@@ -37,7 +39,7 @@ class StellarDynamicsCode(object):
             # star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
-            epsilon_squared=(0.01 | units.parsec)**2,
+            epsilon_squared=(default_settings.epsilon_stars)**2,
             # mode="cpu",
             begin_time=0 | nbody_system.time,
             stop_after_each_step=False,
@@ -58,8 +60,8 @@ class StellarDynamicsCode(object):
             self.unit_converter = converter
         else:
             self.unit_converter = nbody_system.nbody_to_si(
-                200 | units.MSun,
-                1 | units.parsec,
+                default_settings.star_mscale,
+                default_settings.star_rscale,
             )
             # TODO: modify to allow N-body units
 
@@ -83,7 +85,7 @@ class StellarDynamicsCode(object):
             self,
             converter=None,
             star_code=Hermite,
-            epsilon_squared=(0.01 | units.parsec)**2,
+            epsilon_squared=(default_settings.epsilon_stars)**2,
             redirection="null",
             mode="cpu",
             # handle_stopping_conditions=False,
@@ -154,7 +156,7 @@ class StellarDynamicsCode(object):
                 redirection=redirection,
             )
             param = code.parameters
-            param.time_step = 0.005 | units.Myr
+            param.time_step = 0.5 * default_settings.timestep
         param.epsilon_squared = epsilon_squared
         self.__current_state = "started"
         return code
@@ -495,7 +497,7 @@ def main():
         )
         code.particles.add_particles(stars)
         # print(code.parameters)
-        timestep = 0.1 | units.Myr
+        timestep = default_settings.timestep
         cumulative_time = 0. * timestep
         for step in range(10):
             time = step * timestep

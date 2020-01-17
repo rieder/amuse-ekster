@@ -742,7 +742,7 @@ class Bridge(object):
         threads = []
 
         for x in self.codes:
-            # logger.info("Drifting code %s", x.code.__name__)
+            logger.info("Thread %i will drift code %s", len(threads), x.code.__name__)
             offset = self.time_offsets[x]
             if hasattr(x, "drift"):
                 threads.append(threading.Thread(
@@ -758,8 +758,12 @@ class Bridge(object):
             for x in threads:
                 x.join()
         else:
+            ix = 0
             for x in threads:
+                logger.info("Running thread %i", ix)
                 x.run()
+                logger.info("Finished thread %i", ix)
+                ix += 1
 
     def kick_codes(self, dt):
 

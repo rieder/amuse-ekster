@@ -61,12 +61,23 @@ class GasCode(BasicCode):
 
         self.epsilon = 0.1 | units.parsec
         # self.density_threshold = (5e-20 | units.g * units.cm**-3)
-        self.density_threshold = (5e5 | units.amu * units.cm**-3)
+        # self.density_threshold = (5e5 | units.amu * units.cm**-3)
+        self.density_threshold = (
+            (50 | units.MSun)  # ~ smoothed number of gas particles
+            / (4/3 * numpy.pi * (0.1 | units.pc)**3)  # ~sphere with radius smoothing/softening length
+        )
         print(
-            "Density threshold for sink formation: %s (%s)" % (
+            "Density threshold for sink formation: %s (%s / %s)" % (
                 self.density_threshold.in_(units.MSun * units.parsec**-3),
                 self.density_threshold.in_(units.g * units.cm**-3),
+                self.density_threshold.in_(units.amu * units.cm**-3),
             )
+        )
+        self.logger.info(
+            "Density threshold for sink formation: %s (%s / %s)",
+            self.density_threshold.in_(units.MSun * units.parsec**-3),
+            self.density_threshold.in_(units.g * units.cm**-3),
+            self.density_threshold.in_(units.amu * units.cm**-3),
         )
         # self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
         self.code = sph_code(
@@ -80,7 +91,7 @@ class GasCode(BasicCode):
             self.parameters.self_gravity_flag = True
             # Maybe make these depend on the converter?
             self.parameters.periodic_box_size = 10 | units.kpc
-            self.parameters.timestep = 0.01 | units.Myr
+            self.parameters.timestep = 0.0025 | units.Myr
             self.parameters.verbosity = 0
             self.parameters.integrate_entropy_flag = False
             self.parameters.stopping_condition_maximum_density = \
@@ -216,7 +227,8 @@ class GasCode(BasicCode):
         if self.cooling and first:
             self.cooling.evolve_for(timestep/2)
             first = False
-        while self.code.model_time < (end_time - timestep/2):
+        # while self.code.model_time < (end_time - timestep/2):
+        while self.code.model_time < (end_time - timestep*0.0001):  # half a timestep seems too big an offset
             if self.cooling and not first:
                 self.cooling.evolve_for(timestep)
             next_time = self.code.model_time + timestep

@@ -232,6 +232,7 @@ class ClusterInPotential(
             timestep=(
                 self.timestep
             ),
+            use_threading=False,
         )
         self.system.add_system(
             self.star_code,
@@ -794,7 +795,7 @@ class ClusterInPotential(
 
         self.logger.info(
             "Evolving to time %s",
-            real_tend,
+            real_tend.in_(Myr),
         )
         # self.model_to_evo_code.copy()
         # self.model_to_gas_code.copy()
@@ -862,6 +863,7 @@ class ClusterInPotential(
                 or (step < minimum_steps)
         ):
             step += 1
+            print("Step %i" % step)
             # evo_time = self.evo_code.model_time
             # self.model_to_star_code.copy()
             if not self.star_particles.is_empty():

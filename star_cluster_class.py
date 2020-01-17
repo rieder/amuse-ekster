@@ -49,7 +49,7 @@ class StarCluster(
             logger=logger,
             redirection="null",
             begin_time=begin_time,
-            stop_after_each_step=True,
+            stop_after_each_step=False,  # NOTE this doesn't seem to work properly anymore?
             **kwargs
         )
         self.star_code.parameters.epsilon_squared = epsilon_squared

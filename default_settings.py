@@ -1,8 +1,8 @@
 """
 Default settings for Ekster simulation run
 """
+import numpy
 from amuse.units import units
-
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
 )

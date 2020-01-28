@@ -199,25 +199,48 @@ class ClusterInPotential(
         self.epsilon = epsilon
         self.converter = converter_for_gas
 
-        def new_field_gravity_code(
-                code=BHTree,
+        def new_field_tree_gravity_code(
+                # code=BHTree,
                 # code=FastKick,
-                # code=Fi,
+                code=Fi,
         ):
-            "Create a new field code"
-            print("Creating field code")
+            "Create a new field tree code"
+            print("Creating field tree code")
             result = code(
                 self.converter,
-                redirection="null",
+                redirection="none",
                 mode="openmp",
+            )
+            result.parameters.epsilon_squared = self.epsilon**2
+            result.parameters.timestep = timestep
+            return result
+
+        def new_field_direct_gravity_code(
+                # code=BHTree,
+                code=FastKick,
+                # code=Fi,
+        ):
+            "Create a new field direct code"
+            print("Creating field direct code")
+            result = code(
+                self.converter,
+                redirection="none",
+                number_of_workers=8,
             )
             result.parameters.epsilon_squared = self.epsilon**2
             return result
 
         def new_field_code(
                 code,
+                mode="direct",
         ):
             " something"
+            if mode=="tree":
+                new_field_gravity_code = new_field_tree_gravity_code
+            elif mode=="direct":
+                new_field_gravity_code = new_field_direct_gravity_code
+            else:
+                new_field_gravity_code = new_field_direct_gravity_code
             result = CalculateFieldForCodes(
                 new_field_gravity_code,
                 [code],
@@ -231,6 +254,8 @@ class ClusterInPotential(
             # self.star_code,
             new_field_code(
                 self.star_code,
+                # mode="direct",
+                mode="tree",
             )
         )
         to_stars_codes = []
@@ -239,6 +264,8 @@ class ClusterInPotential(
         to_stars_codes.append(
             new_field_code(
                 self.gas_code,
+                # mode="direct",
+                mode="tree",
             )
         )
 
@@ -246,7 +273,7 @@ class ClusterInPotential(
             timestep=(
                 2*self.timestep
             ),
-            use_threading=False,
+            use_threading=True,
         )
         self.system.add_system(
             self.star_code,

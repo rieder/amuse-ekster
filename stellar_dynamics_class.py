@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 "Class for stellar dynamics"
-import sys
 import logging
 
 try:
@@ -30,7 +29,7 @@ from amuse.units import units, nbody_system
 import default_settings
 
 
-class StellarDynamicsCode(object):
+class StellarDynamicsCode:
     """Wraps around stellar dynamics code, supports collisions"""
     def __init__(
             self,
@@ -91,7 +90,7 @@ class StellarDynamicsCode(object):
             # handle_stopping_conditions=False,
             **kwargs
     ):
-        number_of_workers = 1
+        number_of_workers = 6
         if star_code is ph4:
             code = star_code(
                 converter,
@@ -135,7 +134,8 @@ class StellarDynamicsCode(object):
             )
             param = code.parameters
 
-            # Force Hermite to sync to the exact time requested - see force_sync for ph4
+            # Force Hermite to sync to the exact time requested - see
+            # force_sync for ph4
             param.end_time_accuracy_factor = 0
         elif star_code is PhiGRAPE:
             code = star_code(
@@ -180,9 +180,23 @@ class StellarDynamicsCode(object):
         time_unit = end_time.unit
         time_fraction = 1 | units.s
         while self.model_time < (end_time-self.__begin_time):
-            print("%s < (%s-%s), continuing" % (self.model_time.in_(time_unit), end_time.in_(time_unit), self.__begin_time.in_(time_unit)))
-            if self.model_time >= (end_time - self.__begin_time - time_fraction):
-                print("but %s >= (%s-%s-%s), not continuing" % (self.model_time.in_(time_unit), end_time.in_(time_unit), self.__begin_time.in_(time_unit), time_fraction.in_(time_unit)))
+            print(
+                "%s < (%s-%s), continuing" % (
+                    self.model_time.in_(time_unit), end_time.in_(time_unit),
+                    self.__begin_time.in_(time_unit)
+                )
+            )
+            if self.model_time >= (
+                    end_time - self.__begin_time - time_fraction
+            ):
+                print(
+                    "but %s >= (%s-%s-%s), not continuing" % (
+                        self.model_time.in_(time_unit),
+                        end_time.in_(time_unit),
+                        self.__begin_time.in_(time_unit),
+                        time_fraction.in_(time_unit)
+                    )
+                )
                 break
             # print("step", end_time, self.__begin_time)
             print("Starting evolve_model of stellar_dynamics")
@@ -212,45 +226,6 @@ class StellarDynamicsCode(object):
             # print("Now stopping code")
             self.stop(save_state=True)
         return result
-
-    # def resolve_collision(self, collision_detection):
-    #     "Determine how to solve a collision and resolve it"
-    #     coll = collision_detection
-    #     for i, primary in enumerate(coll.particles(0)):
-    #         secondary = coll.particles(1)[i]
-    #         # Optionally, we could do something else.
-    #         # For now, we are just going to merge.
-    #         self.merge_two_stars(primary, secondary)
-
-    # def merge_two_stars(self, primary, secondary):
-    #     "Merge two colliding stars into one new one"
-    #     massunit = units.MSun
-    #     colliders = Particles()
-    #     colliders.add_particle(primary)
-    #     colliders.add_particle(secondary)
-    #     new_particle = Particle()
-    #     new_particle.mass = colliders.mass.sum()
-    #     new_particle.position = colliders.center_of_mass()
-    #     new_particle.velocity = colliders.center_of_mass_velocity()
-    #     # This should/will be calculated by stellar evolution
-    #     new_particle.radius = colliders.radius.max()
-    #     # new_particle.age = max(colliders.age)
-    #     new_particle.parents = colliders.key
-    #     # This should not just be the oldest or youngest.
-    #     # But youngest seems slightly better.
-    #     new_particle.age = colliders.age.min()
-    #     new_particle.birth_age = colliders.birth_age.min()
-    #     self.particles.add_particle(new_particle)
-    #     self.logger.info(
-    #         "Two stars (M1=%s, M2=%s %s) collided at t=%s",
-    #         colliders[0].mass.value_in(massunit),
-    #         colliders[1].mass.value_in(massunit),
-    #         massunit,
-    #         self.model_time,
-    #     )
-    #     self.particles.remove_particles(colliders)
-
-    #     return
 
     @property
     def begin_time(self):
@@ -379,85 +354,6 @@ class StellarDynamicsCode(object):
         return stopcode
 
 
-class StellarDynamics(object):
-    """Stellar cluster object"""
-
-    def __init__(
-            self,
-            stars=None,
-            converter=None,
-            star_code=None,
-            epsilon=0.1 | units.parsec,
-    ):
-        if converter is not None:
-            self.star_converter = converter
-        else:
-            mass_scale = stars.mass.sum()
-            # Change length scale to something related to 'stars'
-            length_scale = 1 | units.parsec
-            self.star_converter = nbody_system.nbody_to_si(
-                mass_scale,
-                length_scale,
-            )
-        if stars is None:
-            self.star_particles = Particles()
-        else:
-            self.star_particles = stars
-        number_of_workers = 4  # Relate this to number of processors available?
-        if star_code is None:
-            self.star_code = ph4(
-                self.star_converter,
-                number_of_workers=number_of_workers,
-                # channel_type="sockets",
-                # redirection="none",
-            )
-        else:
-            self.star_code = star_code
-        self.star_code.parameters.epsilon_squared = (epsilon)**2
-        # self.star_code.parameters.timestep_parameter = 0.14
-        # self.star_code.parameters.block_steps = 1
-        # print(self.star_code.parameters)
-        self.star_code.particles.add_particles(self.star_particles)
-        self.model_to_star_code = self.star_particles.new_channel_to(
-            self.star_code.particles,
-        )
-        self.star_code_to_model = self.star_code.particles.new_channel_to(
-            self.star_particles,
-        )
-
-    @property
-    def __name__(self):
-        return "StellarDynamics"
-
-    @property
-    def model_time(self):
-        "Return the time of the star code"
-        return self.star_code.model_time
-
-    # This is not always supported by the stellar gravity code
-    # If it is not, we should do something about that...
-    def get_gravity_at_point(self, *args, **kwargs):
-        "Return gravity at specified location"
-        return self.star_code.get_gravity_at_point(*args, **kwargs)
-
-    @property
-    def particles(self):
-        "Return particles in star_code"
-        return self.star_code.particles
-
-    def evolve_model(self, tend):
-        "Evolve gravity to specified time"
-        self.model_to_star_code.copy()
-        while self.model_time < tend:
-            self.star_code.evolve_model(tend)
-            # Check stopping conditions
-        self.star_code_to_model.copy()
-
-    def stop(self):
-        "Stop star_code"
-        self.star_code.stop()
-
-
 def main():
     "Test class with a Plummer sphere"
     import sys
@@ -514,44 +410,6 @@ def main():
             )
         # print(code.particles[0])
         print("\n\n")
-
-
-def _main():
-    "Test class with a Plummer sphere"
-    import sys
-    try:
-        from amuse_masc import make_a_star_cluster
-        use_masc = True
-    except ImportError:
-        use_masc = False
-    if len(sys.argv) > 1:
-        from amuse.io import read_set_from_file
-        stars = read_set_from_file(sys.argv[1], "amuse")
-        converter = nbody_system.nbody_to_si(
-            stars.mass.sum(),
-            3 | units.parsec,
-        )
-    elif use_masc:
-        stars = make_a_star_cluster.new_cluster(number_of_stars=1000)
-        converter = nbody_system.nbody_to_si(
-            stars.mass.sum(),
-            stars.lagrangian_radii.max()
-        )
-    else:
-        from amuse.ic.plummer import new_plummer_model
-        converter = nbody_system.nbody_to_si(
-            1000 | units.MSun,
-            3 | units.parsec,
-        )
-        stars = new_plummer_model(1000, convert_nbody=converter)
-
-    model = StellarDynamics(stars=stars, converter=converter)
-    # print(model.star_code.parameters)
-    timestep = 0.1 | units.Myr
-    for step in range(10):
-        time = step * timestep
-        model.evolve_model(time)
-        print("Evolved to %s" % model.model_time.in_(units.Myr))
 
 
 if __name__ == "__main__":

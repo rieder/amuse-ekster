@@ -1,5 +1,5 @@
+#!/usr/bin/env python3
 "Class for a star cluster with dynamics and evolution"
-from __future__ import print_function, division
 import logging
 from amuse.units import units
 from amuse.datamodel import Particles
@@ -26,7 +26,6 @@ import default_settings
 
 
 class StarCluster(
-        object,
         # BasicCode,
         # StellarDynamics,
         # StellarEvolution,

@@ -543,6 +543,41 @@ def new_argument_parser():
         default='test',
         help='write image to this file [test]',
     )
+    parser.add_argument(
+        '-n',
+        dest='n',
+        default=None,
+        type=int,
+        help='number of bins (None)',
+    )
+    parser.add_argument(
+        '-x',
+        dest='x',
+        default=None,
+        type=float,
+        help='Central X coordinate (None)',
+    )
+    parser.add_argument(
+        '-y',
+        dest='y',
+        default=None,
+        type=float,
+        help='Central Y coordinate (None)',
+    )
+    parser.add_argument(
+        '-z',
+        dest='z',
+        default=None,
+        type=float,
+        help='Central Z coordinate (None)',
+    )
+    parser.add_argument(
+        '-w',
+        dest='w',
+        default=None,
+        type=float,
+        help='Width (None)',
+    )
     return parser.parse_args()
 
 
@@ -554,6 +589,14 @@ def main():
     starsfilename = o.starsfilename
     sinksfilename = o.sinksfilename
     imagefilename = o.imagefilename
+    n = o.n
+    x = o.x
+    y = o.y
+    z = o.z
+    w = o.w
+    image_size_scale = (
+        default_settings.image_size_scale * (default_settings.N / n)
+    ) or default_settings.image_size_scale
     stars = read_set_from_file(
         starsfilename,
         "amuse",
@@ -601,17 +644,17 @@ def main():
         sph,
         stars=stars,
         sinks=sinks,
-        L=default_settings.L,
-        N=default_settings.N,
-        image_size_scale=default_settings.image_size_scale,
+        L=o.w or default_settings.L,
+        N=o.n or default_settings.N,
+        image_size_scale=image_size_scale,
         filename=imagefilename+".png",
-        offset_x=com[0].value_in(units.parsec),
-        offset_y=com[1].value_in(units.parsec),
+        offset_x=x or com[0].value_in(units.parsec),
+        offset_y=y or com[1].value_in(units.parsec),
         title="time = %06.3f %s" % (
             time.value_in(units.Myr),
             units.Myr,
         ),
-        gasproperties=["density", "temperature"],
+        gasproperties=["density",],  # , "temperature"],
         colorbar=True,
         # alpha_sfe=0.02,
         # stars_are_sinks=False,

@@ -241,6 +241,7 @@ def plot_hydro_and_stars(
         starscale=default_settings.starscale,
         length_unit=units.parsec,
         dpi=default_settings.dpi,
+        return_figure=False,
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
@@ -391,9 +392,13 @@ def plot_hydro_and_stars(
     fig.suptitle(title)
     if filename is None:
         filename = "test.png"
-    pyplot.savefig(filename, dpi=dpi)
-    # pyplot.show()
-    pyplot.close(fig)
+
+    if return_figure:
+        return fig, ax
+    else:
+        pyplot.savefig(filename, dpi=dpi)
+        # pyplot.show()
+        pyplot.close(fig)
 
 
 def plot_hydro(time, sph, L=10):
@@ -465,7 +470,7 @@ def plot_stars(
         ymin += offset_y
         ymax += offset_y
 
-    if fig == None:
+    if fig is None:
         # Create new figure
         fig = pyplot.figure(figsize=(7, 5))
         ax = fig.add_subplot(1, 1, 1)
@@ -546,7 +551,7 @@ def new_argument_parser():
     parser.add_argument(
         '-n',
         dest='n',
-        default=None,
+        default=default_settings.N,
         type=int,
         help='number of bins (None)',
     )
@@ -574,7 +579,7 @@ def new_argument_parser():
     parser.add_argument(
         '-w',
         dest='w',
-        default=None,
+        default=default_settings.L,
         type=float,
         help='Width (None)',
     )
@@ -600,19 +605,27 @@ def main():
     stars = read_set_from_file(
         starsfilename,
         "amuse",
-    ) if starsfilename != "" else Particles() 
+    ) if starsfilename != "" else Particles()
     sinks = read_set_from_file(
         sinksfilename,
         "amuse",
-    ) if sinksfilename != "" else Particles() 
+    ) if sinksfilename != "" else Particles()
     if gasfilename:
         gas = read_set_from_file(
             gasfilename,
             "amuse",
         )
     else:
-        gas = Particles() 
-
+        gas = Particles()
+    try:
+        del gas.u
+    except:
+        print("can't delete u")
+    try:
+        u = gas.u.mean()
+    except:
+        u = 0 | units.kms**2
+        gas.u = u
 
     mtot = gas.total_mass()
     com = mtot * gas.center_of_mass()
@@ -621,9 +634,10 @@ def main():
         com += sinks.total_mass() * sinks.center_of_mass()
     if not stars.is_empty():
         mtot += stars.total_mass()
-        com + stars.total_mass() * stars.center_of_mass()
+        com += stars.total_mass() * stars.center_of_mass()
     com = com / mtot
 
+    print(com.value_in(units.parsec))
     try:
         time = gas.get_timestamp()
     except:
@@ -639,7 +653,7 @@ def main():
         default_settings.density_threshold
     )
     sph.gas_particles.add_particles(gas)
-    plot_hydro_and_stars(
+    figure, ax = plot_hydro_and_stars(
         time,
         sph,
         stars=stars,
@@ -650,17 +664,35 @@ def main():
         filename=imagefilename+".png",
         offset_x=x or com[0].value_in(units.parsec),
         offset_y=y or com[1].value_in(units.parsec),
-        title="time = %06.3f %s" % (
+        title="time = %06.2f %s" % (
             time.value_in(units.Myr),
             units.Myr,
         ),
-        gasproperties=["density",],  # , "temperature"],
+        gasproperties=["density", ],  # , "temperature"],
         colorbar=True,
         # alpha_sfe=0.02,
         # stars_are_sinks=False,
         starscale=default_settings.starscale,
         length_unit=units.parsec,
+        return_figure=True
     )
+    plot_cluster_locations = False
+    if plot_cluster_locations:
+        from find_clusters import find_clusters
+        clusters = find_clusters(stars, convert_nbody=converter,)
+        for cluster in clusters:
+            com = cluster.center_of_mass()
+            x = com[0].value_in(units.parsec)
+            y = com[1].value_in(units.parsec)
+            lagrangian = cluster.LagrangianRadii(converter)
+            lr90 = lagrangian[0][-2]
+            s = lr90.value_in(units.parsec)
+            # print("Circle with x, y, z: ", x, y, s)
+            circle = pyplot.Circle((x, y), s, color='r', fill=False)
+            ax.add_artist(circle)
+
+    pyplot.savefig(imagefilename+".png", dpi=200)
+
 
 if __name__ == "__main__":
     main()

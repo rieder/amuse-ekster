@@ -22,6 +22,10 @@ try:
     from amuse.community.pentacle.interface import Pentacle
 except ImportError:
     Pentacle = None
+try:
+    from amuse.community.petar.interface import petar
+except ImportError:
+    petar = None
 
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
@@ -34,7 +38,7 @@ class StellarDynamicsCode:
     def __init__(
             self,
             converter=None,
-            star_code=Pentacle,
+            star_code=ph4,
             # star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
@@ -42,6 +46,7 @@ class StellarDynamicsCode:
             # mode="cpu",
             begin_time=0 | nbody_system.time,
             stop_after_each_step=False,
+            number_of_workers=8,
             **kwargs
     ):
         self.typestr = "Nbody"
@@ -72,6 +77,7 @@ class StellarDynamicsCode:
             converter=self.unit_converter,
             star_code=star_code,
             epsilon_squared=epsilon_squared,
+            number_of_workers=number_of_workers,
             **kwargs)
         if self.__stop_after_each_step:
             # self.code.commit_particles()
@@ -87,10 +93,10 @@ class StellarDynamicsCode:
             epsilon_squared=(default_settings.epsilon_stars)**2,
             redirection="null",
             mode="cpu",
+            number_of_workers=8,
             # handle_stopping_conditions=False,
             **kwargs
     ):
-        number_of_workers = 6
         if star_code is ph4:
             code = star_code(
                 converter,
@@ -157,7 +163,43 @@ class StellarDynamicsCode:
             )
             param = code.parameters
             param.time_step = 0.5 * default_settings.timestep
-        param.epsilon_squared = epsilon_squared
+        elif star_code is petar:
+            code = star_code(
+                converter,
+                mode=mode,
+                redirection=redirection,
+                # number_of_workers=number_of_workers,
+                **kwargs
+            )
+            param = code.parameters
+            # Set the parameters explicitly to some default
+            # param.block_steps = False
+
+            # Force ph4 to synchronise to the exact time requested - important
+            # for Bridge!
+            # param.force_sync = True
+
+            # param.gpu_id = something
+            # param.initial_timestep_fac = 0.0625
+            # param.initial_timestep_limit = 0.03125
+            # param.initial_timestep_median = 8.0
+            # param.manage_encounters = 4
+            # # We won't use these stopping conditions anyway
+            # param.stopping_condition_maximum_density = some HUGE number
+            # param.stopping_condition_maximum_internal_energy = inf
+            # param.stopping_condition_minimum_density = - huge
+            # param.stopping_condition_minimum_internal_energy = - big number
+            # param.stopping_conditions_number_of_steps = 1
+            # param.stopping_conditions_out_of_box_size = 0 | units.m
+            # param.stopping_conditions_out_of_box_use_center_of_mass = True
+            # param.stopping_conditions_timeout = 4.0 | units.s
+            # param.sync_time = 0.0 | units.s
+            # param.timestep_parameter = 0.0
+            # param.total_steps = False
+            # param.use_gpu = False
+            # param.zero_step_mode = False
+        if star_code is not petar:
+            param.epsilon_squared = epsilon_squared
         self.__current_state = "started"
         return code
 
@@ -179,7 +221,8 @@ class StellarDynamicsCode:
         result = 0
         time_unit = end_time.unit
         time_fraction = 1 | units.s
-        while self.model_time < (end_time-self.__begin_time):
+        print("START model time: %s end_time: %s begin_time: %s" % (self.model_time, end_time, self.__begin_time))
+        while self.model_time < end_time:
             print(
                 "%s < (%s-%s), continuing" % (
                     self.model_time.in_(time_unit), end_time.in_(time_unit),
@@ -225,6 +268,7 @@ class StellarDynamicsCode:
         if self.__stop_after_each_step:
             # print("Now stopping code")
             self.stop(save_state=True)
+        # print("FINISH model time: %s end_time: %s begin_time: %s" % (self.model_time, end_time, self.__begin_time))
         return result
 
     @property
@@ -239,7 +283,7 @@ class StellarDynamicsCode:
         if self.__current_state != "stopped":
             time = self.__begin_time + self.code.model_time
             return time
-        time = self.__begin_time
+        time = self.__last_time
         return time
 
     @property
@@ -296,7 +340,10 @@ class StellarDynamicsCode:
         self.__state["mode"] = "cpu"  # FIXME
         self.__state["handle_stopping_conditions"] = \
             self.handle_stopping_conditions
-        self.__begin_time = self.model_time
+        # print("SAVING model time: %s begin_time: %s" % (self.model_time, self.__begin_time))
+        # self.__begin_time = self.model_time
+        self.__last_time = self.model_time
+        # print("SAVED model time: %s begin_time: %s" % (self.model_time, self.__begin_time))
 
     def save_particles(self):
         """

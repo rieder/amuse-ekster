@@ -21,6 +21,10 @@ try:
     from amuse.community.pentacle.interface import Pentacle
 except ImportError:
     Pentacle = None
+try:
+    from amuse.community.petar.interface import petar
+except ImportError:
+    petar = None
 
 import default_settings
 
@@ -53,7 +57,8 @@ class StarCluster(
             stop_after_each_step=default_settings.stop_after_each_step,
             **kwargs
         )
-        self.star_code.parameters.epsilon_squared = epsilon_squared
+        if star_code is not petar:
+            self.star_code.parameters.epsilon_squared = epsilon_squared
         if not stars.is_empty():
             self.star_code.particles.add_particles(stars)
         self.logger.info("Initialised StellarDynamics")

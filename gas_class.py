@@ -109,7 +109,7 @@ class GasCode(BasicCode):
                 / mu
             )
             self.parameters.polyk = polyk
-            self.parameters.rho_crit = 0*self.density_threshold
+            self.parameters.rho_crit = 20*self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
             self.parameters.h_soft_sinkgas = default_settings.epsilon_gas
@@ -235,7 +235,7 @@ class GasCode(BasicCode):
                 self.cooling.evolve_for(timestep)
             next_time = self.code.model_time + timestep
             # temp = self.code.gas_particles[0].u
-            print("Calling evolve_model of code")
+            print("Calling evolve_model of code (timestep: %s end_time: %s" % (timestep.in_(units.Myr), next_time.in_(units.Myr)))
             self.code.evolve_model(next_time)
             print("evolve_model of code is done")
             # temp2 = self.code.gas_particles[0].u

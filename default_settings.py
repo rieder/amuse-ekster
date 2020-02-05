@@ -34,6 +34,7 @@ ieos = 1  # 1 = isothermal, 2 = adiabatic
 
 # Tide = None
 Tide = TimeDependentSpiralArmsDiskModel
-tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
+# tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
+tide_time_offset = (2.2 * 1.4874E+15 | units.s)
 
-stop_after_each_step = False
+stop_after_each_step = True

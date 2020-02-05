@@ -30,6 +30,10 @@ try:
     from amuse.community.pentacle.interface import Pentacle
 except ImportError:
     Pentacle = None
+try:
+    from amuse.community.petar.interface import petar
+except ImportError:
+    petar = None
 
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
 from amuse.units import units, nbody_system  # , constants
@@ -158,6 +162,7 @@ class ClusterInPotential(
             # star_code=Hermite,
             # star_code=Pentacle,
             star_code=ph4,
+            # star_code=petar,
             # begin_time=self.__begin_time,
         )
         self.add_stars(stars)
@@ -191,7 +196,7 @@ class ClusterInPotential(
 
         if Tide is not None:
             self.logger.info("Creating Tide object")
-            self.tidal_field = Tide(t_start=self.__begin_time + default_settings.tide_time_offset)
+            self.tidal_field = Tide(t_start=self.__begin_time + default_settings.tide_time_offset, spiral_type="strong")
             self.logger.info("Created Tide object")
         else:
             self.tidal_field = False
@@ -212,7 +217,7 @@ class ClusterInPotential(
                 mode="openmp",
             )
             result.parameters.epsilon_squared = self.epsilon**2
-            result.parameters.timestep = timestep
+            result.parameters.timestep = self.timestep
             return result
 
         def new_field_direct_gravity_code(
@@ -279,6 +284,7 @@ class ClusterInPotential(
             self.star_code,
             partners=to_stars_codes,
             do_sync=True,
+            # zero_smoothing=True,  # for petar
         )
         self.system.add_system(
             self.gas_code,
@@ -1246,6 +1252,9 @@ def main(
         gas = gas_
         print("Using %i particles" % len(gas))
         have_gas = True
+        print(gas.h_smooth.mean().in_(units.parsec))
+        gas.h_smooth = 2.5 | units.parsec  # FIXME this should be calculated?
+        # exit()
     else:
         from amuse.ext.molecular_cloud import molecular_cloud
         mtot = 100000 | units.MSun

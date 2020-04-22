@@ -2,11 +2,12 @@
 """
 Class for implementing a stellar wind
 """
-from __future__ import print_function, division
+import sys
 import numpy
+from numpy import pi
 
-from amuse.units import units, nbody_system
-# from amuse.datamodel.particles import Particles, Particle
+from amuse.units import units, nbody_system, constants
+from amuse.datamodel.particles import Particle
 from amuse.community.seba.interface import SeBa
 # from amuse.community.fi.interface import Fi
 from amuse.community.phantom.interface import Phantom
@@ -19,11 +20,11 @@ from amuse.ext.molecular_cloud import molecular_cloud
 
 from amuse.support.console import set_preferred_units
 
-from plotting_class import plot_hydro_and_stars, temperature_to_u
+from plotting_class import plot_hydro_and_stars, temperature_to_u, u_to_temperature
 from cooling_class import SimplifiedThermalModelEvolver  # , Cooling
 
 
-COOLING = False  # True
+COOLING = False
 
 
 def determine_short_timestep(sph, gas, h_min=0.1 | units.parsec):
@@ -36,39 +37,123 @@ def determine_short_timestep(sph, gas, h_min=0.1 | units.parsec):
 
 def main():
     numpy.random.seed(42)
-    evo_headstart = 2.0 | units.Myr
-    dt_base = 0.0001 | units.Myr
+    evo_headstart = 6.9 | units.Myr
+    dt_base = 0.001 | units.Myr
     dt = dt_base
     time = 0 | units.Myr
     time_end = 8 | units.Myr
-    Tmin = 10 | units.K
+    Tmin = 22 | units.K
 
-    stars = read_set_from_file("stars.amuse", "amuse")
-    # stars = new_star_cluster(
-    #     stellar_mass=1000 | units.MSun, effective_radius=7 | units.parsec)
+    gas_density = 1e4 | units.amu * units.cm**-3
+
+    increase_vol = 1.5
+
+    Ngas = increase_vol**3 * 30000
+    Mgas = increase_vol**3 * 30000 | units.MSun  # Mgas = Ngas | units.MSun
+    volume = Mgas / gas_density  # 4/3 * pi * r**3
+    # radius = (volume / (pi * 4/3))**(1/3)
+    radius = increase_vol * 15 | units.parsec
+
+    gasconverter = nbody_system.nbody_to_si(Mgas, radius)
+    # gasconverter = nbody_system.nbody_to_si(1 | units.pc, 1 | units.MSun)
+    # gasconverter = nbody_system.nbody_to_si(1e10 | units.cm, 1e10 | units.g)
+
+    # NOTE: make stars first - so that it remains the same random
+    # initialisation even when we change the number of gas particles
+    if len(sys.argv) > 1:
+        gas = read_set_from_file(sys.argv[1], "amuse")
+        stars = read_set_from_file(sys.argv[2], "amuse")
+        stars.position = stars.position * 3
+    else:
+        # stars = new_star_cluster(
+        #     stellar_mass=1000 | units.MSun, effective_radius=3 | units.parsec
+        # )
+        # stars.velocity = stars.velocity * 2.0
+        from amuse.datamodel import Particles
+        stars = Particles(1)
+        stars[0].position = [0,0,0] | units.pc
+        stars[0].velocity = [0,0,0] | units.kms
+        stars[0].mass = 25 | units.MSun
+        gas = molecular_cloud(targetN=Ngas, convert_nbody=gasconverter).result
+        gas.velocity = gas.velocity * 0
+        gas.u = temperature_to_u(Tmin)
+    # gas.x = gas.x
+    # gas.y = gas.y
+    # gas.z = gas.z
+    # gas.h_smooth = (gas.mass / gas_density / (4/3) / pi)**(1/3)
+    # print(gas.h_smooth.mean())
+    # gas = read_set_from_file("gas_initial.hdf5", "amuse")
+    # gas.density = gas_density
+    # print(gas.h_smooth.mean())
+    # exit()
+    u_now = gas.u
+    #print(gasconverter.to_nbody(gas[0].u))
+    #print(constants.kB.value_in(units.erg * units.K**-1))
+    #print((constants.kB * 6.02215076e23).value_in(units.erg * units.K**-1))
+
+    #print(gasconverter.to_nbody(temperature_to_u(10 | units.K)))
+    #tempiso = 2.d0/3.d0*ui/(Rg/gmwvar/uergg)
+    # print(nbody_system.length**2 / nbody_system.time**2)
+    # print(gasconverter.to_si(1 | nbody_system.length**2 / nbody_system.time**2).value_in(units.kms**2))
+    # print(gasconverter.to_nbody(temperature_to_u(Tmin)))
+    # Rg = (constants.kB * 6.02214076e23).value_in(units.erg * units.K**-1)
+    # gmwvar = 1.2727272727
+    # uergg = nbody_system.length**2 * nbody_system.time**-2
+    # uergg = 6.6720409999999996E-8
+    # print(Rg)
+    # print(
+    #     2.0/3.0*gasconverter.to_nbody(temperature_to_u(Tmin))/(Rg/gmwvar/uergg)
+    # )
+    # #tempiso, ui, Rg, gmwvar, uergg, udist, utime   1.7552962911187030E-018   2.5778500859241771E-003   83140000.000000000        1.2727272727272725        6.6720409999999996E-008   1.0000000000000000        3871.4231866737564
+    # u = 3./2. * Tmin.value_in(units.K) * (Rg/gmwvar/uergg)
+    # print(u)
+    # print(
+    #     2.0/3.0*u/(Rg/gmwvar/uergg)
+    # )
+    # print(u, Rg, gmwvar, uergg)
+    # print(temperature_to_u(10 | units.K).value_in(units.kms**2))
+    u = temperature_to_u(20 | units.K)
+    #print(gasconverter.to_nbody(u))
+    #print(u_to_temperature(u).value_in(units.K))
+    # exit()
+    # gas.u = u | units.kms**2
+    # exit()
+    
+    # print(gasconverter.to_nbody(gas.u.mean()))
+    # print(gasconverter.to_si(gas.u.mean()).value_in(units.kms**2))
+    # exit()
+    gas.du_dt = (u_now - u_now) / dt  # zero, but in the correct units
+
+    # stars = read_set_from_file("stars.amuse", "amuse")
+    # write_set_to_file(stars, 'stars.amuse', 'amuse', append_to_file=False)
     # stars.velocity *= 3
     # stars.vx += 0 | units.kms
     # stars.vy += 0 | units.kms
 
-    NGas = 160000
-    MGas = (NGas/8) | units.MSun
-    M = stars.total_mass() + MGas
+    M = stars.total_mass() + Mgas
     R = stars.position.lengths().mean()
     converter = nbody_system.nbody_to_si(M, R)
-    gasconverter = nbody_system.nbody_to_si(MGas, 20 | units.parsec)
-    print(converter.to_si(1 | nbody_system.energy))
     # exit()
-    # gas = new_plummer_gas_model(NGas, gasconverter)
-    # gas = molecular_cloud(targetN=NGas, convert_nbody=gasconverter).result
+    # gas = new_plummer_gas_model(Ngas, gasconverter)
+    # gas = molecular_cloud(targetN=Ngas, convert_nbody=gasconverter).result
     # gas.u = temperature_to_u(Tmin)
-    gas = read_set_from_file("gas.amuse", "amuse")
+    # gas = read_set_from_file("gas.amuse", "amuse")
     mms = stars[stars.mass == stars.mass.max()][0]
     print("Most massive star: %s" % mms.mass)
     print("Gas particle mass: %s" % gas[0].mass)
 
     evo = SeBa()
     # sph = Fi(converter, mode="openmp")
-    sph = Phantom(converter, redirection="none")
+    phantomconverter = nbody_system.nbody_to_si(1e20 | units.cm, 1e40 | units.g)
+    sph = Phantom(phantomconverter, redirection="none")
+    sph.parameters.ieos = 2
+    sph.parameters.icooling = 1
+    sph.parameters.alpha = 0.1
+    sph.parameters.gamma = 5/3
+    sph.parameters.rho_crit = 1e17 | units.amu * units.cm**-3
+    sph.parameters.h_soft_sinkgas = 0.1 | units.parsec
+    sph.parameters.h_soft_sinksink = 0.1 | units.parsec
+    sph.parameters.h_acc = 0.1 | units.parsec
     # print(sph.parameters)
 
     stars_in_evo = evo.particles.add_particles(stars)
@@ -81,23 +166,18 @@ def main():
     )
     channel_stars_evo_from_code.copy()
 
-    try:
-        sph.parameters.timestep = dt
-    except:
-        print("SPH code doesn't support setting the timestep")
+    # try:
+    #     sph.parameters.timestep = dt
+    # except:
+    #     print("SPH code doesn't support setting the timestep")
     sph.parameters.stopping_condition_maximum_density = \
         5e-16 | units.g * units.cm**-3
-    try:
-        sph.parameters.ieos = 2
-    except:
-        print("SPH code doesn't support setting ieos")
-    sph.parameters.gamma = 5./3.
     # sph.parameters.beta = 1.
     # sph.parameters.C_cour = sph.parameters.C_cour / 4
     # sph.parameters.C_force = sph.parameters.C_force / 4
     print(sph.parameters)
-    # stars_in_sph = stars.copy()  # sph.sink_particles.add_particles(stars)
-    stars_in_sph = sph.sink_particles.add_particles(stars)
+    stars_in_sph = stars.copy()  # sph.sink_particles.add_particles(stars)
+    # stars_in_sph = sph.sink_particles.add_particles(stars)
     channel_stars_grav_to_code = stars.new_channel_to(
         # sph.sink_particles,
         # sph.dm_particles,
@@ -118,12 +198,31 @@ def main():
     # except:
     #     print("SPH code doesn't support setting isothermal flag")
     gas_in_code = sph.gas_particles.add_particles(gas)
-    # channel_gas_to_code = gas.new_channel_to(
-    #     gas_in_code,
-    #     attributes=[
-    #         "x", "y", "z", "vx", "vy", "vz", "u",
-    #     ]
-    # )
+    # print(gasconverter.to_nbody(gas_in_code[0].u).value_in(nbody_system.specific_energy))
+    # ui = temperature_to_u(10 | units.K)
+    # Rg = constants.kB * 6.02214179e+23
+    # gmwvar = (1.4/1.1) | units.g
+    # uergg = 1.# | nbody_system.specific_energy
+    # print("gmwvar = %s"%gasconverter.to_si(gmwvar))
+    # print("Rg = %s"% gasconverter.to_si(Rg))
+    # print("ui = %s"% gasconverter.to_si(ui))
+    # #print("uergg = %s"% gasconverter.to_nbody(uergg))
+    # print("uergg = %s" % gasconverter.to_si(1 | nbody_system.specific_energy).in_(units.cm**2 * units.s**-2))
+    # print("****** %s" % ((2.0/3.0)*ui/(Rg/gmwvar/uergg)) + "*****")
+    # print(gasconverter.to_nbody(Rg))
+    # print((ui).in_(units.cm**2*units.s**-2))
+    # #exit()
+    
+    # sph.evolve_model(1 | units.day)
+    # write_set_to_file(sph.gas_particles, "gas_initial.hdf5", "amuse")
+    # exit()
+
+    channel_gas_to_code = gas.new_channel_to(
+        gas_in_code,
+        attributes=[
+            "x", "y", "z", "vx", "vy", "vz", "u",
+        ]
+    )
     # mass is never updated, and if sph is in isothermal mode u is not reliable
     channel_gas_from_code = gas_in_code.new_channel_to(
         gas,
@@ -150,14 +249,12 @@ def main():
     channel_stars_wind_to_code = stars.new_channel_to(
         stars_in_wind,
         attributes=[
-            "age", "radius", "mass", "luminosity", "temperature",
-            "stellar_type",
+            "x", "y", "z", "vx", "vy", "vz", "age", "radius", "mass",
+            "luminosity", "temperature", "stellar_type",
         ],
     )
     channel_stars_wind_to_code.copy()
 
-    u_now = gas.u
-    gas.du_dt = (u_now - u_now) / dt  # zero, but in the correct units
 
     # reference_mu = 2.2 | units.amu
     gasvolume = (4./3.) * numpy.pi * (
@@ -169,12 +266,14 @@ def main():
     # cooling_flag = "thermal_model"
     # cooling = Cooling(
     cooling = SimplifiedThermalModelEvolver(
+        # gas_in_code,
         gas,
         Tmin=Tmin,
-        # T0=20 | units.K,
+        # T0=30 | units.K,
         # n0=rho0/reference_mu
     )
     cooling.model_time = sph.model_time
+    # cooling_to_code = cooling.particles.new_channel_to(gas
 
     start_mass = (
         stars.mass.sum()
@@ -188,8 +287,8 @@ def main():
         stars=stars,
         sinks=None,
         L=50,
-        N=200,
-        image_size_scale=3,
+        N=100,
+        image_size_scale=10,
         filename="phantom-coolthermalwindtestplot-%04i.png" % step,
         title="time = %06.2f %s" % (time.value_in(units.Myr), units.Myr),
         gasproperties=["density", "temperature"],
@@ -197,22 +296,30 @@ def main():
         starscale=1,
         offset_x=com[0].value_in(units.parsec),
         offset_y=com[1].value_in(units.parsec),
+        thickness=5 | units.parsec,
     )
 
     dt = dt_base
-    delta_t = 1 | units.day
+    delta_t = phantomconverter.to_si(1e-11 | nbody_system.time)
+    print("delta_t: %s" % delta_t.in_(units.day))
     small_step = True
+    plot_every = 10
     while time < time_end:
+        time += dt
         print("Gas mean u: %s" % (gas.u.mean().in_(units.erg/units.MSun)))
+        print("Evolving to t=%s (%s)" % (time, gasconverter.to_nbody(time)))
         step += 1
         evo.evolve_model(evo_headstart+time)
+
+        print(evo.particles.stellar_type.max())
+        # print(evo.particles[evo.particles.stellar_type == evo.particles.stellar_type.max()].mass)
         channel_stars_evo_from_code.copy()
         channel_stars_grav_to_code.copy()
+        
         if COOLING:
-            # channel_stars_wind_to_code.copy()
+            channel_gas_from_code.copy()
             cooling.evolve_for(dt/2)
-            # channel_stars_wind_from_code.copy()
-        # channel_gas_to_code.copy()
+            channel_gas_to_code.copy()
         print(
             "min/max u in gas: %s %s" % (
                 converter.to_nbody(gas_in_code.u.min()),
@@ -220,7 +327,14 @@ def main():
             )
         )
         if small_step:
-            sph.evolve_model(time - dt + delta_t)
+            print("Doing a small step")
+            # print(u_to_temperature(sph.gas_particles[0].u))
+            # print(sph.gas_particles[0].u)
+            sph.evolve_model(sph.model_time + delta_t)
+            print("Finished small step")
+            # print(u_to_temperature(sph.gas_particles[0].u))
+            # print(sph.gas_particles[0].u)
+            #exit()
         sph.evolve_model(time)
         channel_gas_from_code.copy()
         channel_stars_grav_from_code.copy()
@@ -232,11 +346,16 @@ def main():
         wind.evolve_model(time)
         # channel_stars_wind_from_code.copy()
         if COOLING:
+            channel_gas_from_code.copy()
             cooling.evolve_for(dt/2)
+            channel_gas_to_code.copy()
 
         if wind.has_new_wind_particles():
             wind_p = wind.create_wind_particles()
-            wind_p.h_smooth = gas.h_smooth.mean()
+            # nearest = gas.find_closest_particle_to(wind_p.x, wind_p.y, wind_p.z)
+            # wind_p.h_smooth = nearest.h_smooth
+            wind_p.h_smooth = 1 | units.parsec
+            print("u: %s / T: %s" % (wind_p.u.mean(), u_to_temperature(wind_p.u.mean())))
             # max_e = (1e44 | units.erg) / wind_p[0].mass
             # max_e = 10 * gas.u.mean()
             # max_e = (1.e48 | units.erg) / wind_p[0].mass
@@ -268,10 +387,10 @@ def main():
                 print("Setting dt to very short")
                 small_step = True  # dt = 0.1 | units.yr
                 h_min = gas.h_smooth.min()
-                delta_t = determine_short_timestep(sph, wind_p, h_min=h_min)
-                print("delta_t is set to %s" % delta_t.in_(units.yr))
+                # delta_t = determine_short_timestep(sph, wind_p, h_min=h_min)
+                # print("delta_t is set to %s" % delta_t.in_(units.yr))
         else:
-            small_step = False
+            small_step = True
         print(
             "time: %s sph: %s dM: %s" % (
                 time,
@@ -290,33 +409,40 @@ def main():
         # com = sph.sink_particles.center_of_mass()
         # com = sph.dm_particles.center_of_mass()
         com = stars.center_of_mass()
-        plot_hydro_and_stars(
-            time,
-            sph,
-            # stars=sph.sink_particles,
-            # stars=sph.dm_particles,
-            stars=stars,
-            sinks=None,
-            L=50,
-            N=200,
-            image_size_scale=3,
-            filename="phantom-coolthermalwindtestplot-%04i.png" % step,
-            title="time = %06.2f %s" % (time.value_in(units.Myr), units.Myr),
-            gasproperties=["density", "temperature"],
-            colorbar=True,
-            starscale=1,
-            offset_x=com[0].value_in(units.parsec),
-            offset_y=com[1].value_in(units.parsec),
+        print("STEP: %i step%%plot_every: %i" % (step, step % plot_every))
+        if step % plot_every == 0:
+            plot_hydro_and_stars(
+                time,
+                sph,
+                # stars=sph.sink_particles,
+                # stars=sph.dm_particles,
+                stars=stars,
+                sinks=None,
+                L=50,
+                N=100,
+                image_size_scale=10,
+                filename="phantom-coolthermalwindtestplot-%04i.png" % int(step/plot_every),
+                title="time = %06.2f %s" % (time.value_in(units.Myr), units.Myr),
+                gasproperties=["density", "temperature"],
+                colorbar=True,
+                starscale=1,
+                offset_x=com[0].value_in(units.parsec),
+                offset_y=com[1].value_in(units.parsec),
+                thickness=5 | units.parsec,
+            )
+            write_set_to_file(gas, "gas.amuse", "amuse", append_to_file=False)
+            write_set_to_file(stars, "stars.amuse", "amuse", append_to_file=False)
+        print(
+            "Average temperature of gas: %s" % (
+                u_to_temperature(gas.u).mean().in_(units.K)
+            )
         )
-        write_set_to_file(gas, "gas.amuse", "amuse", append_to_file=False)
-        write_set_to_file(stars, "stars.amuse", "amuse", append_to_file=False)
-        time += dt
     return
 
 
 if __name__ == "__main__":
-    set_preferred_units(
-        units.MSun, units.parsec, units.kms, units.erg, units.Myr,
-        units.erg * units.MSun**-1,
-    )
+    # set_preferred_units(
+    #     units.MSun, units.parsec, units.kms, units.erg, units.Myr,
+    #     units.erg * units.MSun**-1,
+    # )
     main()

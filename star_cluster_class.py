@@ -40,7 +40,7 @@ class StarCluster(
             self,
             stars=Particles(),
             converter=None,
-            epsilon_squared=(0.1 | units.parsec)**2,
+            epsilon_squared=(default_settings.epsilon_stars)**2,
             logger=None,
             begin_time=None,
             star_code=Pentacle,

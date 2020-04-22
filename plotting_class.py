@@ -23,23 +23,48 @@ logger = logging.getLogger(__name__)
 
 def temperature_to_u(
         temperature,
-        gas_mean_molecular_weight=(2.33 / 6.02214179e+23) | units.g,
+        # gas_mean_molecular_weight=(2.33 / 6.02214179e+23) | units.g,
+        gas_mean_molecular_weight=None,
 ):
+    if gas_mean_molecular_weight is None:
+        gas_mean_molecular_weight = (((1.0)+0.4) / (0.1+(1.)) / 6.02214179e+23) | units.g
+        # print("GMMW = %s" % gas_mean_molecular_weight.value_in(units.g))
     internal_energy = (
         3.0 * constants.kB * temperature
         / (2.0 * gas_mean_molecular_weight)
     )
+    # Rg = (constants.kB * 6.02214076e23).value_in(units.erg * units.K**-1)
+    # gmwvar = 1.2727272727
+    # uergg = 6.6720409999999996E-8
+
+    # internal_energy = (
+    #     3./2. * temperature.value_in(units.K) * (Rg/gmwvar/uergg)
+    # ) | units.kms**2
     return internal_energy
 
 
 def u_to_temperature(
         internal_energy,
-        gas_mean_molecular_weight=(2.33 / 6.02214179e+23) | units.g,
+        # gas_mean_molecular_weight=(2.33 / 6.02214179e+23) | units.g,
+        gas_mean_molecular_weight=None,
 ):
+    if gas_mean_molecular_weight is None:
+        gas_mean_molecular_weight = (((1.0)+0.4) / (0.1+(1.)) / 6.02214179e+23) | units.g
+        # print("GMMW = %s" % gas_mean_molecular_weight.value_in(units.g))
+    # temperature = (
+    #     internal_energy * (2.0 * gas_mean_molecular_weight)
+    #     / (3.0 * constants.kB)
+    # )
     temperature = (
-        internal_energy * (2.0 * gas_mean_molecular_weight)
-        / (3.0 * constants.kB)
+        2/3*internal_energy/(constants.kB/gas_mean_molecular_weight)
     )
+    # Rg = (constants.kB * 6.02214076e23).value_in(units.erg * units.K**-1)
+    # gmwvar = 1.2727272727
+    # uergg = 6.6720409999999996E-8
+
+    # temperature = (
+    #     2.0/3.0*internal_energy.value_in(units.kms**2) / (Rg/gmwvar/uergg)
+    # ) | units.K
     return temperature
 
 
@@ -75,7 +100,7 @@ def _make_density_map(
 
 def make_column_density_map(
         sph, N=default_settings.N, L=default_settings.L, offset_x=None, offset_y=None,
-        length_unit=units.parsec,
+        length_unit=units.parsec, thickness=None,
 ):
     "Create a density map from an SPH code"
     logger.info("Creating density map for gas")
@@ -94,6 +119,8 @@ def make_column_density_map(
     gas = sph.gas_particles.copy()
     gas.x -= offset_x | length_unit
     gas.y -= offset_y | length_unit
+    if thickness is not None:
+        gas = gas.select(lambda x: x < 0.5 * thickness and x > -0.5 * thickness, ["z"])
 
     n, x_edges, y_edges = numpy.histogram2d(
         gas.x.value_in(length_unit),
@@ -122,9 +149,50 @@ def make_column_density_map(
     return (gas_coldens, xedges, yedges)
 
 
+def make_mean_density_map(
+        sph, N=default_settings.N, L=default_settings.L, offset_x=None, offset_y=None,
+        length_unit=units.parsec, thickness=None,
+):
+    "Create a mean density map from an SPH code"
+    logger.info("Creating mean density map for gas")
+
+    gas = sph.gas_particles.copy()
+    gas.x -= offset_x | length_unit
+    gas.y -= offset_y | length_unit
+    if thickness is not None:
+        gas = gas.select(
+            lambda x: x < 0.5 * thickness and x > -0.5 * thickness, ["z"]
+        )
+
+    n, x_edges, y_edges = numpy.histogram2d(
+        gas.x.value_in(length_unit),
+        gas.y.value_in(length_unit),
+        bins=N,
+        range=[
+            [-0.5*L, 0.5*L],
+            [-0.5*L, 0.5*L],
+        ],
+    )
+
+    gas_mdens, xedges, yedges = numpy.histogram2d(
+        gas.x.value_in(length_unit),
+        gas.y.value_in(length_unit),
+        bins=N,
+        range=[
+            [-0.5*L, 0.5*L],
+            [-0.5*L, 0.5*L],
+        ],
+        weights=gas.density.value_in(units.amu * units.cm**-3),
+    )
+    gas_mdens = (gas_mdens/n) | units.amu * units.cm**-3
+
+    # Convolve with SPH kernel?
+    return (gas_mdens, xedges, yedges)
+
+
 def make_density_map(
         sph, N=default_settings.N, L=default_settings.L, offset_x=None, offset_y=None,
-        length_unit=units.kpc,
+        length_unit=units.kpc, thickness=None,
 ):
     "Create a density map from an SPH code"
     logger.info("Creating density map for gas")
@@ -143,6 +211,8 @@ def make_density_map(
     gas = sph.gas_particles.copy()
     gas.x -= offset_x | length_unit
     gas.y -= offset_y | length_unit
+    if thickness is not None:
+        gas = gas.select(lambda x: x < 0.5 * thickness and x > -0.5 * thickness, ["z"])
 
     n, x_edges, y_edges = numpy.histogram2d(
         gas.x.value_in(length_unit),
@@ -172,7 +242,7 @@ def make_density_map(
 
 def make_temperature_map(
         sph, N=default_settings.N, L=default_settings.L, offset_x=None, offset_y=None,
-        length_unit=units.parsec,
+        length_unit=units.parsec, thickness=None,
 ):
     "Create a temperature map from an SPH code"
     logger.info("Creating temperature map for gas")
@@ -192,6 +262,8 @@ def make_temperature_map(
     gas = sph.gas_particles.copy()
     gas.x -= offset_x | length_unit
     gas.y -= offset_y | length_unit
+    if thickness is not None:
+        gas = gas.select(lambda x: x < 0.5 * thickness and x > -0.5 * thickness, ["z"])
 
     n, x_edges, y_edges = numpy.histogram2d(
         gas.x.value_in(length_unit),
@@ -202,7 +274,7 @@ def make_temperature_map(
             [-0.5*L, 0.5*L],
         ],
     )
- 
+
     gas_u, xedges, yedges = numpy.histogram2d(
         gas.x.value_in(length_unit),
         gas.y.value_in(length_unit),
@@ -242,6 +314,7 @@ def plot_hydro_and_stars(
         length_unit=units.parsec,
         dpi=default_settings.dpi,
         return_figure=False,
+        thickness=None,
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
@@ -260,10 +333,10 @@ def plot_hydro_and_stars(
         1,
         len(gasproperties),
     )
-    left = 0.21
-    bottom = 0.11
+    left = 0.1
+    bottom = 0.05
     right = 0.9
-    top = 0.9
+    top = 0.95
     # fig = pyplot.figure(figsize=(6, 5))
     image_size = [image_size_scale*N, image_size_scale*N]
     naxes = len(gasproperties)
@@ -272,7 +345,12 @@ def plot_hydro_and_stars(
     figsize = (figwidth + (naxes-1)*0.5*figwidth, figheight)
     fig = pyplot.figure(figsize=figsize, dpi=dpi)
     # fig, ax = pyplot.subplots(nrows=1, ncols=naxes, figsize=figsize, dpi=dpi)
-    fig.subplots_adjust(left=left, right=right, top=top, bottom=bottom)
+    # left = 0.1
+    # bottom = 0.1
+    # right = 0.9
+    # top = 0.9
+    wspace = 0.5
+    fig.subplots_adjust(left=left, right=right, top=top, bottom=bottom, wspace=wspace)
     for i in range(number_of_subplots):
         ax = fig.add_subplot(1, naxes, i+1)
         if colorbar:
@@ -284,9 +362,9 @@ def plot_hydro_and_stars(
             ax.set_title(gasproperty)
             if gasproperty == "density":
 
-                rho, xedges, yedges = make_column_density_map(
+                rho, xedges, yedges = make_mean_density_map(
                     sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
-                    length_unit=length_unit,
+                    length_unit=length_unit, thickness=thickness,
                 )
                 rho = rho.transpose()
                 # print(xedges.min(), xedges.max())
@@ -298,17 +376,16 @@ def plot_hydro_and_stars(
                 # from gas_class import sfe_to_density
 
                 plot_data = numpy.log10(
-                    1.e-5 + rho.value_in(units.MSun/length_unit**2)
-                    # 1.e-5 + rho.value_in(units.amu/units.cm**3)
+                    # 1.e-5 + rho.value_in(units.MSun/length_unit**2)
+                    1. + rho.value_in(units.amu/units.cm**3)
                 )
                 extent = [xmin, xmax, ymin, ymax]
-                vmin = -2
-                vmax = 1 + numpy.log10(
+                vmin = 0
+                vmax = numpy.log10(
                     (
                         sph.parameters.stopping_condition_maximum_density.value_in(
-                            units.MSun/units.parsec**3
+                            units.amu/units.cm**3
                         )
-                        * (1 | units.parsec).value_in(units.parsec)
                     )
                 )
                 origin = "lower"
@@ -334,11 +411,12 @@ def plot_hydro_and_stars(
                         # fraction=0.045,
                     )
                     cbar.ax.get_yaxis().labelpad = 15
-                    cbar.set_label('log column density [$MSun/parsec^2$]', rotation=270)
+                    cbar.set_label('log mean density [$amu/cm^3$]', rotation=270)
 
             if gasproperty == "temperature":
                 temp = make_temperature_map(
                     sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
+                    thickness=thickness,
                 ).transpose()
                 img = ax.imshow(
                     numpy.log10(1.e-5+temp.value_in(units.K)),
@@ -358,7 +436,8 @@ def plot_hydro_and_stars(
                         # fraction=0.045,
                     )
                     cbar.ax.get_yaxis().labelpad = 15
-                    cbar.set_label('log projected temperature [$K$]', rotation=270)
+                    cbar.set_label('log mean projected temperature [$K$]', rotation=270)
+                ax.set_title("temperature")
 
         if sinks is not None:
             if not sinks.is_empty():
@@ -390,6 +469,7 @@ def plot_hydro_and_stars(
         ax.set_ylabel("y [%s]" % length_unit)
     # pyplot.title(title)
     fig.suptitle(title)
+    # fig.tight_layout()
     if filename is None:
         filename = "test.png"
 
@@ -617,15 +697,15 @@ def main():
         )
     else:
         gas = Particles()
-    try:
-        del gas.u
-    except:
-        print("can't delete u")
-    try:
-        u = gas.u.mean()
-    except:
-        u = 0 | units.kms**2
-        gas.u = u
+    # try:
+    #     del gas.u
+    # except:
+    #     print("can't delete u")
+    # try:
+    #     u = gas.u.mean()
+    # except:
+    #     u = 0 | units.kms**2
+    #     gas.u = u
 
     mtot = gas.total_mass()
     com = mtot * gas.center_of_mass()
@@ -668,7 +748,7 @@ def main():
             time.value_in(units.Myr),
             units.Myr,
         ),
-        gasproperties=["density", ],  # , "temperature"],
+        gasproperties=["density" , "temperature"],
         colorbar=True,
         # alpha_sfe=0.02,
         # stars_are_sinks=False,

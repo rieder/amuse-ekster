@@ -9,15 +9,17 @@ from spiral_potential import (
 
 
 dpi = 200
-L = 500
+L = 600
 N = 600
 image_size_scale = 2
 starscale = 0.5
 
-gas_rscale = 10 | units.parsec
-gas_mscale = 1000 | units.MSun
-star_rscale = 1 | units.parsec
-star_mscale = 150 | units.MSun
+phantom_solarm = 1.9891e33 | units.g
+phantom_pc = 3.086e18 | units.cm
+gas_rscale = 0.1 * phantom_pc
+gas_mscale = 1.0 * phantom_solarm
+star_rscale = 0.1 | units.parsec
+star_mscale = 1 | units.MSun
 
 timestep = 0.01 | units.Myr
 epsilon_gas = 0.1 | units.parsec
@@ -29,8 +31,9 @@ density_threshold = (
 )
 5e5 | units.amu * units.cm**-3
 alpha = 0.1
-gamma = 1.0
-ieos = 1  # 1 = isothermal, 2 = adiabatic
+gamma = 5/3
+ieos = 2  # 1 = isothermal, 2 = adiabatic
+icooling = 2  # 0 = disabled, 1 = h2cooling
 
 # Tide = None
 Tide = TimeDependentSpiralArmsDiskModel

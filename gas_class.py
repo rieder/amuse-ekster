@@ -6,7 +6,7 @@ import numpy
 from amuse.community.fi.interface import Fi
 from amuse.community.phantom.interface import Phantom
 from amuse.datamodel import Particles, Particle
-from amuse.units import units, nbody_system, constants
+from amuse.units import units, nbody_system, constants, generic_unit_system
 
 from basic_class import BasicCode
 from cooling_class import SimplifiedThermalModelEvolver
@@ -81,6 +81,7 @@ class GasCode(BasicCode):
         )
         # self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
         self.code = sph_code(
+            # self.unit_converter if sph_code is not Phantom else None,
             self.unit_converter,
             redirection="none",
             **keyword_arguments
@@ -101,6 +102,7 @@ class GasCode(BasicCode):
             # self.parameters.gamma = 5./3.
             self.parameters.gamma = default_settings.gamma
             self.parameters.ieos = default_settings.ieos
+            self.parameters.icooling = default_settings.icooling
             mu = self.parameters.mu  # mean molecular weight
             temperature = 10 | units.K
             polyk = (
@@ -214,7 +216,8 @@ class GasCode(BasicCode):
         print("Evolve gas until %s" % end_time.in_(time_unit))
 
         # if code_name is Fi:
-        timestep = 0.005 | units.Myr  # self.code.parameters.timestep
+        # timestep = 0.005 | units.Myr  # self.code.parameters.timestep
+        timestep = default_settings.timestep * 0.5
         # if self.code.model_time >= (end_time - timestep/2):
         #     return
         # if code_name is something_else:
@@ -332,8 +335,8 @@ class Gas(object):
             # mass_scale = gas.mass.sum()
             # # should be something related to length spread?
             # length_scale = 100 | units.parsec
-            mass_scale = 1.0e5 | units.MSun
-            length_scale = 5.0 | units.parsec
+            mass_scale = default_settings.gas_mscale
+            length_scale = default_settings.gas_rscale
             self.gas_converter = nbody_system.nbody_to_si(
                 mass_scale,
                 length_scale,
@@ -759,8 +762,6 @@ def main():
         # plot_hydro_and_stars(
         #     model.model_time,
         #     model,
-        #     model.sink_particles,
-        #     L=20,
         #     N=150,
         #     filename=plotname,
         #     title="time = %06.1f %s" % (

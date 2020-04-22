@@ -4,6 +4,7 @@
 import sys
 import os
 import logging
+import pickle
 import numpy
 
 try:
@@ -36,9 +37,11 @@ except ImportError:
     petar = None
 
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
-from amuse.units import units, nbody_system  # , constants
+from amuse.units import units, nbody_system, generic_unit_system  # , constants
+from amuse.units.generic_unit_converter import ConvertBetweenGenericAndSiUnits
 from amuse.units.quantities import VectorQuantity
 
+from amuse.support.console import set_preferred_units
 from amuse.io import write_set_to_file
 
 # from amuse.ext.masc import new_star_cluster
@@ -61,7 +64,9 @@ import default_settings
 
 # Tide = TimeDependentSpiralArmsDiskModel
 Tide = default_settings.Tide
+write_backups = False
 
+set_preferred_units(units.Myr, units.kms, units.pc, units.MSun)
 
 def new_argument_parser():
     "Parse command line arguments"
@@ -179,18 +184,37 @@ class ClusterInPotential(
             else:
                 converter_for_gas = gas_converter
             self.logger.info("Initialising Gas")
-            new_gas_converter = nbody_system.nbody_to_si(
-                gas.total_mass(),
-                1 | units.parsec,
+
+            phantom_solarm = 1.9891e33 | units.g
+            phantom_pc = 3.086e18 | units.cm
+            phantom_gg = 6.672041e-8 | units.cm**3 * units.g**-1 * units.s**-2
+            # phantom_speed = phantom_length/phantom_time
+            # phantom_density = phantom_mass / phantom_length**3
+            # phantom_specific_energy = phantom_length**2 / phantom_time**2
+            # phantom_pressure = phantom_mass / phantom_length / (phantom_time**2)
+            phantom_length = 0.1 * phantom_pc
+            phantom_mass = 1.0 * phantom_solarm
+            new_gas_converter = ConvertBetweenGenericAndSiUnits(
+                # Phantom uses CGS units internally, scaled with G=1
+                # So we need to make sure we use those same units here...
+                phantom_length,  # 0.1 pc
+                phantom_mass,  # 1.0 MSun
+                (phantom_length**3 / (phantom_gg*phantom_mass))**0.5,  # 1 "time" (G=1)
             )
+            # new_gas_converter = nbody_system.nbody_to_si(
+            #     default_settings.gas_rscale,
+            #     default_settings.gas_mscale,
+            # )
             self.gas_code = GasCode(
                 converter=new_gas_converter,
                 # begin_time=self.__begin_time,
             )
+            print(self.gas_code.parameters)
 
+            print("****Adding gas and sinks****")
             self.add_gas(gas)
             self.add_sinks(sinks)
-            print(self.gas_code.parameters)
+            # print(self.gas_code.parameters)
             self.timestep = 0.5 * default_settings.timestep
             self.logger.info("Initialised Gas")
 
@@ -292,6 +316,8 @@ class ClusterInPotential(
             do_sync=True,
             h_smooth_is_eps=True,
         )
+        # self.gas_code.parameters.time_step = 0.025 * self.timestep
+        # self.gas_code.parameters.time_step = 0.01 * self.timestep
 
     def initialise_gas(
             self, gas, converter,
@@ -596,6 +622,7 @@ class ClusterInPotential(
                         )
                         # except:
                         #     print("Could not add another sink")
+        del high_density_gas
 
     def add_sink(self, sink):
         self.gas_code.sink_particles.add_particle(sink)
@@ -612,6 +639,9 @@ class ClusterInPotential(
     def add_gas(self, gas):
         self.gas_code.gas_particles.add_particles(gas)
         self.gas_particles.add_particles(gas)
+        # print("Added gas - evolving for 10s")
+        # self.gas_code.evolve_model(10 | units.s)
+        # print("Done")
 
     def remove_gas(self, gas_):
         # Workaround: to prevent either from not being removed.
@@ -872,8 +902,11 @@ class ClusterInPotential(
         #     or (step < minimum_steps)
         # )
         print("Saving initial backup")
-        randomstate = numpy.random.get_state()
-        numpy.save("randomstate-backup.npy", randomstate)
+        randomstate = numpy.random.RandomState()
+        pickled_random_state = pickle.dumps(randomstate)
+        state_file = open("randomstate-backup.pkl", "wb")
+        state_file.write(pickled_random_state)
+        state_file.close()
         if not self.gas_particles.is_empty():
             write_set_to_file(
                 self.gas_particles.savepoint(
@@ -883,6 +916,7 @@ class ClusterInPotential(
                 append_to_file=False,
                 version='2.0',
                 return_working_copy=False,
+                close_file=True,
             )
         if not self.sink_particles.is_empty():
             write_set_to_file(
@@ -893,6 +927,7 @@ class ClusterInPotential(
                 append_to_file=False,
                 version='2.0',
                 return_working_copy=False,
+                close_file=True,
             )
         if not self.star_particles.is_empty():
             write_set_to_file(
@@ -903,6 +938,7 @@ class ClusterInPotential(
                 append_to_file=False,
                 version='2.0',
                 return_working_copy=False,
+                close_file=True,
             )
         while (
                 (self.model_time
@@ -922,6 +958,20 @@ class ClusterInPotential(
             #     evo_time+evo_timestep,
             #     relative_tend,
             # )
+
+            # gas_com = self.gas_particles.center_of_mass()
+            # gas_before = len(self.gas_particles)
+            # self.remove_gas(
+            #     self.gas_particles[
+            #         (
+            #             self.gas_particles.position - gas_com
+            #         ).lengths()
+            #         > (1.5 | units.kpc)
+            #     ]
+            # )
+            # gas_after = len(self.gas_particles)
+            # print("DEBUG: Removed %i faraway gas particles" % (gas_before-gas_after))
+
             self.logger.info("Evolving to %s", real_tend.in_(Myr))
             if not self.star_particles.is_empty():
                 self.logger.info("Stellar evolution...")
@@ -945,39 +995,46 @@ class ClusterInPotential(
                 self.gas_code.evolve_model(relative_tend)
                 self.sync_from_gas_code()
             print("Evolved system")
-            print("Saving backup")
-            randomstate = numpy.random.get_state()
-            numpy.save("randomstate-backup.npy", randomstate)
-            if not self.gas_particles.is_empty():
-                write_set_to_file(
-                    self.gas_particles.savepoint(
-                        self.gas_code.model_time + self.__begin_time),
-                    "gas-backup.hdf5",
-                    "amuse",
-                    append_to_file=False,
-                    version='2.0',
-                    return_working_copy=False,
-                )
-            if not self.sink_particles.is_empty():
-                write_set_to_file(
-                    self.sink_particles.savepoint(
-                        self.gas_code.model_time + self.__begin_time),
-                    "sinks-backup.hdf5",
-                    "amuse",
-                    append_to_file=False,
-                    version='2.0',
-                    return_working_copy=False,
-                )
-            if not self.star_particles.is_empty():
-                write_set_to_file(
-                    self.star_particles.savepoint(
-                        self.star_code.model_time + self.__begin_time),
-                    "stars-backup.hdf5",
-                    "amuse",
-                    append_to_file=False,
-                    version='2.0',
-                    return_working_copy=False,
-                )
+            if write_backups:
+                print("Saving backup")
+                randomstate = numpy.random.RandomState()
+                pickled_random_state = pickle.dumps(randomstate)
+                state_file = open("randomstate-backup.pkl", "wb")
+                state_file.write(pickled_random_state)
+                state_file.close()
+                if not self.gas_particles.is_empty():
+                    write_set_to_file(
+                        self.gas_particles.savepoint(
+                            self.gas_code.model_time + self.__begin_time),
+                        "gas-backup.hdf5",
+                        "amuse",
+                        append_to_file=False,
+                        # version='2.0',
+                        # return_working_copy=False,
+                        # close_file=True,
+                    )
+                if not self.sink_particles.is_empty():
+                    write_set_to_file(
+                        self.sink_particles.savepoint(
+                            self.gas_code.model_time + self.__begin_time),
+                        "sinks-backup.hdf5",
+                        "amuse",
+                        append_to_file=False,
+                        # version='2.0',
+                        # return_working_copy=False,
+                        # close_file=True,
+                    )
+                if not self.star_particles.is_empty():
+                    write_set_to_file(
+                        self.star_particles.savepoint(
+                            self.star_code.model_time + self.__begin_time),
+                        "stars-backup.hdf5",
+                        "amuse",
+                        append_to_file=False,
+                        # version='2.0',
+                        # return_working_copy=False,
+                        # close_file=True,
+                    )
 
             check_for_new_sinks = True
             while check_for_new_sinks:
@@ -1193,12 +1250,11 @@ def main(
     if randomfilename is None:
         numpy.random.seed(seed)
     else:
-        numpy.random.set_state(
-            numpy.load(
-                randomfilename,
-                allow_pickle=True,
-            )
-        )
+        state_file = open(randomfilename, 'rb')
+        pickled_state = state_file.read()
+        state_file.close()
+        randomstate = pickle.loads(pickled_state)
+        numpy.random.set_state(randomstate.get_state())
     run_prefix = rundir + "/"
 
     logging_level = logging.INFO
@@ -1230,30 +1286,41 @@ def main(
         if begin_time is None:
             begin_time = 0.0 | units.Myr
             try:
+                temp = gas_.temp
+                del gas_.temp
+            except:
+                temp = gas_.u
                 del gas_.u
-            except KeyError:
-                pass
+            u = temperature_to_u(temp)
+            # u = temp
+            # u = temperature_to_u(100 | units.K)
+            gas_.u = u
+            # try:
+            #     del gas_.u
+            # except KeyError:
+            #     pass
             try:
                 del gas_.pressure
             except KeyError:
                 pass
-            u = temperature_to_u(100 | units.K)
-            gas_.u = u
+            # u = temperature_to_u(100 | units.K)
+            # gas_.u = u
 
         # gas_.h_smooth = 1 | units.parsec
 
-        # gas = gas_.select(
-        #     lambda x, y:
-        #     (x + (1810 | units.parsec))**2
-        #     + (y + (1820 | units.parsec))**2
-        #     < (50 | units.parsec)**2,
-        #     ["x", "y"]
-        # )
+        # xrel = gas_.x + (1810 | units.parsec)
+        # gas_x = gas_[xrel**2 < (50 | units.parsec)**2]
+        # yrel = gas_x.y + (1820 | units.parsec)
+        # gas = gas_x[yrel**2 < (50 | units.parsec)**2]
         gas = gas_
         print("Using %i particles" % len(gas))
         have_gas = True
-        print(gas.h_smooth.mean().in_(units.parsec))
-        gas.h_smooth = 2.5 | units.parsec  # FIXME this should be calculated?
+        # print(gas.h_smooth.mean().in_(units.parsec))
+        # gas.h_smooth = 20 | units.parsec  # FIXME this should be calculated?
+        print(len(gas))
+        # print(gas.center_of_mass())
+        # print(gas.center_of_mass_velocity())
+        # print(gas[])
         # exit()
     else:
         from amuse.ext.molecular_cloud import molecular_cloud
@@ -1408,44 +1475,48 @@ def main(
             # alpha_sfe=model.alpha_sfe,
         )
 
-        logger.info("Writing snapshots")
-        print("Writing snapshots")
-        if step % 1 == 0:
-            randomstate = numpy.random.get_state()
-            randomstatefile = (
-                "%srandomstate-%04i.npy" % (run_prefix, step)
-            )
-            numpy.save(randomstatefile, randomstate)
-            if not model.gas_particles.is_empty():
-                write_set_to_file(
-                    model.gas_particles.savepoint(
-                        model.gas_code.model_time + begin_time),
-                    "%sgas-%04i.hdf5" % (run_prefix, step),
-                    "amuse",
-                    append_to_file=False,
-                    version='2.0',
-                    return_working_copy=False,
-                )
-            if not model.sink_particles.is_empty():
-                write_set_to_file(
-                    model.sink_particles.savepoint(
-                        model.gas_code.model_time + begin_time),
-                    "%ssinks-%04i.hdf5" % (run_prefix, step),
-                    "amuse",
-                    append_to_file=False,
-                    version='2.0',
-                    return_working_copy=False,
-                )
-            if not model.star_particles.is_empty():
-                write_set_to_file(
-                    model.star_particles.savepoint(
-                        model.star_code.model_time + begin_time),
-                    "%sstars-%04i.hdf5" % (run_prefix, step),
-                    "amuse",
-                    append_to_file=False,
-                    version='2.0',
-                    return_working_copy=False,
-                )
+        if write_backups:
+            logger.info("Writing snapshots")
+            print("Writing snapshots")
+            if step % 1 == 0:
+                randomstate = numpy.random.RandomState()
+                pickled_random_state = pickle.dumps(randomstate)
+                state_file = open("%srandomstate-%04i.pkl" % (run_prefix, step), "wb")
+                state_file.write(pickled_random_state)
+                state_file.close()
+                if not model.gas_particles.is_empty():
+                    write_set_to_file(
+                        model.gas_particles.savepoint(
+                            model.gas_code.model_time + begin_time),
+                        "%sgas-%04i.hdf5" % (run_prefix, step),
+                        "amuse",
+                        append_to_file=False,
+                        # version='2.0',
+                        # return_working_copy=False,
+                        close_file=True,
+                    )
+                if not model.sink_particles.is_empty():
+                    write_set_to_file(
+                        model.sink_particles.savepoint(
+                            model.gas_code.model_time + begin_time),
+                        "%ssinks-%04i.hdf5" % (run_prefix, step),
+                        "amuse",
+                        append_to_file=False,
+                        # version='2.0',
+                        # return_working_copy=False,
+                        close_file=True,
+                    )
+                if not model.star_particles.is_empty():
+                    write_set_to_file(
+                        model.star_particles.savepoint(
+                            model.star_code.model_time + begin_time),
+                        "%sstars-%04i.hdf5" % (run_prefix, step),
+                        "amuse",
+                        append_to_file=False,
+                        # version='2.0',
+                        # return_working_copy=False,
+                        close_file=True,
+                    )
     return
 
 

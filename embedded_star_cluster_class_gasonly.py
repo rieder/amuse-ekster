@@ -1,19 +1,12 @@
-#!/usr/bin/env python3
 "Class for a star cluster embedded in a tidal field and a gaseous region"
-
-import sys
-import os
+from __future__ import print_function, division
 import logging
 import numpy
-
 try:
     from amuse.community.fi.interface import Fi
 except ImportError:
     Fi = None
-try:
-    from amuse.community.bhtree.interface import BHTree
-except ImportError:
-    BHTree = None
+# from amuse.community.bhtree.interface import BHTree
 try:
     from amuse.community.fastkick.interface import FastKick
 except ImportError:
@@ -30,10 +23,6 @@ try:
     from amuse.community.pentacle.interface import Pentacle
 except ImportError:
     Pentacle = None
-try:
-    from amuse.community.petar.interface import petar
-except ImportError:
-    petar = None
 
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
 from amuse.units import units, nbody_system  # , constants
@@ -41,7 +30,7 @@ from amuse.units.quantities import VectorQuantity
 
 from amuse.io import write_set_to_file
 
-# from amuse.ext.masc import new_star_cluster
+from amuse.ext.masc import new_star_cluster
 
 from gas_class import GasCode
 from sinks_class import accrete_gas, should_a_sink_form  # , sfe_to_density
@@ -55,12 +44,9 @@ from star_forming_region_class import form_stars  # StarFormingRegion
 from bridge import (
     Bridge, CalculateFieldForCodes,
 )
-
-import default_settings
 # from setup_codes import new_field_code
 
-# Tide = TimeDependentSpiralArmsDiskModel
-Tide = default_settings.Tide
+Tide = TimeDependentSpiralArmsDiskModel
 
 
 def new_argument_parser():
@@ -132,7 +118,7 @@ class ClusterInPotential(
             # begin_time if begin_time is not None else 0.0 | units.Myr
             begin_time
             if begin_time is not None
-            else 0.0 | units.Myr
+            else (5.0802 * 1.4874E+15 | units.s)
         )
         self.new_stars_added = False
 
@@ -159,10 +145,9 @@ class ClusterInPotential(
             # stars=stars,
             converter=converter_for_stars,
             epsilon=epsilon,
-            # star_code=Hermite,
+            star_code=Hermite,
             # star_code=Pentacle,
-            star_code=ph4,
-            # star_code=petar,
+            # star_code=ph4,
             # begin_time=self.__begin_time,
         )
         self.add_stars(stars)
@@ -181,7 +166,7 @@ class ClusterInPotential(
             self.logger.info("Initialising Gas")
             new_gas_converter = nbody_system.nbody_to_si(
                 gas.total_mass(),
-                1 | units.parsec,
+                100 | units.parsec,
             )
             self.gas_code = GasCode(
                 converter=new_gas_converter,
@@ -191,61 +176,34 @@ class ClusterInPotential(
             self.add_gas(gas)
             self.add_sinks(sinks)
             print(self.gas_code.parameters)
-            self.timestep = 0.5 * default_settings.timestep
+            self.timestep = 0.01 | units.Myr
             self.logger.info("Initialised Gas")
 
-        if Tide is not None:
-            self.logger.info("Creating Tide object")
-            self.tidal_field = Tide(t_start=self.__begin_time + default_settings.tide_time_offset, spiral_type="strong")
-            self.logger.info("Created Tide object")
-        else:
-            self.tidal_field = False
+        self.logger.info("Creating Tide object")
+        self.tidal_field = Tide(t_start=self.__begin_time)
+        self.logger.info("Created Tide object")
 
         self.epsilon = epsilon
         self.converter = converter_for_gas
 
-        def new_field_tree_gravity_code(
-                # code=BHTree,
-                # code=FastKick,
-                code=Fi,
-        ):
-            "Create a new field tree code"
-            print("Creating field tree code")
-            result = code(
-                self.converter,
-                redirection="none",
-                mode="openmp",
-            )
-            result.parameters.epsilon_squared = self.epsilon**2
-            result.parameters.timestep = self.timestep
-            return result
-
-        def new_field_direct_gravity_code(
-                # code=BHTree,
+        def new_field_gravity_code(
                 code=FastKick,
                 # code=Fi,
         ):
-            "Create a new field direct code"
-            print("Creating field direct code")
+            "Create a new field code"
+            print("Creating field code")
             result = code(
                 self.converter,
-                redirection="none",
-                number_of_workers=8,
+                redirection="null",
+                mode="openmp",
             )
             result.parameters.epsilon_squared = self.epsilon**2
             return result
 
         def new_field_code(
                 code,
-                mode="direct",
         ):
             " something"
-            if mode=="tree":
-                new_field_gravity_code = new_field_tree_gravity_code
-            elif mode=="direct":
-                new_field_gravity_code = new_field_direct_gravity_code
-            else:
-                new_field_gravity_code = new_field_direct_gravity_code
             result = CalculateFieldForCodes(
                 new_field_gravity_code,
                 [code],
@@ -255,37 +213,32 @@ class ClusterInPotential(
         to_gas_codes = []
         if self.tidal_field:
             to_gas_codes.append(self.tidal_field)
-        to_gas_codes.append(
-            # self.star_code,
-            new_field_code(
-                self.star_code,
-                # mode="direct",
-                mode="tree",
-            )
-        )
+        # to_gas_codes.append(
+        #     # self.star_code,
+        #     new_field_code(
+        #         self.star_code,
+        #     )
+        # )
         to_stars_codes = []
         if self.tidal_field:
             to_stars_codes.append(self.tidal_field)
         to_stars_codes.append(
             new_field_code(
                 self.gas_code,
-                # mode="direct",
-                mode="tree",
             )
         )
 
         self.system = Bridge(
             timestep=(
-                2*self.timestep
+                self.timestep
             ),
-            use_threading=True,
+            use_threading=False,
         )
-        self.system.add_system(
-            self.star_code,
-            partners=to_stars_codes,
-            do_sync=True,
-            # zero_smoothing=True,  # for petar
-        )
+        # self.system.add_system(
+        #     self.star_code,
+        #     partners=to_stars_codes,
+        #     do_sync=True,
+        # )
         self.system.add_system(
             self.gas_code,
             partners=to_gas_codes,
@@ -1144,8 +1097,7 @@ class ClusterInPotential(
             unit=units.m * units.s**-2,
         )
         for parent in [self.star_code, self.gas_code, self.tidal_field]:
-            if parent:
-                force += parent.get_gravity_at_point(*args, **kwargs)
+            force += parent.get_gravity_at_point(*args, **kwargs)
         return force
 
     @property
@@ -1161,21 +1113,6 @@ def main(
     from amuse.io import read_set_from_file
     from plotting_class import temperature_to_u
     from version import version
-    import signal
-
-    def graceful_exit(sig, frame):
-        # print("Gracefully exiting - writing backups")
-        # write_set_to_file(
-        #     model.gas_particles.savepoint(model.model_time),
-        #     "sph-gas-particles.backup", "amuse"
-        # )
-        # write_set_to_file(
-        #     model.particles.savepoint(model.model_time),
-        #     "grav-particles.backup", "amuse"
-        # )
-        # model.stop()
-        sys.exit(0)
-    signal.signal(signal.SIGINT, graceful_exit)
 
     logger = logging.getLogger(__name__)
 
@@ -1185,8 +1122,6 @@ def main(
     sinksfilename = args.sinksfilename
     randomfilename = args.randomfilename
     rundir = args.rundir
-    if not os.path.exists(rundir):
-        os.makedirs(rundir)
     # TODO: get time stamp from gas, stars, or sinks
     # Default for the initial spiral gas is 1.4874E+15 seconds
 
@@ -1211,13 +1146,13 @@ def main(
     logger.info("git revision: %s", version())
 
     star_converter = nbody_system.nbody_to_si(
-        default_settings.star_mscale,
-        default_settings.star_rscale,
+        150 | units.MSun,
+        1 | units.parsec,
     )
 
     gas_converter = nbody_system.nbody_to_si(
-        default_settings.gas_mscale,
-        default_settings.gas_rscale,
+        100000 | units.MSun,
+        1 | units.parsec,
     )
 
     if starsfilename is not None:
@@ -1240,8 +1175,6 @@ def main(
             u = temperature_to_u(100 | units.K)
             gas_.u = u
 
-        # gas_.h_smooth = 1 | units.parsec
-
         # gas = gas_.select(
         #     lambda x, y:
         #     (x + (1810 | units.parsec))**2
@@ -1252,9 +1185,6 @@ def main(
         gas = gas_
         print("Using %i particles" % len(gas))
         have_gas = True
-        print(gas.h_smooth.mean().in_(units.parsec))
-        gas.h_smooth = 2.5 | units.parsec  # FIXME this should be calculated?
-        # exit()
     else:
         from amuse.ext.molecular_cloud import molecular_cloud
         mtot = 100000 | units.MSun
@@ -1289,11 +1219,10 @@ def main(
         gas_converter=gas_converter,
         begin_time=begin_time,
     )
-    model.sync_from_gas_code()
 
-    timestep = default_settings.timestep
+    timestep = 0.01 | units.Myr
     starting_step = int(begin_time / timestep)
-    print("Forming sinks")
+    # print("Forming sinks")
     # print(
     #     "Maximum density before forming sinks: %s"
     #     % model.gas_particles.density.max().in_(units.g * units.cm**-3)
@@ -1324,7 +1253,7 @@ def main(
             )
         )
         time = (1+step) * timestep
-        while model.model_time < time - timestep*0.000001:
+        while model.model_time < time - timestep/2:
             model.evolve_model(time)
         print(
             "Evolved to %s" % model.model_time.in_(time_unit)
@@ -1390,9 +1319,9 @@ def main(
             model.gas_code,
             stars=model.star_particles,
             sinks=model.sink_particles,
-            L=default_settings.L,  # 2*plot_radius.value_in(units.parsec),
-            N=default_settings.N,
-            image_size_scale=default_settings.image_size_scale,
+            L=500,  # 2*plot_radius.value_in(units.parsec),
+            N=600,
+            image_size_scale=2.,
             filename=plotname,
             title="time = %06.2f %s" % (
                 model.model_time.value_in(units.Myr),
@@ -1402,7 +1331,7 @@ def main(
             offset_y=com[1].value_in(units.parsec),
             gasproperties=["density", ],
             colorbar=True,
-            starscale=default_settings.starscale,
+            starscale=0.2,
             # stars_are_sinks=True,
             # stars_are_sinks=False,
             # alpha_sfe=model.alpha_sfe,
@@ -1446,6 +1375,9 @@ def main(
                     version='2.0',
                     return_working_copy=False,
                 )
+        if not model.sink_particles.is_empty():
+            print("Formed sinks, stopping gas-only mode")
+            exit()
     return
 
 

@@ -355,8 +355,8 @@ class GravityCodeInField(object):
 
         if not hasattr(self.code, "parameters"):
             self.zero_smoothing = True
-        elif not hasattr(self.code.parameters, "epsilon_squared"):
-            self.zero_smoothing = True
+        # elif not hasattr(self.code.parameters, "epsilon_squared"):
+        #     self.zero_smoothing = True
         else:
             self.zero_smoothing = zero_smoothing
 
@@ -746,6 +746,7 @@ class Bridge(object):
         threads = []
 
         for x in self.codes:
+            logger.info("Thread %i will drift code %s", len(threads), x.code.__name__)
             offset = self.time_offsets[x]
             if hasattr(x, "drift"):
                 threads.append(threading.Thread(
@@ -761,8 +762,12 @@ class Bridge(object):
             for x in threads:
                 x.join()
         else:
+            ix = 0
             for x in threads:
+                logger.info("Running thread %i", ix)
                 x.run()
+                logger.info("Finished thread %i", ix)
+                ix += 1
 
     def kick_codes(self, dt):
 

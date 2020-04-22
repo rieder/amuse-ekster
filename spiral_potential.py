@@ -1,12 +1,14 @@
+#!/usr/bin/env python3
 """
 Calculate the spiral arm potential
 """
-from __future__ import print_function, division
 import logging
 
 from numpy import (
-    pi, sin, cos, tan, arctan, cosh, log, exp,
+    # pi, sin, cos, tan, arctan, cosh, log, exp, tanh
+    pi, cosh, log, exp, tanh,
 )
+from amuse.units.trigo import sin, cos, tan, arctan
 
 from amuse.units import units
 from amuse.units.constants import G
@@ -16,7 +18,7 @@ from amuse.support.literature import LiteratureReferencesMixIn
 logger = logging.getLogger(__name__)
 
 
-class DefaultSpiralModelParameters(object):
+class DefaultSpiralModelParameters:
     "Default parameters for spiral arms model"
     def __init__(self):
         self.fiducial_radius = 2.47518e22 | units.cm
@@ -38,7 +40,7 @@ class DefaultSpiralModelParameters(object):
         print(self)
 
 
-class DefaultLogarithmicModelParameters(object):
+class DefaultLogarithmicModelParameters:
     "Default parameters for logarithmic potential (e.g. Binney & Tremaine)"
     def __init__(self):
         # speed squared and constants
@@ -67,6 +69,7 @@ class TimeDependentSpiralArmsDiskModel(
     def __init__(
             self,
             t_start=0 | units.yr,
+            spiral_type="normal",
     ):
         # self.__name__ = "TimeDependentSpiralArmsDiskModel"
 
@@ -76,9 +79,21 @@ class TimeDependentSpiralArmsDiskModel(
         self.disk = LogarithmicDiskProfile(
         )
         logger.info("Creating SpiralArmsProfile")
-        self.spiralarms = SpiralArmsProfile(
-            t_start=t_start,
-        )
+        if spiral_type == "normal":
+            logger.info("Using spiral type normal")
+            self.spiralarms = SpiralArmsProfile(
+                t_start=t_start,
+            )
+        elif spiral_type == "strong":
+            logger.info("Using spiral type strong")
+            self.spiralarms = StrongSpiralArmsProfile(
+                t_start=t_start,
+            )
+        else:
+            logger.info("Unknown spiral type, defaulting to normal")
+            self.spiralarms = SpiralArmsProfile(
+                t_start=t_start,
+            )
 
     @property
     def __name__(self):
@@ -310,8 +325,65 @@ class SpiralArmsProfile(
         )
 
 
+class StrongSpiralArmsProfile:
+    "Stronger spiral arms profile"
+    def __init__(
+            self,
+            t_start=0 | units.Myr,
+    ):
+        logger.info("Using stronger spiral arms model")
+        self.BasicSpiralArmsProfile = SpiralArmsProfile(t_start=t_start)
+
+    @property
+    def model_time(self):
+        return self.BasicSpiralArmsProfile.model_time
+
+    @property
+    def __name__(self):
+        return "Stronger spiral arms profile"
+
+    def evolve_model(self, time):
+        self.BasicSpiralArmsProfile.model_time = time
+
+    def get_potential_at_point(self, eps, x, y, z):
+        basic_spiral_value = \
+            self.BasicSpiralArmsProfile.get_potential_at_point(eps, x, y, z)
+        A = 0.25
+        R_t = 6.2 | units.parsec
+        R2 = x**2 + y**2 + z**2
+        R = R2**0.5
+        spiral_value = (
+            tanh(A * (R_t - R).value_in(units.kpc) + 1)
+            * basic_spiral_value
+        )
+        return spiral_value.in_(units.parsec**2 * units.Myr**-2)
+
+    def get_gravity_at_point(self, eps, x, y, z):
+        """
+        Returns gravity at specified point
+        Input: eps, x, y, z
+        Returns fx,fy,fz
+        """
+
+        # Forces from spiral potential
+        dh = 1 | units.AU  # / 1000.
+        V = self.get_potential_at_point(eps, x, y, z)
+        Vx = self.get_potential_at_point(eps, x+dh, y, z)
+        Vy = self.get_potential_at_point(eps, x, y+dh, z)
+        Vz = self.get_potential_at_point(eps, x, y, z+dh)
+        fx = (V-Vx) / dh
+        fy = (V-Vy) / dh
+        fz = (V-Vz) / dh
+
+        return (
+            fx.in_(units.parsec * units.Myr**-2),
+            fy.in_(units.parsec * units.Myr**-2),
+            fz.in_(units.parsec * units.Myr**-2),
+        )
+
+
 def main():
-    galaxy = SpiralArmsProfile()
+    galaxy = StrongSpiralArmsProfile()
     x = 8 | units.kpc
     y = 0 | units.kpc
     z = 0 | units.kpc
@@ -332,5 +404,49 @@ def main():
         )
 
 
+def plot():
+    import numpy
+    # import matplotlib
+    import matplotlib.pyplot as plt
+
+    # t_start = (5.0802 * 1.4874E+15 | units.s)
+    t_start = (2.2 * 1.4874E+15 | units.s)
+    N = 200
+    xmin = -30000 | units.parsec
+    xmax = 30000 | units.parsec
+    ymin = -30000 | units.parsec
+    ymax = 30000 | units.parsec
+
+    # pot = TimeDependentSpiralArmsDiskModel(t_start=t_start)
+    # pot = SpiralArmsProfile(t_start=t_start)
+    pot = StrongSpiralArmsProfile(t_start=t_start)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    x, y = numpy.indices((N+1, N+1))
+    xwidth = (xmax-xmin)
+    ywidth = (ymax-ymin)
+    x = xmin + xwidth*(x.flatten())/N
+    y = ymin + ywidth*(y.flatten())/N
+    z = x * 0.
+    eps = x * 0.
+
+    fi = pot.get_potential_at_point(eps, x, y, z).value_in(units.kms**2)
+    fi = fi.reshape((N+1, N+1)).transpose()
+
+    fiplot = ax.imshow(
+        fi, origin='lower',
+        extent=[
+            xmin.value_in(units.parsec), xmax.value_in(units.parsec),
+            ymin.value_in(units.parsec), ymax.value_in(units.parsec),
+        ]
+    )
+    plt.colorbar(fiplot)
+    # ax.set_xlim((xmin.value_in(units.parsec), xmax.value_in(units.parsec)))
+    # ax.set_ylim((ymin.value_in(units.parsec), ymax.value_in(units.parsec)))
+    plt.show()
+
+
 if __name__ == "__main__":
-    main()
+    plot()

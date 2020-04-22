@@ -1,0 +1,16 @@
+*.swp
+*.pyc
+tests/*
+*.png
+*.hdf5
+*.npy
+binev.data
+*.log
+.pytest_cache
+makemovie.sh
+matplotlibrc
+archive/
+.ipynb_checkpoints/
+runs/
+movies/
+scripts/

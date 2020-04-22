@@ -401,38 +401,38 @@ def plot_hydro_and_stars(
         pyplot.close(fig)
 
 
-def plot_hydro(time, sph, L=10):
-    "Plot gas"
-    x_label = "x [pc]"
-    y_label = "y [pc]"
-    fig = single_frame(
-        x_label, y_label, logx=False,
-        logy=False, xsize=12, ysize=12,
-    )
-    logger.info("Plotting gas")
-    ax = fig.add_subplot(1, 1, 1,)
-
-    # gas = sph.code.gas_particles
-    # dmp = sph.code.dm_particles
-    rho, xedges, yedges = make_density_map(sph, N=200, L=L)
-    ax.imshow(
-        numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
-        extent=[-L/2, L/2, -L/2, L/2], vmin=1, vmax=5, origin="lower",
-    )
-
-    # cbar = fig.colorbar(cax, orientation='vertical', fraction=0.045)
-    # cbar.set_label('projected density [$amu/cm^3$]', rotation=270)
-
-    # cm = pyplot.cm.get_cmap('RdBu')
-    # cm = pyplot.cm.jet #gist_ncar
-    # if len(dmp):
-    #     # m = 10.0*dmp.mass/dmp.mass.max()
-    #     m = 30*numpy.log10(dmp.mass/dmp.mass.min())
-    #     c = numpy.sqrt(dmp.mass/dmp.mass.max())
-    #     pyplot.scatter(dmp.y.value_in(units.parsec), dmp.x.value_in(
-    #         units.parsec), c=c, s=m, lw=0, cmap=cm)
-
-    #pyplot.show()
+# def plot_hydro(time, sph, L=10):
+#     "Plot gas"
+#     x_label = "x [pc]"
+#     y_label = "y [pc]"
+#     fig = single_frame(
+#         x_label, y_label, logx=False,
+#         logy=False, xsize=12, ysize=12,
+#     )
+#     logger.info("Plotting gas")
+#     ax = fig.add_subplot(1, 1, 1,)
+# 
+#     # gas = sph.code.gas_particles
+#     # dmp = sph.code.dm_particles
+#     rho, xedges, yedges = make_density_map(sph, N=200, L=L)
+#     ax.imshow(
+#         numpy.log10(1.e-5+rho.value_in(units.amu/units.cm**3)),
+#         extent=[-L/2, L/2, -L/2, L/2], vmin=1, vmax=5, origin="lower",
+#     )
+# 
+#     # cbar = fig.colorbar(cax, orientation='vertical', fraction=0.045)
+#     # cbar.set_label('projected density [$amu/cm^3$]', rotation=270)
+# 
+#     # cm = pyplot.cm.get_cmap('RdBu')
+#     # cm = pyplot.cm.jet #gist_ncar
+#     # if len(dmp):
+#     #     # m = 10.0*dmp.mass/dmp.mass.max()
+#     #     m = 30*numpy.log10(dmp.mass/dmp.mass.min())
+#     #     c = numpy.sqrt(dmp.mass/dmp.mass.max())
+#     #     pyplot.scatter(dmp.y.value_in(units.parsec), dmp.x.value_in(
+#     #         units.parsec), c=c, s=m, lw=0, cmap=cm)
+# 
+#     #pyplot.show()
 
 
 def plot_stars(

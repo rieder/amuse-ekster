@@ -29,11 +29,11 @@ density_threshold = (
     (50 | units.MSun)  # ~ smoothed number of gas particles
     / (4/3 * numpy.pi * (0.1 | units.pc)**3)  # ~sphere with radius smoothing/softening length
 )
-5e5 | units.amu * units.cm**-3
+
 alpha = 0.1
-gamma = 5/3
+gamma = 1.
 ieos = 2  # 1 = isothermal, 2 = adiabatic
-icooling = 2  # 0 = disabled, 1 = h2cooling
+icooling = 1  # 0 = disabled, 1 = h2cooling (if ichem=1) OR Gammie cooling (for disks), 2 = SD93 cooling, 4 = molecular clouds cooling
 
 # Tide = None
 Tide = TimeDependentSpiralArmsDiskModel

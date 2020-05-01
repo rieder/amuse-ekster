@@ -3,7 +3,6 @@ Faster module for star formation from sinks
 
 This module omits multiple stars for simplicity
 """
-from __future__ import division, print_function
 import logging
 import numpy
 from amuse.units import units  # , constants, nbody_system

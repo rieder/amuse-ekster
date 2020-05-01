@@ -10,7 +10,7 @@ from amuse.datamodel import Particles
 from amuse.io import read_set_from_file
 from amuse.units import units, constants
 
-from prepare_figure import single_frame
+# from prepare_figure import single_frame
 # from prepare_figure import figure_frame, set_tickmarks
 # from distinct_colours import get_distinct
 from mpl_toolkits.axes_grid1 import make_axes_locatable

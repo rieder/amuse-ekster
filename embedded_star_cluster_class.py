@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"Class for a star cluster embedded in a tidal field and a gaseous region"
+"""
+Class for a star cluster embedded in a tidal field and a gaseous region
+"""
 
 import sys
 import os
@@ -64,7 +66,7 @@ import default_settings
 
 # Tide = TimeDependentSpiralArmsDiskModel
 Tide = default_settings.Tide
-write_backups = False
+write_backups = True
 
 set_preferred_units(units.Myr, units.kms, units.pc, units.MSun)
 
@@ -909,8 +911,9 @@ class ClusterInPotential(
         state_file.close()
         if not self.gas_particles.is_empty():
             write_set_to_file(
-                self.gas_particles.savepoint(
-                    self.gas_code.model_time + self.__begin_time),
+                self.gas_particles,
+                # self.gas_particles.savepoint(
+                #     self.gas_code.model_time + self.__begin_time),
                 "gas-backup.hdf5",
                 "amuse",
                 append_to_file=False,
@@ -920,8 +923,9 @@ class ClusterInPotential(
             )
         if not self.sink_particles.is_empty():
             write_set_to_file(
-                self.sink_particles.savepoint(
-                    self.gas_code.model_time + self.__begin_time),
+                self.sink_particles,
+                # self.sink_particles.savepoint(
+                #     self.gas_code.model_time + self.__begin_time),
                 "sinks-backup.hdf5",
                 "amuse",
                 append_to_file=False,
@@ -931,8 +935,9 @@ class ClusterInPotential(
             )
         if not self.star_particles.is_empty():
             write_set_to_file(
-                self.star_particles.savepoint(
-                    self.star_code.model_time + self.__begin_time),
+                self.star_particles,
+                # self.star_particles.savepoint(
+                #     self.star_code.model_time + self.__begin_time),
                 "stars-backup.hdf5",
                 "amuse",
                 append_to_file=False,
@@ -977,13 +982,14 @@ class ClusterInPotential(
                 self.logger.info("Stellar evolution...")
                 self.evo_code.evolve_model(real_tend)
                 self.sync_from_evo_code()
-            # dt_cooling = time - self.gas_code.model_time
             # if self.cooling:
             #     self.logger.info("Cooling gas...")
             #     self.cooling.evolve_for(dt_cooling/2)
             self.logger.info("System...")
 
             print("Evolving system")
+
+            self.sync_to_gas_code()
             self.system.evolve_model(relative_tend)
             self.sync_from_gas_code()
             self.sync_from_star_code()
@@ -991,7 +997,7 @@ class ClusterInPotential(
                     self.gas_code.model_time
                     < (relative_tend - self.system.timestep)
             ):
-                print("Evolving gas code a bit more")
+                print("******Evolving gas code a bit more")
                 self.gas_code.evolve_model(relative_tend)
                 self.sync_from_gas_code()
             print("Evolved system")
@@ -1004,36 +1010,39 @@ class ClusterInPotential(
                 state_file.close()
                 if not self.gas_particles.is_empty():
                     write_set_to_file(
-                        self.gas_particles.savepoint(
-                            self.gas_code.model_time + self.__begin_time),
+                        self.gas_particles,
+                        # self.gas_particles.savepoint(
+                        #     self.gas_code.model_time + self.__begin_time),
                         "gas-backup.hdf5",
                         "amuse",
                         append_to_file=False,
-                        # version='2.0',
-                        # return_working_copy=False,
-                        # close_file=True,
+                        version='2.0',
+                        return_working_copy=False,
+                        close_file=True,
                     )
                 if not self.sink_particles.is_empty():
                     write_set_to_file(
-                        self.sink_particles.savepoint(
-                            self.gas_code.model_time + self.__begin_time),
+                        self.sink_particles,
+                        # self.sink_particles.savepoint(
+                        #     self.gas_code.model_time + self.__begin_time),
                         "sinks-backup.hdf5",
                         "amuse",
                         append_to_file=False,
-                        # version='2.0',
-                        # return_working_copy=False,
-                        # close_file=True,
+                        version='2.0',
+                        return_working_copy=False,
+                        close_file=True,
                     )
                 if not self.star_particles.is_empty():
                     write_set_to_file(
-                        self.star_particles.savepoint(
-                            self.star_code.model_time + self.__begin_time),
+                        self.star_particles,
+                        # self.star_particles.savepoint(
+                        #     self.star_code.model_time + self.__begin_time),
                         "stars-backup.hdf5",
                         "amuse",
                         append_to_file=False,
-                        # version='2.0',
-                        # return_working_copy=False,
-                        # close_file=True,
+                        version='2.0',
+                        return_working_copy=False,
+                        close_file=True,
                     )
 
             check_for_new_sinks = True
@@ -1212,7 +1221,8 @@ class ClusterInPotential(
 
 
 def main(
-        seed=22, have_stars=False, have_gas=False, have_sinks=False,
+        args, seed=22, have_stars=False, have_gas=False, have_sinks=False,
+        nsteps=None,
 ):
     "Simulate an embedded star cluster (sph + dynamics + evolution)"
     from amuse.io import read_set_from_file
@@ -1236,7 +1246,6 @@ def main(
 
     logger = logging.getLogger(__name__)
 
-    args = new_argument_parser()
     gasfilename = args.gasfilename
     starsfilename = args.starsfilename
     sinksfilename = args.sinksfilename
@@ -1283,6 +1292,11 @@ def main(
         print("reading gas")
         gas_ = read_set_from_file(gasfilename, "amuse", close_file=True,)
         begin_time = gas_.get_timestamp()
+        if begin_time is None:
+            try:
+                begin_time = gas_.collection_attributes.timestamp
+            except AttributeError:
+                begin_time = None
         if begin_time is None:
             begin_time = 0.0 | units.Myr
             try:
@@ -1380,7 +1394,9 @@ def main(
     # print("Forming stars")
     # model.resolve_star_formation()
     # print("Formed stars")
-    for step in range(starting_step, 500):
+    if nsteps is None:
+        nsteps = 500
+    for step in range(starting_step, nsteps):
         time_unit = units.Myr
         print(
             "MT: %s HT: %s GT: %s ET: %s" % (
@@ -1485,9 +1501,13 @@ def main(
                 state_file.write(pickled_random_state)
                 state_file.close()
                 if not model.gas_particles.is_empty():
+                    model.gas_particles.collection_attributes.timestamp = (
+                        model.gas_code.model_time + begin_time
+                    )
                     write_set_to_file(
-                        model.gas_particles.savepoint(
-                            model.gas_code.model_time + begin_time),
+                        model.gas_particles,
+                        # model.gas_particles.savepoint(
+                        #     model.gas_code.model_time + begin_time),
                         "%sgas-%04i.hdf5" % (run_prefix, step),
                         "amuse",
                         append_to_file=False,
@@ -1496,9 +1516,13 @@ def main(
                         close_file=True,
                     )
                 if not model.sink_particles.is_empty():
+                    model.sink_particles.collection_attributes.timestamp = (
+                        model.gas_code.model_time + begin_time
+                    )
                     write_set_to_file(
-                        model.sink_particles.savepoint(
-                            model.gas_code.model_time + begin_time),
+                        model.sink_particles,
+                        # model.sink_particles.savepoint(
+                        #     model.gas_code.model_time + begin_time),
                         "%ssinks-%04i.hdf5" % (run_prefix, step),
                         "amuse",
                         append_to_file=False,
@@ -1507,9 +1531,13 @@ def main(
                         close_file=True,
                     )
                 if not model.star_particles.is_empty():
+                    model.star_particles.collection_attributes.timestamp = (
+                        model.star_code.model_time + begin_time
+                    )
                     write_set_to_file(
-                        model.star_particles.savepoint(
-                            model.star_code.model_time + begin_time),
+                        model.star_particles,
+                        # model.star_particles.savepoint(
+                        #     model.star_code.model_time + begin_time),
                         "%sstars-%04i.hdf5" % (run_prefix, step),
                         "amuse",
                         append_to_file=False,
@@ -1517,8 +1545,9 @@ def main(
                         # return_working_copy=False,
                         close_file=True,
                     )
-    return
+    return model
 
 
 if __name__ == "__main__":
-    main()
+    args = new_argument_parser()
+    model = main(args)

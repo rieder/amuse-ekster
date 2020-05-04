@@ -37,7 +37,7 @@ icooling = 1  # 0 = disabled, 1 = h2cooling (if ichem=1) OR Gammie cooling (for 
 
 # Tide = None
 Tide = TimeDependentSpiralArmsDiskModel
-tide_type = "normal"
+tide_spiral_type = "normal"
 tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
 # tide_type = "strong"
 # tide_time_offset = (2.2 * 1.4874E+15 | units.s)

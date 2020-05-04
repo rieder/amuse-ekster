@@ -39,7 +39,7 @@ except ImportError:
     petar = None
 
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
-from amuse.units import units, nbody_system, generic_unit_system  # , constants
+from amuse.units import units, nbody_system  # , constants
 from amuse.units.generic_unit_converter import ConvertBetweenGenericAndSiUnits
 from amuse.units.quantities import VectorQuantity
 
@@ -51,9 +51,6 @@ from amuse.io import write_set_to_file
 from gas_class import GasCode
 from sinks_class import accrete_gas, should_a_sink_form  # , sfe_to_density
 from star_cluster_class import StarCluster
-from spiral_potential import (
-    TimeDependentSpiralArmsDiskModel,
-)
 from plotting_class import plot_hydro_and_stars  # , plot_stars
 from merge_recipes import form_new_star
 from star_forming_region_class import form_stars  # StarFormingRegion
@@ -67,8 +64,17 @@ import default_settings
 # Tide = TimeDependentSpiralArmsDiskModel
 Tide = default_settings.Tide
 write_backups = True
+if default_settings.ieos > 1 and default_settings.icooling == 0:
+    try:
+        from cooling_4 import cool
+        cooling_with_amuse = True
+    except ImportError:
+        cooling_with_amuse = False
+else:
+    cooling_with_amuse = False
 
 set_preferred_units(units.Myr, units.kms, units.pc, units.MSun)
+
 
 def new_argument_parser():
     "Parse command line arguments"
@@ -190,10 +196,6 @@ class ClusterInPotential(
             phantom_solarm = 1.9891e33 | units.g
             phantom_pc = 3.086e18 | units.cm
             phantom_gg = 6.672041e-8 | units.cm**3 * units.g**-1 * units.s**-2
-            # phantom_speed = phantom_length/phantom_time
-            # phantom_density = phantom_mass / phantom_length**3
-            # phantom_specific_energy = phantom_length**2 / phantom_time**2
-            # phantom_pressure = phantom_mass / phantom_length / (phantom_time**2)
             phantom_length = 0.1 * phantom_pc
             phantom_mass = 1.0 * phantom_solarm
             new_gas_converter = ConvertBetweenGenericAndSiUnits(
@@ -201,7 +203,7 @@ class ClusterInPotential(
                 # So we need to make sure we use those same units here...
                 phantom_length,  # 0.1 pc
                 phantom_mass,  # 1.0 MSun
-                (phantom_length**3 / (phantom_gg*phantom_mass))**0.5,  # 1 "time" (G=1)
+                (phantom_length**3 / (phantom_gg*phantom_mass))**0.5,
             )
             # new_gas_converter = nbody_system.nbody_to_si(
             #     default_settings.gas_rscale,
@@ -222,7 +224,10 @@ class ClusterInPotential(
 
         if Tide is not None:
             self.logger.info("Creating Tide object")
-            self.tidal_field = Tide(t_start=self.__begin_time + default_settings.tide_time_offset, spiral_type="strong")
+            self.tidal_field = Tide(
+                t_start=self.__begin_time + default_settings.tide_time_offset,
+                spiral_type=default_settings.tide_spiral_type,
+            )
             self.logger.info("Created Tide object")
         else:
             self.tidal_field = False
@@ -985,6 +990,15 @@ class ClusterInPotential(
             # if self.cooling:
             #     self.logger.info("Cooling gas...")
             #     self.cooling.evolve_for(dt_cooling/2)
+            if cooling_with_amuse:
+                dt_cooling = relative_tend - self.gas_code.model_time
+                print("Cooling gas for dt/2")
+                cooling_rate = cool(self.gas_particles)
+                self.gas_particles.u = (
+                    self.gas_particles.u
+                    - cooling_rate * dt_cooling/2
+                )
+                print("Cooled gas for dt/2")
             self.logger.info("System...")
 
             print("Evolving system")
@@ -1001,6 +1015,15 @@ class ClusterInPotential(
                 self.gas_code.evolve_model(relative_tend)
                 self.sync_from_gas_code()
             print("Evolved system")
+            if cooling_with_amuse:
+                print("Cooling gas for another dt/2")
+                cooling_rate = cool(self.gas_particles)
+                self.gas_particles.u = (
+                    self.gas_particles.u
+                    - cooling_rate * dt_cooling/2
+                )
+                print("Cooled gas for another dt/2")
+
             if write_backups:
                 print("Saving backup")
                 randomstate = numpy.random.RandomState()

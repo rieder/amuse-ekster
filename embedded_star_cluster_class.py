@@ -319,7 +319,7 @@ class ClusterInPotential(
             h_smooth_is_eps=True,
         )
         # self.gas_code.parameters.time_step = 0.025 * self.timestep
-        # self.gas_code.parameters.time_step = 0.01 * self.timestep
+        self.gas_code.parameters.time_step = 0.5 * self.timestep
 
     def initialise_gas(
             self, gas, converter,

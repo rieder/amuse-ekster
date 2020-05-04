@@ -62,11 +62,16 @@ from bridge import (
 )
 
 import default_settings
+from cooling_4 import cool
 # from setup_codes import new_field_code
 
 # Tide = TimeDependentSpiralArmsDiskModel
 Tide = default_settings.Tide
 write_backups = True
+if default_settings.ieos > 1 and default_settings.icooling == 0:
+    cooling_with_amuse = True
+else:
+    cooling_with_amuse = False
 
 set_preferred_units(units.Myr, units.kms, units.pc, units.MSun)
 
@@ -985,6 +990,15 @@ class ClusterInPotential(
             # if self.cooling:
             #     self.logger.info("Cooling gas...")
             #     self.cooling.evolve_for(dt_cooling/2)
+            if cooling_with_amuse:
+                dt_cooling = relative_tend - self.gas_code.model_time
+                print("Cooling gas for dt/2")
+                cooling_rate = cool(self.gas_particles)
+                self.gas_particles.u = (
+                    self.gas_particles.u
+                    - cooling_rate * dt_cooling/2
+                )
+                print("Cooled gas for dt/2")
             self.logger.info("System...")
 
             print("Evolving system")
@@ -1001,6 +1015,15 @@ class ClusterInPotential(
                 self.gas_code.evolve_model(relative_tend)
                 self.sync_from_gas_code()
             print("Evolved system")
+            if cooling_with_amuse:
+                print("Cooling gas for another dt/2")
+                cooling_rate = cool(self.gas_particles)
+                self.gas_particles.u = (
+                    self.gas_particles.u
+                    - cooling_rate * dt_cooling/2
+                )
+                print("Cooled gas for another dt/2")
+
             if write_backups:
                 print("Saving backup")
                 randomstate = numpy.random.RandomState()

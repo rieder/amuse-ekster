@@ -271,9 +271,9 @@ class ClusterInPotential(
                 mode="direct",
         ):
             " something"
-            if mode=="tree":
+            if mode == "tree":
                 new_field_gravity_code = new_field_tree_gravity_code
-            elif mode=="direct":
+            elif mode == "direct":
                 new_field_gravity_code = new_field_direct_gravity_code
             else:
                 new_field_gravity_code = new_field_direct_gravity_code
@@ -874,7 +874,7 @@ class ClusterInPotential(
         "Evolve system to specified time"
         relative_tend = real_tend - self.__begin_time
 
-        dmax = self.gas_code.parameters.stopping_condition_maximum_density
+        # dmax = self.gas_code.parameters.stopping_condition_maximum_density
         Myr = units.Myr
 
         self.logger.info(
@@ -900,7 +900,11 @@ class ClusterInPotential(
 
         print("Starting loop")
         time_unit = units.Myr
-        print(self.model_time.in_(time_unit), real_tend.in_(time_unit), self.system.timestep.in_(time_unit))
+        print(
+            self.model_time.in_(time_unit),
+            real_tend.in_(time_unit),
+            self.system.timestep.in_(time_unit),
+        )
         step = 0
         minimum_steps = 1
         # print(
@@ -968,19 +972,6 @@ class ClusterInPotential(
             #     evo_time+evo_timestep,
             #     relative_tend,
             # )
-
-            # gas_com = self.gas_particles.center_of_mass()
-            # gas_before = len(self.gas_particles)
-            # self.remove_gas(
-            #     self.gas_particles[
-            #         (
-            #             self.gas_particles.position - gas_com
-            #         ).lengths()
-            #         > (1.5 | units.kpc)
-            #     ]
-            # )
-            # gas_after = len(self.gas_particles)
-            # print("DEBUG: Removed %i faraway gas particles" % (gas_before-gas_after))
 
             self.logger.info("Evolving to %s", real_tend.in_(Myr))
             if not self.star_particles.is_empty():
@@ -1089,74 +1080,6 @@ class ClusterInPotential(
                     ),
                 )
 
-
-            # stopping_iteration = 0
-            # max_number_of_iterations = 2
-            # high_density_remaining = True
-            # while (
-            #         high_density_remaining
-            #         and stopping_iteration < max_number_of_iterations
-            #         and density_limit_detection.is_set()
-            # ):
-            #     # Add this check since density detection isn't working
-            #     # perfectly yet
-            #     dens_frac = (
-            #         self.gas_particles.density.max()
-            #         / dmax
-            #     )
-            #     if dens_frac < 1:
-            #         self.logger.info(
-            #             "max density < stopping density but stopping condition"
-            #             " still set?"
-            #         )
-            #         high_density_remaining = False
-            #         # stopping_iteration = max_number_of_iterations
-            #         break
-
-            #     self.logger.debug("Forming new stars - %i", stopping_iteration)
-            #     self.logger.info("Gas code stopped - max density reached")
-            #     self.logger.debug(
-            #         "Highest density / max density: %s",
-            #         (
-            #             self.gas_particles.density.max()
-            #             / dmax
-            #         )
-            #     )
-            #     self.sync_from_gas_code()
-            #     self.resolve_sink_formation()
-            #     self.logger.info(
-            #         "Now we have %i stars; %i sinks and %i gas, %i particles"
-            #         " in total.",
-            #         len(self.star_particles),
-            #         len(self.sink_particles),
-            #         len(self.gas_particles),
-            #         (
-            #             len(self.gas_code.particles)
-            #             + len(self.star_code.particles)
-            #         ),
-            #     )
-            #     # Make sure we break the loop if the gas code is not going to
-            #     # evolve further
-            #     # if (
-            #     #         self.gas_code.model_time
-            #     #         < (time - self.gas_code.parameters.timestep)
-            #     # ):
-            #     #     break
-            #     self.gas_code.evolve_model(
-            #         relative_tend
-            #         # self.gas_code.model_time
-            #         # + self.gas_code.parameters.timestep
-            #     )
-            #     self.sync_from_gas_code()
-            #     stopping_iteration += 1
-            # if high_density_remaining is False:
-            #     self.logger.info(
-            #         "Remaining gas below critical density, disabling sink"
-            #         " formation for now"
-            #     )
-            #     density_limit_detection.disable()
-            #     self.gas_code.evolve_model(relative_tend)
-            #     self.sync_from_gas_code()
             if not self.sink_particles.is_empty():
                 for i, sink in enumerate(self.sink_particles):
                     self.logger.info(
@@ -1325,7 +1248,7 @@ def main(
             try:
                 temp = gas_.temp
                 del gas_.temp
-            except:
+            except AttributeError:
                 temp = gas_.u
                 del gas_.u
             u = temperature_to_u(temp)
@@ -1376,15 +1299,7 @@ def main(
     if not (have_stars or have_gas or have_sinks):
         print("No particles!")
         exit()
-    # if not have_stars:
-    #     # This is a ph4 workaround. Don't like it but hard to run with zero stars.
-    #     stars = new_star_cluster(
-    #         number_of_stars=2
-    #     )
-    #     stars.mass *= 0.0001
-    #     stars.position += gas.center_of_mass()
-    #     stars.velocity += gas.center_of_mass_velocity()
-    #     have_stars = True
+
     model = ClusterInPotential(
         stars=stars if have_stars else Particles(),
         gas=gas if have_gas else Particles(),
@@ -1398,25 +1313,6 @@ def main(
     timestep = default_settings.timestep
     starting_step = int(begin_time / timestep)
     print("Forming sinks")
-    # print(
-    #     "Maximum density before forming sinks: %s"
-    #     % model.gas_particles.density.max().in_(units.g * units.cm**-3)
-    # )
-    # model.resolve_sink_formation()
-    # print(
-    #     "Maximum density after forming sinks: %s"
-    #     % model.gas_particles.density.max().in_(units.g * units.cm**-3)
-    # )
-    # model.resolve_sink_formation()
-    # print(
-    #     "Maximum density after second round of forming sinks: %s"
-    #     % model.gas_particles.density.max().in_(units.g * units.cm**-3)
-    # )
-    # exit()
-    # print("Formed sinks, now forming stars")
-    # print("Forming stars")
-    # model.resolve_star_formation()
-    # print("Formed stars")
     if nsteps is None:
         nsteps = 500
     for step in range(starting_step, nsteps):
@@ -1462,7 +1358,8 @@ def main(
             )
         )
         dmax_now = model.gas_particles.density.max()
-        dmax_stop = model.gas_code.parameters.stopping_condition_maximum_density
+        dmax_stop = \
+            model.gas_code.parameters.stopping_condition_maximum_density
         print(
             "Maximum density / stopping density = %s" % (
                 dmax_now
@@ -1470,7 +1367,9 @@ def main(
             )
         )
         logger.info("Max density: %s", dmax_now.in_(units.g * units.cm**-3))
-        logger.info("Max density / sink formation density: %s", dmax_now/dmax_stop)
+        logger.info(
+            "Max density / sink formation density: %s", dmax_now/dmax_stop
+        )
 
         logger.info("Making plot")
         print("Creating plot")
@@ -1520,7 +1419,9 @@ def main(
             if step % 1 == 0:
                 randomstate = numpy.random.RandomState()
                 pickled_random_state = pickle.dumps(randomstate)
-                state_file = open("%srandomstate-%04i.pkl" % (run_prefix, step), "wb")
+                state_file = open(
+                    "%srandomstate-%04i.pkl" % (run_prefix, step), "wb"
+                )
                 state_file.write(pickled_random_state)
                 state_file.close()
                 if not model.gas_particles.is_empty():

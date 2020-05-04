@@ -62,14 +62,17 @@ from bridge import (
 )
 
 import default_settings
-from cooling_4 import cool
 # from setup_codes import new_field_code
 
 # Tide = TimeDependentSpiralArmsDiskModel
 Tide = default_settings.Tide
 write_backups = True
 if default_settings.ieos > 1 and default_settings.icooling == 0:
-    cooling_with_amuse = True
+    try:
+        from cooling_4 import cool
+        cooling_with_amuse = True
+    except ImportError:
+        cooling_with_amuse = False
 else:
     cooling_with_amuse = False
 

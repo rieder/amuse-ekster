@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"Class for a star cluster with dynamics and evolution"
+# -*- coding: utf-8 -*-
+"""
+Class for a star cluster with dynamics and evolution
+"""
 import logging
 from amuse.units import units
 from amuse.datamodel import Particles

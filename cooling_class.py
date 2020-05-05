@@ -1,8 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-" Pelupessy et al. (in prep.) simple thermal model "
+"""
+Pelupessy et al. (in prep.) simple thermal model
+"""
 
-from __future__ import division, print_function
 import sys
 import numpy
 

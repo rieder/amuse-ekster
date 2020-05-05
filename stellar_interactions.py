@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # enc: utf-8
 """
 Routines related to stellar interactions/collisions

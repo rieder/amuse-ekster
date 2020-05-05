@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Faster module for star formation from sinks
 
@@ -167,7 +169,8 @@ def form_stars(
     new_stars.vz += vz
 
     new_stars.origin_cloud = sink.key
-    new_stars.radius = 0.05 | units.parsec  # For Pentacle, this is the PP radius
+    # For Pentacle, this is the PP radius
+    new_stars.radius = 0.05 | units.parsec
     sink.mass -= new_stars.total_mass()
     # TODO: fix sink's momentum etc
 

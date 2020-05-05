@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Basic class for a code wrapper. Not meant to be called on its own.
 """

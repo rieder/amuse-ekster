@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 "Class for a gas system"
-from __future__ import print_function, division
 import logging
 import numpy
 

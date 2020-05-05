@@ -1,4 +1,8 @@
-"Sink particles"
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Sink particles
+"""
 import numpy
 from amuse.units import units
 from amuse.datamodel import Particles  # , ParticlesOverlay

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"Class for a stellar evolution object"
+# -*- coding: utf-8 -*-
+"""
+Class for a stellar evolution object
+"""
 import logging
 from amuse.datamodel import Particles
 from amuse.units import units

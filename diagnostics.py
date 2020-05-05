@@ -1,4 +1,8 @@
-"Diagnostic routines"
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Diagnostic routines
+"""
 from amuse.community.hop.interface import Hop
 
 

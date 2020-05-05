@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"Class for stellar dynamics"
+# -*- coding: utf-8 -*-
+"""
+Class for stellar dynamics
+"""
 import logging
 
 try:

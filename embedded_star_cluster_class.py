@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Class for a star cluster embedded in a tidal field and a gaseous region
 """

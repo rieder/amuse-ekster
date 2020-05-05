@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
   bridge-like integrator for amuse
 
@@ -77,7 +79,6 @@
 
 """
 
-from __future__ import division
 
 # issues:
 # - for now, units in si

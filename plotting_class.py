@@ -1,5 +1,8 @@
-"Class for plotting stuff"
-from __future__ import print_function, division
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Class for plotting stuff
+"""
 import logging
 import numpy
 

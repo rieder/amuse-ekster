@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Feedback class
+"""
+
 from amuse.units import units
 from amuse.units.trigo import sin, cos, arccos, arctan
 

@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Setup / create codes
 """
-from __future__ import print_function
 from amuse.community.fastkick.interface import FastKick
 from amuse.units import units
 from bridge import CalculateFieldForCodes

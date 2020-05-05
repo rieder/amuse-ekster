@@ -214,6 +214,7 @@ class ClusterInPotential(
                 converter=new_gas_converter,
                 # begin_time=self.__begin_time,
             )
+            self.sink_code = self.gas_code  # For now
             print(self.gas_code.parameters)
 
             print("****Adding gas and sinks****")
@@ -633,15 +634,15 @@ class ClusterInPotential(
         del high_density_gas
 
     def add_sink(self, sink):
-        self.gas_code.sink_particles.add_particle(sink)
+        self.sink_code.sink_particles.add_particle(sink)
         self.sink_particles.add_particle(sink)
 
     def add_sinks(self, sinks):
-        self.gas_code.sink_particles.add_particles(sinks)
+        self.sink_code.sink_particles.add_particles(sinks)
         self.sink_particles.add_particles(sinks)
 
     def remove_sinks(self, sinks):
-        self.gas_code.sink_particles.remove_particles(sinks)
+        self.sink_code.sink_particles.remove_particles(sinks)
         self.sink_particles.remove_particles(sinks)
 
     def add_gas(self, gas):

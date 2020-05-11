@@ -185,9 +185,10 @@ def make_mean_density_map(
             [-0.5*L, 0.5*L],
             [-0.5*L, 0.5*L],
         ],
-        weights=gas.density.value_in(units.amu * units.cm**-3),
+        weights=gas.density.value_in(units.g * units.cm**-3),
     )
-    gas_mdens = (gas_mdens/n) | units.amu * units.cm**-3
+    n[n==0] = 1
+    gas_mdens = (gas_mdens/n) | units.g * units.cm**-3
 
     # Convolve with SPH kernel?
     return (gas_mdens, xedges, yedges)
@@ -235,9 +236,9 @@ def make_density_map(
             [-0.5*L, 0.5*L],
             [-0.5*L, 0.5*L],
         ],
-        weights=gas.rho.value_in(units.amu * units.cm**-3),
+        weights=gas.rho.value_in(units.g * units.cm**-3),
     )
-    gas_rho = (gas_rho/n) | units.amu * units.cm**-3
+    gas_rho = (gas_rho/n) | units.g * units.cm**-3
 
     # Convolve with SPH kernel?
     return (gas_rho, xedges, yedges)
@@ -289,6 +290,7 @@ def make_temperature_map(
         weights=gas.u.value_in(internal_energy),
         # weights=gas.temperature.value_in(temperature),
     )
+    n[n==0] = 1
     gas_u = (gas_u/n) | internal_energy
 
     gas_temperature = u_to_temperature(gas_u)
@@ -336,16 +338,17 @@ def plot_hydro_and_stars(
         1,
         len(gasproperties),
     )
-    left = 0.1
-    bottom = 0.05
-    right = 0.9
-    top = 0.95
+    left = 0.2
+    bottom = 0.1
+    right = 1
+    top = 0.9
     # fig = pyplot.figure(figsize=(6, 5))
-    image_size = [image_size_scale*N, image_size_scale*N]
+    image_size = [N, N]  # [image_size_scale*N, image_size_scale*N]
     naxes = len(gasproperties)
     figwidth = image_size[0] / dpi / (right - left)
     figheight = image_size[1] / dpi / (top - bottom)
-    figsize = (figwidth + (naxes-1)*0.5*figwidth, figheight)
+    # figsize = (figwidth + (naxes-1)*0.5*figwidth, figheight)
+    figsize = (figwidth, figheight)
     fig = pyplot.figure(figsize=figsize, dpi=dpi)
     # fig, ax = pyplot.subplots(nrows=1, ncols=naxes, figsize=figsize, dpi=dpi)
     # left = 0.1
@@ -356,9 +359,9 @@ def plot_hydro_and_stars(
     fig.subplots_adjust(left=left, right=right, top=top, bottom=bottom, wspace=wspace)
     for i in range(number_of_subplots):
         ax = fig.add_subplot(1, naxes, i+1)
-        if colorbar:
-            divider = make_axes_locatable(ax)
-            cax = divider.append_axes('right', size='5%', pad=0.1)
+        # if colorbar:
+        #     divider = make_axes_locatable(ax)
+        #     cax = divider.append_axes('right', size='5%', pad=0.1)
         if gasproperties:
             gasproperty = gasproperties[i]
             # print("plotting %s" % gasproperty)
@@ -378,62 +381,77 @@ def plot_hydro_and_stars(
                 # )
                 # from gas_class import sfe_to_density
 
+                vmin = -25  # min value should be 1 particle / surface?
+                rho[rho == 0 | units.g/units.cm**3] = 10**vmin | units.g/units.cm**3
                 plot_data = numpy.log10(
                     # 1.e-5 + rho.value_in(units.MSun/length_unit**2)
-                    1. + rho.value_in(units.amu/units.cm**3)
+                    rho.value_in(units.g/units.cm**3)
                 )
                 extent = [xmin, xmax, ymin, ymax]
-                vmin = 0
                 vmax = numpy.log10(
                     (
                         sph.parameters.stopping_condition_maximum_density.value_in(
-                            units.amu/units.cm**3
+                            units.g/units.cm**3
                         )
                     )
                 )
                 origin = "lower"
+                numpy.nan_to_num(plot_data, nan=10**vmin, neginf=10**vmin, posinf=10**vmax)
                 img = ax.imshow(
                     plot_data,
                     extent=extent,
                     vmin=vmin,
                     vmax=vmax,
                     origin=origin,
+                    cmap='viridis'
                 )
                 # img = ax.pcolormesh(
                 #     plot_data,
                 #     vmin=vmin,
                 #     vmax=vmax,
                 # )
-                img.cmap.set_under('k')
+                # img.cmap.set_under('k')
                 img.cmap.set_bad('k', alpha=1.0)
                 if colorbar:
                     cbar = pyplot.colorbar(
-                        img, cax=cax, orientation='vertical',
+                        img,
+                        # cax=cax,
+                        orientation='vertical',
                         pad=0.15,
                         extend='min'
                         # fraction=0.045,
                     )
                     cbar.ax.get_yaxis().labelpad = 15
-                    cbar.set_label('log mean density [$amu/cm^3$]', rotation=270)
+                    cbar.set_label('log mean density [$g/cm^3$]', rotation=270)
 
             if gasproperty == "temperature":
                 temp = make_temperature_map(
                     sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
                     thickness=thickness,
                 ).transpose()
+                vmin = 1
+                vmax = 3
+                # No gas -> probably should be very hot
+                temp[temp < (10**vmin) | units.K] = 10**vmax | units.K
                 img = ax.imshow(
-                    numpy.log10(1.e-5+temp.value_in(units.K)),
+                    numpy.log10(
+                        temp.value_in(units.K)
+                    ),
                     extent=[xmin, xmax, ymin, ymax],
-                    vmin=0,
-                    vmax=3,
-                    cmap="inferno",
+                    vmin=vmin,
+                    vmax=vmax,
+                    # cmap="inferno",
+                    cmap="cividis",
+                    # cmap="coolwarm",
                     origin="lower",
                 )
-                img.cmap.set_under('k')
+                # img.cmap.set_under('k')
                 img.cmap.set_bad('k', alpha=1.0)
                 if colorbar:
                     cbar = pyplot.colorbar(
-                        img, cax=cax, orientation='vertical',
+                        img,
+                        # cax=cax,
+                        orientation='vertical',
                         pad=0.15,
                         extend='min'
                         # fraction=0.045,
@@ -444,27 +462,31 @@ def plot_hydro_and_stars(
 
         if sinks is not None:
             if not sinks.is_empty():
-                s = 2*(
-                        (
-                        sinks.mass
-                        / sph.parameters.stopping_condition_maximum_density
-                    )**(1/3)
-                ).value_in(units.parsec)
+                # s = 2*(
+                #         (
+                #         sinks.mass
+                #         / sph.parameters.stopping_condition_maximum_density
+                #     )**(1/3)
+                # ).value_in(units.parsec)
+                s = 0.1
                 x = sinks.x.value_in(length_unit)
                 y = sinks.y.value_in(length_unit)
-                ax.scatter(x, y, s=s, c="red", lw=0)
+                c = "black" if gasproperty == "temperature" else "white"
+                ax.scatter(x, y, s=s, c=c, lw=0)
         if stars is not None:
             if not stars.is_empty():
             #if not stars_are_sinks:
                 # m = 100.0*stars.mass/max(stars.mass)
                 # directly scale with mass
-                s = starscale * stars.mass / (5 | units.MSun)  # stars.mass.mean()
+                # s = starscale * stars.mass / (5 | units.MSun)  # stars.mass.mean()
                 # more physical, scale surface ~ with luminosity
-                # s = 0.1 * ((stars.mass / (1 | units.MSun))**(3.5 / 2))
+                # s = 0.1 * ((stars.mass / (7 | units.MSun))**(3.5 / 2))
+                s = 0.1  # 0.1 * ((stars.mass / (7 | units.MSun))**(3.5 / 2))
                 # c = stars.mass/stars.mass.mean()
                 x = stars.x.value_in(length_unit)
                 y = stars.y.value_in(length_unit)
-                ax.scatter(x, y, s=s, c="white", lw=0)
+                c = "black" if gasproperty == "temperature" else "white"
+                ax.scatter(x, y, s=s, c=c, lw=0)
 
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
@@ -736,45 +758,51 @@ def main():
         default_settings.density_threshold
     )
     sph.gas_particles.add_particles(gas)
-    figure, ax = plot_hydro_and_stars(
-        time,
-        sph,
-        stars=stars,
-        sinks=sinks,
-        L=o.w or default_settings.L,
-        N=o.n or default_settings.N,
-        image_size_scale=image_size_scale,
-        filename=imagefilename+".png",
-        offset_x=x or com[0].value_in(units.parsec),
-        offset_y=y or com[1].value_in(units.parsec),
-        title="time = %06.2f %s" % (
-            time.value_in(units.Myr),
-            units.Myr,
-        ),
-        gasproperties=["density" , "temperature"],
-        colorbar=True,
-        # alpha_sfe=0.02,
-        # stars_are_sinks=False,
-        starscale=default_settings.starscale,
-        length_unit=units.parsec,
-        return_figure=True
-    )
-    plot_cluster_locations = False
-    if plot_cluster_locations:
-        from find_clusters import find_clusters
-        clusters = find_clusters(stars, convert_nbody=converter,)
-        for cluster in clusters:
-            com = cluster.center_of_mass()
-            x = com[0].value_in(units.parsec)
-            y = com[1].value_in(units.parsec)
-            lagrangian = cluster.LagrangianRadii(converter)
-            lr90 = lagrangian[0][-2]
-            s = lr90.value_in(units.parsec)
-            # print("Circle with x, y, z: ", x, y, s)
-            circle = pyplot.Circle((x, y), s, color='r', fill=False)
-            ax.add_artist(circle)
 
-    pyplot.savefig(imagefilename+".png", dpi=200)
+    gasproperties = ["density", "temperature"]
+    for gasproperty in gasproperties:
+        L = o.w or default_settings.L
+        N = o.n or default_settings.N
+        offset_x = x or com[0].value_in(units.parsec)
+        offset_y = y or com[1].value_in(units.parsec)
+        figure, ax = plot_hydro_and_stars(
+            time,
+            sph,
+            stars=stars,
+            sinks=sinks,
+            L=L,
+            N=N,
+            image_size_scale=image_size_scale,
+            filename=imagefilename+".pdf",
+            offset_x=offset_x,
+            offset_y=offset_y,
+            title="time = %06.2f %s" % (
+                time.value_in(units.Myr),
+                units.Myr,
+            ),
+            gasproperties=[gasproperty],
+            # colorbar=True,  # causes weird interpolation
+            # alpha_sfe=0.02,
+            # stars_are_sinks=False,
+            starscale=default_settings.starscale,
+            length_unit=units.parsec,
+            return_figure=True
+        )
+        plot_cluster_locations = False
+        if plot_cluster_locations:
+            from find_clusters import find_clusters
+            clusters = find_clusters(stars, convert_nbody=converter,)
+            for cluster in clusters:
+                cluster_com = cluster.center_of_mass()
+                cluster_x = cluster_com[0].value_in(units.parsec)
+                cluster_y = cluster_com[1].value_in(units.parsec)
+                lagrangian = cluster.LagrangianRadii(converter)
+                lr90 = lagrangian[0][-2]
+                s = lr90.value_in(units.parsec)
+                # print("Circle with x, y, z: ", x, y, s)
+                circle = pyplot.Circle((cluster_x, cluster_y), s, color='r', fill=False)
+                ax.add_artist(circle)
+        pyplot.savefig(imagefilename+"-%s.png" % gasproperty, dpi=default_settings.dpi)
 
 
 if __name__ == "__main__":

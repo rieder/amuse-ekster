@@ -12,9 +12,9 @@ from spiral_potential import (
 
 dpi = 200
 L = 600
-N = 600
-image_size_scale = 2
-starscale = 0.5
+N = 800
+image_size_scale = 1
+starscale = 1
 
 phantom_solarm = 1.9891e33 | units.g
 phantom_pc = 3.086e18 | units.cm
@@ -31,6 +31,8 @@ density_threshold = (
     (50 | units.MSun)  # ~ smoothed number of gas particles
     / (4/3 * numpy.pi * (0.1 | units.pc)**3)  # ~sphere with radius smoothing/softening length
 )
+minimum_sink_radius = 0.25 | units.pc
+desired_sink_mass = 200 | units.MSun
 
 alpha = 0.1
 gamma = 1.

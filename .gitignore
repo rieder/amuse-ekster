@@ -4,6 +4,7 @@ tests/*
 *.png
 *.hdf5
 *.npy
+*.pkl
 binev.data
 *.log
 .pytest_cache

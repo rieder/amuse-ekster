@@ -343,7 +343,7 @@ def plot_hydro_and_stars(
     right = 1
     top = 0.9
     # fig = pyplot.figure(figsize=(6, 5))
-    image_size = [N, N]  # [image_size_scale*N, image_size_scale*N]
+    image_size = [image_size_scale*N, image_size_scale*N]
     naxes = len(gasproperties)
     figwidth = image_size[0] / dpi / (right - left)
     figheight = image_size[1] / dpi / (top - bottom)
@@ -429,8 +429,8 @@ def plot_hydro_and_stars(
                     sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
                     thickness=thickness,
                 ).transpose()
-                vmin = 1
-                vmax = 3
+                vmin = 0
+                vmax = 4
                 # No gas -> probably should be very hot
                 temp[temp < (10**vmin) | units.K] = 10**vmax | units.K
                 img = ax.imshow(
@@ -784,6 +784,7 @@ def main():
             # colorbar=True,  # causes weird interpolation
             # alpha_sfe=0.02,
             # stars_are_sinks=False,
+            thickness=10 | units.pc,
             starscale=default_settings.starscale,
             length_unit=units.parsec,
             return_figure=True

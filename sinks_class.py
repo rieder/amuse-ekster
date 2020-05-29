@@ -9,7 +9,7 @@ from amuse.datamodel import Particles  # , ParticlesOverlay
 
 
 def should_a_sink_form(
-        origin_gas,
+        all_origin_gas,
         gas,
         check_thermal=False,
     ):
@@ -23,55 +23,75 @@ def should_a_sink_form(
     # OR
     # - density = 10 * critical
     # 1) get the 50 neighbour particles
-    if len(gas) < 50:
-        return False, "not enough gas particles (this should never happen)"
-    neighbour_radius = origin_gas.h_smooth * 5
-    neighbours = gas[
-        numpy.where(
-            (gas.position - origin_gas.position).lengths()
-            < neighbour_radius
-        )
-    ].copy()
-    if len(neighbours) < 50:
-        return False, "not enough neighbours"
-    neighbours.position -= origin_gas.position
-    neighbours.velocity -= origin_gas.velocity
-    neighbours.distance = neighbours.position.lengths()
-    neighbours = neighbours.sorted_by_attribute("distance")
-    e_kin = neighbours[:50].kinetic_energy()
-    # e_rot = #FIXME
-    e_pot = neighbours[:50].potential_energy()
-    e_th = neighbours[:50].thermal_energy()
-
-    if check_thermal:
-        try:
-            if not e_th/e_pot <= 0.5:
-                return False, "e_th/e_pot > 0.5"
-        except AttributeError:
-            print(
-                "ERROR: e_th = %s e_pot = %s"
-                % (e_th, e_pot)
+    flags = []
+    messages = []
+    for origin_gas in all_origin_gas.as_set():
+        if len(gas) < 50:
+            return False, "not enough gas particles (this should never happen)"
+        neighbour_radius = origin_gas.h_smooth * 5
+        neighbours = gas[
+            numpy.where(
+                (gas.position - origin_gas.position).lengths()
+                < neighbour_radius
             )
-            return False, "error"
-        # if not (e_th + e_rot) / e_pot <= 1:
+        ].copy()
+        if len(neighbours) < 50:
+            # return False, "not enough neighbours"
+            flags.append(False)
+            messages.append("not enough neighbours")
+            break
+        neighbours.position -= origin_gas.position
+        neighbours.velocity -= origin_gas.velocity
+        neighbours.distance = neighbours.position.lengths()
+        neighbours = neighbours.sorted_by_attribute("distance")
+        e_kin = neighbours[:50].kinetic_energy()
+        # e_rot = #FIXME
+        e_pot = neighbours[:50].potential_energy()
+        e_th = neighbours[:50].thermal_energy()
+
+        if check_thermal:
+            try:
+                if not e_th/e_pot <= 0.5:
+                    # return False, "e_th/e_pot > 0.5"
+                    flags.append(False)
+                    messages.append("e_th/e_pot > 0.5")
+                    break
+            except AttributeError:
+                print(
+                    "ERROR: e_th = %s e_pot = %s"
+                    % (e_th, e_pot)
+                )
+                flags.append(False)
+                messages.append("error")
+                break
+                # return False, "error"
+            # if not (e_th + e_rot) / e_pot <= 1:
+            #     break
+            if (e_th+e_kin+e_pot) >= 0 | units.erg:
+                # return False, "e_tot < 0"
+                flags.append(False)
+                messages.append("e_tot < 0")
+                break
+        else:
+            if (e_pot+e_kin) >= 0 | units.erg:
+                # return False, "e_tot < 0"
+                flags.append(False)
+                messages.append("e_tot < 0")
+                break
+        # if accelleration is diverging:
         #     break
-        if (e_th+e_kin+e_pot) >= 0 | units.erg:
-            return False, "e_tot < 0"
-    else:
-        if (e_pot+e_kin) >= 0 | units.erg:
-            return False, "e_tot < 0"
-    # if accelleration is diverging:
-    #     break
 
-    #    these must be in a sensible-sized sphere around the central one
-    #    so make a cutout, then calculate distance, then sort and use [:50]
-    #    particles.thermal_energy (make sure u corresponds to 10K)
-    #    particles.kinetic_energy
-    #    particles.potential_energy
-    return True, "forming"
+        #    these must be in a sensible-sized sphere around the central one
+        #    so make a cutout, then calculate distance, then sort and use [:50]
+        #    particles.thermal_energy (make sure u corresponds to 10K)
+        #    particles.kinetic_energy
+        #    particles.potential_energy
+        flags.append(True)
+        messages.append("forming")
+    return flags, messages
 
 
-# 
+#
 # class SinkParticles(ParticlesOverlay):
 #     "Sink particle type"
 #     def __init__(

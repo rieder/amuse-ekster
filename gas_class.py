@@ -219,7 +219,7 @@ class GasCode(BasicCode):
 
         # if code_name is Fi:
         # timestep = 0.005 | units.Myr  # self.code.parameters.timestep
-        timestep = default_settings.timestep * 0.5
+        timestep = self.code.parameters.time_step
         # if self.code.model_time >= (end_time - timestep/2):
         #     return
         # if code_name is something_else:

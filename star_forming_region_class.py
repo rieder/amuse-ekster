@@ -7,12 +7,17 @@ This module omits multiple stars for simplicity
 """
 import logging
 import numpy
+
 from amuse.units import units  # , constants, nbody_system
 from amuse.datamodel import Particle, Particles
 # from amuse.ic.plummer import new_plummer_model
 from amuse.ic.brokenimf import MultiplePartIMF
 from amuse.units.trigo import sin, cos
 from amuse.ext.masc import new_star_cluster
+from amuse.ext.sink import SinkParticles
+
+from sinks_class import should_a_sink_form
+import default_settings
 
 
 def new_kroupa_mass_distribution(
@@ -327,6 +332,64 @@ class StarFormingRegion(
             self.generate_next_mass()
             return new_stars
         return Particles()
+
+
+def form_sinks(
+        gas, sinks, critical_density,
+        logger=None,
+        minimum_sink_radius=default_settings.minimum_sink_radius,
+        desired_sink_mass=default_settings.desired_sink_mass,
+):
+    """
+    Determines where sinks should form from gas.
+    Non-destructive function that creates new sinks and adds them to sinks.
+    Accretes gas onto sinks.
+    Returns new sinks and accreted particles.
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+    sink_cores = Particles()
+
+    high_density_gas = gas.select_array(
+        lambda density:
+        density > critical_density,
+        ["density"],
+    ).sorted_by_attribute("density").reversed()
+    print(
+        "Number of gas particles above critical density (%s): %i" % (
+            critical_density.in_(units.g * units.cm**-3),
+            len(high_density_gas),
+        )
+    )
+
+    high_density_gas.form_sink = False
+    high_density_gas[
+        high_density_gas.density/critical_density > 10
+        ].form_sink = True
+    high_density_gas[high_density_gas.form_sink is False].form_sink = \
+        should_a_sink_form(
+            high_density_gas[high_density_gas.form_sink is False], gas
+        )
+    sink_cores = high_density_gas[high_density_gas.form_sink]
+    del sink_cores.form_sink
+    desired_sink_radius = (desired_sink_mass / sink_cores.density)**(1/3)
+    desired_sink_radius[
+        desired_sink_radius < minimum_sink_radius
+    ] = minimum_sink_radius
+
+    sink_cores.radius = desired_sink_radius
+    sink_cores.initial_density = sink_cores.density
+    sink_cores.u = 0 | units.kms**2
+    sinks = SinkParticles(sink_cores)
+    print("AAP: ", sink_cores in gas)
+    accreted_gas = sink_cores.copy()
+    accreted_gas.add_particles(sinks.accrete(gas))
+
+    logger.info(
+        "Number of new sinks: %i",
+        len(sinks)
+    )
+    return sinks, accreted_gas
 
 
 def main():

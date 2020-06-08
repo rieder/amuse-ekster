@@ -11,9 +11,9 @@ from spiral_potential import (
 
 
 dpi = 200
-L = 600
-N = 800
-image_size_scale = 1
+L = 10
+N = 200
+image_size_scale = 4
 starscale = 1
 
 phantom_solarm = 1.9891e33 | units.g
@@ -35,12 +35,12 @@ minimum_sink_radius = 0.25 | units.pc
 desired_sink_mass = 200 | units.MSun
 
 alpha = 0.1
-gamma = 1.
+gamma = 5./3.
 ieos = 2  # 1 = isothermal, 2 = adiabatic
 icooling = 1  # 0 = disabled, 1 = h2cooling (if ichem=1) OR Gammie cooling (for disks), 2 = SD93 cooling, 4 = molecular clouds cooling
 
-# Tide = None
-Tide = TimeDependentSpiralArmsDiskModel
+# Tide = TimeDependentSpiralArmsDiskModel
+Tide = None
 tide_spiral_type = "normal"
 tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
 # tide_type = "strong"

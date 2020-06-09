@@ -47,7 +47,6 @@ from amuse.units.quantities import VectorQuantity
 from amuse.support.console import set_preferred_units
 from amuse.io import write_set_to_file
 
-from amuse.ext.sink import SinkParticles
 from amuse.ext import stellar_wind
 # from amuse.ext.masc import new_star_cluster
 
@@ -66,9 +65,7 @@ import default_settings
 # from setup_codes import new_field_code
 
 # Tide = TimeDependentSpiralArmsDiskModel
-Tide = default_settings.Tide
-write_backups = True
-wind_enabled = False
+from default_settings import Tide, write_backups, use_wind
 if default_settings.ieos > 1 and default_settings.icooling == 0:
     try:
         from cooling_4 import cool
@@ -232,7 +229,7 @@ class ClusterInPotential(
             # print(self.gas_code.parameters)
             self.timestep = default_settings.timestep
             self.logger.info("Initialised Gas")
-        
+
         self.wind_particles = Particles()
         self.wind = stellar_wind.new_stellar_wind(
             self.gas_particles.mass.min(),
@@ -349,7 +346,6 @@ class ClusterInPotential(
         )
         # self.gas_code.parameters.time_step = 0.025 * self.timestep
         self.gas_code.parameters.time_step = self.timestep/2
-
 
     def initialise_gas(
             self, gas, converter,
@@ -1091,7 +1087,7 @@ class ClusterInPotential(
             self.sync_from_gas_code()
             self.sync_from_star_code()
 
-            if wind_enabled and not self.star_particles.is_empty():
+            if use_wind and not self.star_particles.is_empty():
                 self.sync_to_wind_code()
                 self.wind.evolve_model(relative_tend)
                 self.sync_from_wind_code()
@@ -1104,17 +1100,17 @@ class ClusterInPotential(
                     "\n\nAdding %i wind particles with <T> %s\n\n"
                     % (len(wind_p), u_to_temperature(wind_p.u).mean())
                 )
-                try: 
-                    os.system('say "%i new wind particles added"' % len(wind_p))
-                except:
-                    print("%i new wind particles added" % len(wind_p))
-                rhomax = max(
-                    self.gas_particles.density.max(),
-                    wind_p.total_mass() / (100 | units.au)**3,
+                self.logging.info(
+                    "Adding %i wind particles, <T>=%s",
+                    (len(wind_p), u_to_temperature(wind_p.u).mean())
                 )
+                # rhomax = max(
+                #     self.gas_particles.density.max(),
+                #     wind_p.total_mass() / (100 | units.au)**3,
+                # )
 
                 # This initial guess for h_smooth is used by Phantom to
-                # determine the timestep bin this particle is in. 
+                # determine the timestep bin this particle is in.
                 # Small value: short timestep.
                 # But also: too small value -> problem getting the density to converge...
                 # wind_p.h_smooth = 1 * (wind_p.mass/rhomax)**(1/3)

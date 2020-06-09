@@ -145,7 +145,6 @@ class GasCode(BasicCode):
         # self.get_potential_at_point = self.code.get_potential_at_point
         # self.get_hydro_state_at_point = self.code.get_hydro_state_at_point
 
-    # @property
     def get_potential_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return potential at specified point"""
         return self.code.get_potential_at_point(
@@ -195,7 +194,6 @@ class GasCode(BasicCode):
         """Return all particles"""
         return self.code.particles
 
-    # @property
     def stop(self):
         """Stop the simulation code"""
         return self.code.stop

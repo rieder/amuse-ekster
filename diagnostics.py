@@ -6,7 +6,6 @@ Diagnostic routines
 from amuse.community.hop.interface import Hop
 
 
-<<<<<<< HEAD
 def identify_subgroups(
         unit_converter,
         particles,

@@ -1104,10 +1104,10 @@ class ClusterInPotential(
                     "\n\nAdding %i wind particles with <T> %s\n\n"
                     % (len(wind_p), u_to_temperature(wind_p.u).mean())
                 )
-                try: 
-                    os.system('say "%i new wind particles added"' % len(wind_p))
-                except:
-                    print("%i new wind particles added" % len(wind_p))
+                self.logger.info(
+                    "Adding %i wind particles with <T> %s",
+                    len(wind_p), u_to_temperature(wind_p.u).mean()
+                )
                 rhomax = max(
                     self.gas_particles.density.max(),
                     wind_p.total_mass() / (100 | units.au)**3,

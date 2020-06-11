@@ -180,8 +180,8 @@ class ClusterInPotential(
             converter=converter_for_stars,
             epsilon=epsilon,
             # star_code=Hermite,
-            # star_code=Pentacle,
-            star_code=ph4,
+            star_code=Pentacle,
+            # star_code=ph4,
             # star_code=petar,
             # begin_time=self.__begin_time,
         )
@@ -1100,7 +1100,7 @@ class ClusterInPotential(
                     "\n\nAdding %i wind particles with <T> %s\n\n"
                     % (len(wind_p), u_to_temperature(wind_p.u).mean())
                 )
-                self.logging.info(
+                self.logger.info(
                     "Adding %i wind particles, <T>=%s",
                     (len(wind_p), u_to_temperature(wind_p.u).mean())
                 )

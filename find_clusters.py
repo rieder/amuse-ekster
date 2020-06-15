@@ -130,33 +130,11 @@ def main():
         i_to_match = i
         time_to_match = time
         start_cluster_counter += len(clusters)
-        # snapshot_clusters.append(range(len(clusters)))
-        # if i > 0:
-        #     cluster_labels = range(len(clusters))
-        #     stars_to_match = read_set_from_file(sys.argv[2], 'amuse')
-        #     clusters_to_match = find_clusters(stars_to_match)
-        #     time_to_match = stars_to_match.get_timestamp()
-        #     match_clusters(clusters, clusters_to_match, time=time, time_to_match=time_to_match)
-        # exit()
     write_set_to_file(cluster_cores, "cluster_cores_strong.amuse", "amuse", append_to_file=False)
     exit()
 
     print("Found %i clusters:" % len(clusters))
     for i, cluster in enumerate(clusters):
-        # print(
-        #     "Cluster %3i has %5i stars and a total mass of %7.2f %s. "
-        #     "Approximate size is %04.2f %s. Location: %7.1f %7.1f %5.1f %s" % (
-        #         i, len(cluster),
-        #         cluster.total_mass().value_in(units.MSun), units.MSun,
-        #         (
-        #             cluster.position - cluster.center_of_mass()
-        #         ).lengths().mean().value_in(units.parsec), units.parsec,
-        #         cluster.center_of_mass().x.value_in(units.parsec),
-        #         cluster.center_of_mass().y.value_in(units.parsec),
-        #         cluster.center_of_mass().z.value_in(units.parsec),
-        #         units.parsec,
-        #     )
-        # )
         snap = sys.argv[1].split('.')[0].split('-')[1]
         print(
             "fresco.py -s %s -o cluster-%03i -a 0 -w %f --xo %f --yo %f --zo %f" % (

@@ -514,8 +514,12 @@ class GravityCodeInField(object):
             return particles.h_smooth
         elif self.zero_smoothing:
             return 0.*particles.x
+        try:
+            eps = self.code.parameters.epsilon_squared**0.5
+        except:
+            eps = 0.*particles.x
         return (
-            self.code.parameters.epsilon_squared**0.5
+            eps
         ).as_vector_with_length(len(particles))
 
     def get_potential_energy_in_field_code(self, particles, field_code):

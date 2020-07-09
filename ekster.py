@@ -575,7 +575,10 @@ class ClusterInPotential(
                 else:
                     try:
                         form_sink, not_forming_message = should_a_sink_form(
-                            origin_gas.as_set(), self.gas_particles)
+                            origin_gas.as_set(), self.gas_particles,
+                            check_thermal=default_settings.ieos,
+                            accretion_radius=default_settings.minimum_sink_radius,
+                        )
                     except TypeError as te:
                         print(te)
                         print(origin_gas)
@@ -752,6 +755,7 @@ class ClusterInPotential(
                 sink,
                 local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
                 logger=self.logger,
+                randomseed=numpy.random.randint(2**32-1),
             )
             if new_stars is not None:
                 formed_stars = True
@@ -966,6 +970,7 @@ class ClusterInPotential(
                 version='2.0',
                 return_working_copy=False,
                 close_file=True,
+                overwrite_file=True,
             )
         if not self.sink_particles.is_empty():
             write_set_to_file(
@@ -978,6 +983,7 @@ class ClusterInPotential(
                 version='2.0',
                 return_working_copy=False,
                 close_file=True,
+                overwrite_file=True,
             )
         if not self.star_particles.is_empty():
             write_set_to_file(
@@ -990,6 +996,7 @@ class ClusterInPotential(
                 version='2.0',
                 return_working_copy=False,
                 close_file=True,
+                overwrite_file=True,
             )
         while (
                 (self.model_time
@@ -1100,9 +1107,11 @@ class ClusterInPotential(
                     "\n\nAdding %i wind particles with <T> %s\n\n"
                     % (len(wind_p), u_to_temperature(wind_p.u).mean())
                 )
-                self.logging.info(
-                    "Adding %i wind particles, <T>=%s",
-                    (len(wind_p), u_to_temperature(wind_p.u).mean())
+                self.logger.info(
+                    "Adding %i wind particle(s) at t=%s, <T>=%s",
+                    len(wind_p),
+                    real_tend.in_(units.Myr),
+                    u_to_temperature(wind_p.u).mean()
                 )
                 # rhomax = max(
                 #     self.gas_particles.density.max(),
@@ -1177,6 +1186,7 @@ class ClusterInPotential(
                         version='2.0',
                         return_working_copy=False,
                         close_file=True,
+                        overwrite_file=True,
                     )
                 if not self.sink_particles.is_empty():
                     write_set_to_file(
@@ -1189,6 +1199,7 @@ class ClusterInPotential(
                         version='2.0',
                         return_working_copy=False,
                         close_file=True,
+                        overwrite_file=True,
                     )
                 if not self.star_particles.is_empty():
                     write_set_to_file(
@@ -1201,6 +1212,7 @@ class ClusterInPotential(
                         version='2.0',
                         return_working_copy=False,
                         close_file=True,
+                        overwrite_file=True,
                     )
 
             check_for_new_sinks = True
@@ -1318,7 +1330,7 @@ def main(
     "Simulate an embedded star cluster (sph + dynamics + evolution)"
     from amuse.io import read_set_from_file
     from plotting_class import temperature_to_u
-    from version import version
+    from _version import version
     import signal
 
     def graceful_exit(sig, frame):

@@ -181,8 +181,8 @@ class ClusterInPotential(
             epsilon=epsilon,
             # star_code=Hermite,
             # star_code=Pentacle,
-            star_code=ph4,
-            # star_code=petar,
+            # star_code=ph4,
+            star_code=petar,
             # begin_time=self.__begin_time,
         )
         self.logger.info("Initialised StarCluster")
@@ -319,6 +319,7 @@ class ClusterInPotential(
         if self.tidal_field:
             to_stars_codes.append(self.tidal_field)
         to_stars_codes.append(
+            # self.gas_code,
             new_field_code(
                 self.gas_code,
                 # mode="direct",
@@ -1443,10 +1444,17 @@ def main(
             stars = new_star_cluster(
                 number_of_stars=2048,
                 initial_mass_function='kroupa',
-                effective_radius=1.0 | units.parsec,
+                effective_radius=2.0 | units.parsec,
             )
+            stars.x += 4 | units.parsec
+            stars.add_particles(new_star_cluster(
+                number_of_stars=2048,
+                initial_mass_function='kroupa',
+                effective_radius=2.0 | units.parsec,
+            ))
+            stars.x -= 2 | units.pc
             have_stars = True
-        gas_density = 5e2 | units.amu * units.cm**-3
+        gas_density = 1e4 | units.amu * units.cm**-3
         increase_vol = 3
         Ngas = increase_vol**3 * 10000
         Mgas = increase_vol**3 * 1000 | units.MSun  # Mgas = Ngas | units.MSun

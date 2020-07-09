@@ -54,7 +54,10 @@ class StellarDynamicsCode:
     ):
         self.typestr = "Nbody"
         self.star_code = star_code
-        self.namestr = self.star_code.__name__
+        try:
+            self.namestr = self.star_code.__name__
+        except:
+            self.namestr = "unknown name"
         self.__name__ = "StellarDynamics"
         self.logger = logger or logging.getLogger(__name__)
         self.handle_stopping_conditions = \
@@ -162,10 +165,12 @@ class StellarDynamicsCode:
         elif star_code is Pentacle:
             code = star_code(
                 converter,
-                redirection=redirection,
+                # redirection=redirection,
+                redirection="none",
             )
             param = code.parameters
-            param.time_step = 0.5 * default_settings.timestep
+            # param.time_step = 0.5 * default_settings.timestep
+            param.time_step = 0.001 | units.Myr
         elif star_code is petar:
             code = star_code(
                 converter,

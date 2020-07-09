@@ -75,7 +75,7 @@ if default_settings.ieos > 1 and default_settings.icooling == 0:
 else:
     cooling_with_amuse = False
 
-set_preferred_units(units.Myr, units.kms, units.pc, units.MSun)
+set_preferred_units(units.Myr, units.kms, units.pc, units.MSun, units.g * units.cm**-3)
 
 
 def new_argument_parser():
@@ -181,8 +181,8 @@ class ClusterInPotential(
             epsilon=epsilon,
             # star_code=Hermite,
             # star_code=Pentacle,
-            # star_code=ph4,
-            star_code=petar,
+            star_code=ph4,
+            # star_code=petar,
             # begin_time=self.__begin_time,
         )
         self.logger.info("Initialised StarCluster")
@@ -257,16 +257,16 @@ class ClusterInPotential(
         self.converter = converter_for_gas
 
         def new_field_tree_gravity_code(
-                # code=BHTree,
+                code=BHTree,
                 # code=FastKick,
-                code=Fi,
+                # code=Fi,
         ):
             "Create a new field tree code"
             print("Creating field tree code")
             result = code(
                 self.converter,
                 redirection="none",
-                mode="openmp",
+                # mode="openmp",
             )
             result.parameters.epsilon_squared = self.epsilon**2
             result.parameters.timestep = 0.5 * self.timestep
@@ -542,6 +542,19 @@ class ClusterInPotential(
         "Identify high-density gas, and form sink(s) when needed"
         dump_saved = False
         removed_gas = Particles()
+        mass_initial = (
+            self.gas_particles.total_mass()
+            + (
+                self.sink_particles.total_mass()
+                if not self.sink_particles.is_empty()
+                else (0 | units.MSun)
+            )
+            + (
+                self.star_particles.total_mass()
+                if not self.star_particles.is_empty()
+                else (0 | units.MSun)
+            )
+        )
         maximum_density = (
             self.gas_code.parameters.stopping_condition_maximum_density
         )
@@ -550,6 +563,11 @@ class ClusterInPotential(
             density > maximum_density,
             ["density"],
         ).copy().sorted_by_attribute("density").reversed()
+        current_max_density = self.gas_particles.density.max()
+        print(
+            "Max gas density: %s (%.3f critical)"
+            % (current_max_density, current_max_density/maximum_density),
+        )
         print(
             "Number of gas particles above maximum density (%s): %i" % (
                 maximum_density.in_(units.g * units.cm**-3),
@@ -622,7 +640,8 @@ class ClusterInPotential(
                         minimum_sink_radius,
                     )
 
-                    new_sink.radius = desired_sink_radius
+                    # new_sink.radius = desired_sink_radius
+                    new_sink.radius = minimum_sink_radius
                     new_sink.initial_density = origin_gas.density
                     # Average of accreted gas is better but for isothermal this
                     # is fine
@@ -681,6 +700,22 @@ class ClusterInPotential(
                         # except:
                         #     print("Could not add another sink")
         del high_density_gas
+        mass_final = (
+            self.gas_particles.total_mass()
+            + (
+                self.sink_particles.total_mass()
+                if not self.sink_particles.is_empty()
+                else (0 | units.MSun)
+            )
+            + (
+                self.star_particles.total_mass()
+                if not self.star_particles.is_empty()
+                else (0 | units.MSun)
+            )
+        )
+        if abs(mass_initial - mass_final) >= self.gas_particles[0].mass:
+            print("WARNING: mass is not conserved in sink formation!")
+            self.logger.info("WARNING: mass is not conserved in sink formation!")
 
     def add_sink(self, sink):
         self.sink_code.sink_particles.add_particle(sink)
@@ -723,7 +758,8 @@ class ClusterInPotential(
 
     def resolve_star_formation(
             self, stop_star_forming_time=10. | units.Myr,
-            shrink_sinks=True,
+            # shrink_sinks=True,
+            shrink_sinks=False,
     ):
         if self.model_time >= stop_star_forming_time:
             self.logger.info(
@@ -732,7 +768,8 @@ class ClusterInPotential(
             return None
         self.logger.info("Resolving star formation")
         mass_before = (
-            (
+            self.gas_particles.total_mass()
+            + (
                 self.sink_particles.total_mass()
                 if not self.sink_particles.is_empty()
                 else (0 | units.MSun)
@@ -769,7 +806,8 @@ class ClusterInPotential(
                 )**(1/3)
 
         mass_after = (
-            (
+            self.gas_particles.total_mass()
+            + (
                 self.sink_particles.total_mass()
                 if not self.sink_particles.is_empty()
                 else (0 | units.MSun)
@@ -785,6 +823,9 @@ class ClusterInPotential(
             (mass_after - mass_before).in_(units.MSun),
             stellar_mass_formed.in_(units.MSun),
         )
+        if abs(mass_before - mass_after) >= self.gas_particles[0].mass:
+            print("WARNING: mass not conserved in star formation!")
+            self.logger.info("WARNING: mass not conserved in star formation!")
         self.sync_to_gas_code()
         return formed_stars
 
@@ -1210,7 +1251,10 @@ class ClusterInPotential(
                         overwrite_file=True,
                     )
 
-            check_for_new_sinks = True
+            if self.model_time < self.system.timestep:
+                check_for_new_sinks = False
+            else:
+                check_for_new_sinks = True
             while check_for_new_sinks:
                 n_sink = len(self.sink_particles)
                 self.resolve_sink_formation()
@@ -1386,6 +1430,17 @@ def main(
     if starsfilename is not None:
         stars = read_set_from_file(starsfilename, "amuse", close_file=True,)
         have_stars = True
+    else:
+        from amuse.ext.masc import new_star_cluster
+        stars = new_star_cluster(
+            number_of_stars=10,
+            initial_mass_function='kroupa',
+            effective_radius=3.0 | units.parsec,
+        )
+        stars.mass = stars.mass
+        stars.x += 250 | units.pc
+        stars.vx += 0.5 | units.kms
+        # have_stars = False
     if gasfilename is not None:
         print("reading gas")
         gas_ = read_set_from_file(gasfilename, "amuse", close_file=True,)
@@ -1395,25 +1450,35 @@ def main(
                 begin_time = gas_.collection_attributes.timestamp
             except AttributeError:
                 begin_time = None
-        if begin_time is None:
-            begin_time = 0.0 | units.Myr
-            if gas_.u.in_base().unit is units.K:
+        try:
+            if begin_time is None:
+                begin_time = 0.0 | units.Myr
+                if gas_.u.in_base().unit is units.K:
+                    try:
+                        temp = gas_.temp
+                        del gas_.temp
+                    except AttributeError:
+                        temp = gas_.u
+                        del gas_.u
+                    u = temperature_to_u(temp)
+                    # u = temp
+                    # u = temperature_to_u(100 | units.K)
+                    gas_.u = u
                 try:
-                    temp = gas_.temp
-                    del gas_.temp
-                except AttributeError:
-                    temp = gas_.u
-                    del gas_.u
-                u = temperature_to_u(temp)
-                # u = temp
-                # u = temperature_to_u(100 | units.K)
-                gas_.u = u
-            try:
-                del gas_.pressure
-            except KeyError:
-                pass
-            # u = temperature_to_u(100 | units.K)
-            # gas_.u = u
+                    del gas_.pressure
+                except KeyError:
+                    pass
+        except AttributeError:
+            u = temperature_to_u(30 | units.K)
+            gas_.u = u
+        # z = gas_.z
+        # vz = gas_.vz
+        # gas_.z = gas_.x
+        # gas_.vz = gas_.vx
+        # gas_.x = z
+        # gas_.vx = vz
+        # del z
+        # del vz
 
         # gas_.h_smooth = 1 | units.parsec
 
@@ -1433,7 +1498,6 @@ def main(
         # exit()
     else:
         from amuse.ext.molecular_cloud import molecular_cloud
-        from amuse.ext.masc import new_star_cluster
         if not have_stars:
             stars = new_star_cluster(
                 number_of_stars=2048,
@@ -1497,7 +1561,7 @@ def main(
             )
         )
         time = (1+step) * timestep
-        while model.model_time < time - timestep*0.000001:
+        while model.model_time < time - (1 | units.day):
             model.evolve_model(time)
         print(
             "Evolved to %s" % model.model_time.in_(time_unit)
@@ -1567,30 +1631,30 @@ def main(
                 * model.star_particles.center_of_mass()
             )
         com = com / mtot
-        print("Centre of mass: %s" % com)
-        plotname = "%stemperature-%04i.png" % (run_prefix, step)
-        plot_hydro_and_stars(
-            model.model_time,
-            model.gas_code,
-            stars=model.star_particles,
-            sinks=model.sink_particles,
-            L=default_settings.L,  # 2*plot_radius.value_in(units.parsec),
-            N=default_settings.N,
-            image_size_scale=default_settings.image_size_scale,
-            filename=plotname,
-            title="time = %06.2f %s" % (
-                model.model_time.value_in(units.Myr),
-                units.Myr,
-            ),
-            offset_x=com[0].value_in(units.parsec),
-            offset_y=com[1].value_in(units.parsec),
-            gasproperties=["temperature", ],
-            # colorbar=True,
-            starscale=default_settings.starscale,
-            # stars_are_sinks=True,
-            # stars_are_sinks=False,
-            # alpha_sfe=model.alpha_sfe,
-        )
+        print("Centre of gas mass: %s" % com)
+        # plotname = "%stemperature-%04i.png" % (run_prefix, step)
+        # plot_hydro_and_stars(
+        #     model.model_time,
+        #     model.gas_code,
+        #     stars=model.star_particles,
+        #     sinks=model.sink_particles,
+        #     L=default_settings.L,  # 2*plot_radius.value_in(units.parsec),
+        #     N=default_settings.N,
+        #     image_size_scale=default_settings.image_size_scale,
+        #     filename=plotname,
+        #     title="time = %06.2f %s" % (
+        #         model.model_time.value_in(units.Myr),
+        #         units.Myr,
+        #     ),
+        #     offset_x=com[0].value_in(units.parsec),
+        #     offset_y=com[1].value_in(units.parsec),
+        #     gasproperties=["temperature", ],
+        #     # colorbar=True,
+        #     starscale=default_settings.starscale,
+        #     # stars_are_sinks=True,
+        #     # stars_are_sinks=False,
+        #     # alpha_sfe=model.alpha_sfe,
+        # )
         plotname = "%sdensity-%04i.png" % (run_prefix, step)
         plot_hydro_and_stars(
             model.model_time,
@@ -1605,8 +1669,12 @@ def main(
                 model.model_time.value_in(units.Myr),
                 units.Myr,
             ),
-            offset_x=com[0].value_in(units.parsec),
+            offset_x=com[2].value_in(units.parsec),
             offset_y=com[1].value_in(units.parsec),
+            offset_z=com[0].value_in(units.parsec),
+            x_axis="z",
+            y_axis="y",
+            z_axis="x",
             gasproperties=["density", ],
             # colorbar=True,
             starscale=default_settings.starscale,

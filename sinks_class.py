@@ -4,14 +4,16 @@
 Sink particles
 """
 import numpy
-from amuse.units import units
+from amuse.units import units, nbody_system
 from amuse.datamodel import Particles  # , ParticlesOverlay
+from amuse.community.hermite.interface import Hermite
 
 
 def should_a_sink_form(
         all_origin_gas,
         gas,
         check_thermal=False,
+        accretion_radius=0.1 | units.pc,
     ):
     # Check if conditions for forming a sink are met
     # This applies to the ~50 SPH neighbour particles
@@ -26,6 +28,10 @@ def should_a_sink_form(
     flags = []
     messages = []
     for origin_gas in all_origin_gas.as_set():
+        if origin_gas.h_smooth > accretion_radius/2:
+            flags.append(False)
+            messages.append("smoothing length too large")
+            break
         if len(gas) < 50:
             return False, "not enough gas particles (this should never happen)"
         neighbour_radius = origin_gas.h_smooth * 5
@@ -44,14 +50,49 @@ def should_a_sink_form(
         neighbours.velocity -= origin_gas.velocity
         neighbours.distance = neighbours.position.lengths()
         neighbours = neighbours.sorted_by_attribute("distance")
-        e_kin = neighbours[:50].kinetic_energy()
+        converter = nbody_system.nbody_to_si(
+            neighbours.total_mass(), neighbours.distance.mean()
+        )
+        helper = Hermite(converter)
+        helper.particles.add_particles(neighbours)
+        e_kin = helper.kinetic_energy
         # e_rot = #FIXME
-        e_pot = neighbours[:50].potential_energy()
-        e_th = neighbours[:50].thermal_energy()
+        e_pot = helper.potential_energy
+        helper.stop()
+        e_th = neighbours.thermal_energy()
+
+        dx = neighbours.x
+        dy = neighbours.y
+        dz = neighbours.z
+        dvx = neighbours.vx
+        dvy = neighbours.vy
+        dvz = neighbours.vz
+        rcrossvx = (dy*dvz - dz*dvy)
+        rcrossvy = (dz*dvx - dx*dvz)
+        rcrossvz = (dx*dvy - dy*dvx)
+        radxy2 = dx*dx + dy*dy
+        radyz2 = dy*dy + dz*dz
+        radxz2 = dx*dx + dz*dz
+
+        selection_yz = radyz2 > 0 | dx.unit**2
+        selection_xz = radxz2 > 0 | dx.unit**2
+        selection_xy = radxy2 > 0 | dx.unit**2
+        e_rot_x = (
+            neighbours[selection_yz].mass * rcrossvx[selection_yz]**2/radyz2[selection_yz]
+        ).sum()
+        e_rot_y = (
+            neighbours[selection_xz].mass * rcrossvy[selection_xz]**2/radxz2[selection_xz]
+        ).sum()
+        e_rot_z = (
+            neighbours[selection_xy].mass * rcrossvz[selection_xy]**2/radxy2[selection_xy]
+        ).sum()
+
+        e_rot = (e_rot_x**2 + e_rot_y**2 + e_rot_z**2)**0.5
 
         if check_thermal:
+            alpha_grav = abs(e_th / e_pot)
             try:
-                if not e_th/e_pot <= 0.5:
+                if alpha_grav > 0.5:
                     # return False, "e_th/e_pot > 0.5"
                     flags.append(False)
                     messages.append("e_th/e_pot > 0.5")
@@ -65,6 +106,11 @@ def should_a_sink_form(
                 messages.append("error")
                 break
                 # return False, "error"
+            alphabeta_grav = alpha_grav + abs(e_rot / e_pot)
+            if alphabeta_grav > 1.0:
+                flags.append(False)
+                messages.append("e_rot too big")
+                break
             # if not (e_th + e_rot) / e_pot <= 1:
             #     break
             if (e_th+e_kin+e_pot) >= 0 | units.erg:
@@ -78,8 +124,11 @@ def should_a_sink_form(
                 flags.append(False)
                 messages.append("e_tot < 0")
                 break
+
+
         # if accelleration is diverging:
         #     break
+
 
         #    these must be in a sensible-sized sphere around the central one
         #    so make a cutout, then calculate distance, then sort and use [:50]

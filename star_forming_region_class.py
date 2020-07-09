@@ -79,12 +79,16 @@ def form_stars(
         upper_mass_limit=100 | units.MSun,
         local_sound_speed=0.2 | units.kms,
         logger=None,
+        randomseed=None,
         **keyword_arguments
 ):
     """
     Let a sink form stars.
     """
     logger = logger or logging.getLogger(__name__)
+    if randomseed is not None:
+        logger.info("setting random seed to %i", randomseed)
+        numpy.random.seed(randomseed)
 
     # sink_initial_density = sink.mass / (4/3 * numpy.pi * sink.radius**3)
 

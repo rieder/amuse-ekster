@@ -101,6 +101,7 @@ class GasCode(BasicCode):
                 self.density_threshold
         elif sph_code is Phantom:
             self.parameters.alpha = default_settings.alpha
+            self.parameters.beta = default_settings.beta
             # self.parameters.gamma = 5./3.
             self.parameters.gamma = default_settings.gamma
             self.parameters.ieos = default_settings.ieos
@@ -118,7 +119,7 @@ class GasCode(BasicCode):
                 self.density_threshold
             self.parameters.h_soft_sinkgas = default_settings.epsilon_gas
             self.parameters.h_soft_sinksink = default_settings.epsilon_gas
-            self.parameters.h_acc = 0.01 | units.parsec
+            self.parameters.h_acc = default_settings.h_acc
 
         if self.cooling_type == "thermal_model":
             if sph_code is Fi:

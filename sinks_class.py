@@ -4,6 +4,7 @@
 Sink particles
 """
 import numpy
+import logging
 from amuse.units import units, nbody_system
 from amuse.datamodel import Particles  # , ParticlesOverlay
 from amuse.community.hermite.interface import Hermite
@@ -14,7 +15,9 @@ def should_a_sink_form(
         gas,
         check_thermal=False,
         accretion_radius=0.1 | units.pc,
+        logger=None,
     ):
+    logger = logger or logging.getLogger(__name__)
     # Check if conditions for forming a sink are met
     # This applies to the ~50 SPH neighbour particles
     # - ratio of thermal to gravitational energies is <= 1/2
@@ -28,9 +31,11 @@ def should_a_sink_form(
     flags = []
     messages = []
     for origin_gas in all_origin_gas.as_set():
+        logger.info("Checking if particle %s should form a sink", origin_gas.key)
         if origin_gas.h_smooth > accretion_radius/2:
             flags.append(False)
             messages.append("smoothing length too large")
+            logger.info("No - smoothing length too large")
             break
         if len(gas) < 50:
             return False, "not enough gas particles (this should never happen)"
@@ -45,6 +50,7 @@ def should_a_sink_form(
             # return False, "not enough neighbours"
             flags.append(False)
             messages.append("not enough neighbours")
+            logger.info("No - not enough neighbours")
             break
         neighbours.position -= origin_gas.position
         neighbours.velocity -= origin_gas.velocity
@@ -59,7 +65,10 @@ def should_a_sink_form(
         # e_rot = #FIXME
         e_pot = helper.potential_energy
         helper.stop()
-        e_th = neighbours.thermal_energy()
+        if check_thermal:
+            e_th = neighbours.thermal_energy()
+        else:
+            e_th = 0 * e_pot
 
         dx = neighbours.x
         dy = neighbours.y
@@ -89,41 +98,47 @@ def should_a_sink_form(
 
         e_rot = (e_rot_x**2 + e_rot_y**2 + e_rot_z**2)**0.5
 
-        if check_thermal:
-            alpha_grav = abs(e_th / e_pot)
-            try:
-                if alpha_grav > 0.5:
-                    # return False, "e_th/e_pot > 0.5"
-                    flags.append(False)
-                    messages.append("e_th/e_pot > 0.5")
-                    break
-            except AttributeError:
-                print(
-                    "ERROR: e_th = %s e_pot = %s"
-                    % (e_th, e_pot)
-                )
+        alpha_grav = abs(e_th / e_pot)
+        try:
+            if alpha_grav > 0.5:
+                # return False, "e_th/e_pot > 0.5"
                 flags.append(False)
-                messages.append("error")
+                messages.append("e_th/e_pot > 0.5")
+                logger.info("No - %s", messages[-1])
                 break
-                # return False, "error"
-            alphabeta_grav = alpha_grav + abs(e_rot / e_pot)
-            if alphabeta_grav > 1.0:
-                flags.append(False)
-                messages.append("e_rot too big")
-                break
-            # if not (e_th + e_rot) / e_pot <= 1:
-            #     break
-            if (e_th+e_kin+e_pot) >= 0 | units.erg:
-                # return False, "e_tot < 0"
-                flags.append(False)
-                messages.append("e_tot < 0")
-                break
-        else:
-            if (e_pot+e_kin) >= 0 | units.erg:
-                # return False, "e_tot < 0"
-                flags.append(False)
-                messages.append("e_tot < 0")
-                break
+        except AttributeError:
+            print(
+                "ERROR: e_th = %s e_pot = %s"
+                % (e_th, e_pot)
+            )
+            flags.append(False)
+            messages.append("error")
+            break
+            # return False, "error"
+        logger.info("e_th/e_pot <= 0.5")
+        alphabeta_grav = alpha_grav + abs(e_rot / e_pot)
+        if alphabeta_grav > 1.0:
+            flags.append(False)
+            messages.append("e_rot too big")
+            logger.info("No - %s", messages[-1])
+            break
+        logger.info("e_th/e_pot + e_rot/e_pot <= 1")
+        # if not (e_th + e_rot) / e_pot <= 1:
+        #     break
+        if (e_th+e_kin+e_pot) >= 0 | units.erg:
+            # return False, "e_tot < 0"
+            flags.append(False)
+            messages.append("e_tot >= 0")
+            logger.info("No - %s", messages[-1])
+            break
+        logger.info("e_tot < 0")
+        # else:
+        #     if (e_pot+e_kin) >= 0 | units.erg:
+        #         # return False, "e_tot < 0"
+        #         flags.append(False)
+        #         messages.append("e_tot < 0")
+        #         logger.info("No - %s", messages[-1])
+        #         break
 
 
         # if accelleration is diverging:

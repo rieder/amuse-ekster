@@ -35,9 +35,9 @@ try:
 except ImportError:
     Pentacle = None
 try:
-    from amuse.community.petar.interface import petar
+    from amuse.community.petar.interface import petar as Petar
 except ImportError:
-    petar = None
+    Petar = None
 
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
 from amuse.units import units, nbody_system  # , constants
@@ -181,8 +181,8 @@ class ClusterInPotential(
             epsilon=epsilon,
             # star_code=Hermite,
             # star_code=Pentacle,
-            star_code=ph4,
-            # star_code=petar,
+            # star_code=ph4,
+            star_code=Petar,
             # begin_time=self.__begin_time,
         )
         self.logger.info("Initialised StarCluster")
@@ -583,21 +583,27 @@ class ClusterInPotential(
                 high_density_gas.remove_particle(origin_gas)
             else:
                 form_sink = False
-                if origin_gas.density/maximum_density > 10:
+                if origin_gas.density/maximum_density > 100:
                     print(
-                        "Gas density is %s (> %s), forming sink" % (
+                        "Sink formation override: gas density is %s (> %s), forming sink" % (
                             origin_gas.density.in_(units.g * units.cm**-3),
                             (10 * maximum_density).in_(units.g * units.cm**-3),
                         )
+                    )
+                    logger.info(
+                        "Sink formation override: gas density is %s (> %s), forming sink",
+                        origin_gas.density.in_(units.g * units.cm**-3),
+                        (100 * maximum_density).in_(units.g * units.cm**-3),
                     )
                     form_sink = True
                 else:
                     try:
                         form_sink, not_forming_message = should_a_sink_form(
                             origin_gas.as_set(), self.gas_particles,
-                            check_thermal=default_settings.ieos,
+                            check_thermal=default_settings.ieos-1,
                             accretion_radius=default_settings.minimum_sink_radius,
                         )
+                        form_sink = form_sink[0]
                     except TypeError as te:
                         print(te)
                         print(origin_gas)
@@ -619,9 +625,10 @@ class ClusterInPotential(
                         exit()
                 if not form_sink:
                     self.logger.info(
-                        "Not forming a sink - not meeting the"
-                        " requirements: %s"
-                        % (not_forming_message)
+                        "Not forming a sink at t= %s - not meeting the"
+                        " requirements: %s",
+                        self.model_time,
+                        not_forming_message,
                     )
                     high_density_gas.remove_particle(origin_gas)
                 else:  # try:
@@ -766,7 +773,8 @@ class ClusterInPotential(
     ):
         if self.model_time >= stop_star_forming_time:
             self.logger.info(
-                "No star formation since time > %s" % stop_star_forming_time
+                "No star formation since time > %s",
+                stop_star_forming_time
             )
             return None
         self.logger.info("Resolving star formation")

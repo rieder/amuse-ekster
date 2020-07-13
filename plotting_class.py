@@ -577,8 +577,8 @@ def plot_hydro_and_stars(
                 # directly scale with mass
                 # s = starscale * stars.mass / (5 | units.MSun)  # stars.mass.mean()
                 # more physical, scale surface ~ with luminosity
-                # s = 0.1 * ((stars.mass / (7 | units.MSun))**(3.5 / 2))
-                s = 0.1  # 0.1 * ((stars.mass / (7 | units.MSun))**(3.5 / 2))
+                s = 0.1 * ((stars.mass / (7 | units.MSun))**(3.5 / 2))
+                # s = 0.1  # 0.1 * ((stars.mass / (7 | units.MSun))**(3.5 / 2))
                 # c = stars.mass/stars.mass.mean()
                 if x_axis == "x":
                     x = stars.x.value_in(length_unit)
@@ -594,6 +594,7 @@ def plot_hydro_and_stars(
                     y = stars.z.value_in(length_unit)
                 c = "black" if gasproperty == "temperature" else "white"
                 ax.scatter(x, y, s=s, c=c, lw=0)
+                print("    Most massive star is %s " % stars.mass.max().in_(units.MSun))
 
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
@@ -891,7 +892,7 @@ def main():
             # colorbar=True,  # causes weird interpolation
             # alpha_sfe=0.02,
             # stars_are_sinks=False,
-            thickness=10 | units.pc,
+            thickness=None,
             starscale=default_settings.starscale,
             length_unit=units.parsec,
             return_figure=True

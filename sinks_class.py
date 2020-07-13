@@ -13,7 +13,7 @@ from amuse.community.hermite.interface import Hermite
 def should_a_sink_form(
         all_origin_gas,
         gas,
-        check_thermal=False,
+        check_thermal=True,
         accretion_radius=0.1 | units.pc,
         logger=None,
     ):
@@ -39,7 +39,7 @@ def should_a_sink_form(
             break
         if len(gas) < 50:
             return False, "not enough gas particles (this should never happen)"
-        neighbour_radius = origin_gas.h_smooth * 5
+        neighbour_radius = accretion_radius  # origin_gas.h_smooth * 5
         neighbours = gas[
             numpy.where(
                 (gas.position - origin_gas.position).lengths()
@@ -101,6 +101,7 @@ def should_a_sink_form(
         alpha_grav = abs(e_th / e_pot)
         try:
             if alpha_grav > 0.5:
+                # print("e_th / e_pot = %s" % alpha_grav)
                 # return False, "e_th/e_pot > 0.5"
                 flags.append(False)
                 messages.append("e_th/e_pot > 0.5")
@@ -118,6 +119,7 @@ def should_a_sink_form(
         logger.info("e_th/e_pot <= 0.5")
         alphabeta_grav = alpha_grav + abs(e_rot / e_pot)
         if alphabeta_grav > 1.0:
+            # print(alpha_grav, abs(e_rot/e_pot))
             flags.append(False)
             messages.append("e_rot too big")
             logger.info("No - %s", messages[-1])
@@ -126,6 +128,7 @@ def should_a_sink_form(
         # if not (e_th + e_rot) / e_pot <= 1:
         #     break
         if (e_th+e_kin+e_pot) >= 0 | units.erg:
+            # print(e_th/e_pot + e_kin/e_pot)
             # return False, "e_tot < 0"
             flags.append(False)
             messages.append("e_tot >= 0")

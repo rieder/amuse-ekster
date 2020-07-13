@@ -11,8 +11,8 @@ from spiral_potential import (
 
 
 dpi = 200
-L = 10
-N = 200
+L = 20
+N = 400
 image_size_scale = 4
 starscale = 1
 
@@ -24,20 +24,22 @@ star_rscale = 0.1 | units.parsec
 star_mscale = 1 | units.MSun
 
 timestep = 0.01 | units.Myr
-epsilon_gas = 0.1 | units.parsec
-epsilon_stars = 0.1 | units.parsec
+epsilon_gas = 0.2 | units.parsec
+epsilon_stars = 0.02 | units.parsec
+h_acc = 0.2 | units.parsec
 
-density_threshold = (
-    (50 | units.MSun)  # ~ smoothed number of gas particles
-    / (4/3 * numpy.pi * (0.1 | units.pc)**3)  # ~sphere with radius smoothing/softening length
-)
-minimum_sink_radius = 0.25 | units.pc
+isothermal_gas_temperature = 20 | units.K
+
+density_threshold = 1e-18 | units.g * units.cm**-3
+# minimum_sink_radius = 0.25 | units.pc
+minimum_sink_radius = 0.2 | units.pc
 desired_sink_mass = 200 | units.MSun
 
 alpha = 0.1
+beta = 4.0
 gamma = 5./3.
-ieos = 2  # 1 = isothermal, 2 = adiabatic
-icooling = 1  # 0 = disabled, 1 = h2cooling (if ichem=1) OR Gammie cooling (for disks), 2 = SD93 cooling, 4 = molecular clouds cooling
+ieos = 1  # 1 = isothermal, 2 = adiabatic
+icooling = 0  # 0 = disabled, 1 = h2cooling (if ichem=1) OR Gammie cooling (for disks), 2 = SD93 cooling, 4 = molecular clouds cooling
 
 # Tide = TimeDependentSpiralArmsDiskModel
 Tide = None
@@ -46,7 +48,7 @@ tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
 # tide_type = "strong"
 # tide_time_offset = (2.2 * 1.4874E+15 | units.s)
 
-stop_after_each_step = False
+stop_after_each_step = True
 
 write_backups = True
-use_wind = True
+use_wind = False  # True

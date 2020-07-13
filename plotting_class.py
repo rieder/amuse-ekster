@@ -153,23 +153,53 @@ def make_column_density_map(
 
 
 def make_mean_density_map(
-        sph, N=default_settings.N, L=default_settings.L, offset_x=None, offset_y=None,
+        sph, N=default_settings.N, L=default_settings.L,
         length_unit=units.parsec, thickness=None,
+        offset_x=None, offset_y=None, offset_z=None,
+        x_axis="x", y_axis="y", z_axis="z",
 ):
     "Create a mean density map from an SPH code"
     logger.info("Creating mean density map for gas")
 
     gas = sph.gas_particles.copy()
-    gas.x -= offset_x | length_unit
-    gas.y -= offset_y | length_unit
+    if offset_x is not None:
+        gas.x -= offset_x | length_unit
+    if offset_y is not None:
+        gas.y -= offset_y | length_unit
+    if offset_z is not None:
+        gas.z -= offset_z | length_unit
     if thickness is not None:
         gas = gas.select(
-            lambda x: x < 0.5 * thickness and x > -0.5 * thickness, ["z"]
+            lambda x: x < 0.5 * thickness and x > -0.5 * thickness, [z_axis]
         )
 
+    if x_axis == "x":
+        X = gas.x
+    elif x_axis == "y":
+        X = gas.y
+    elif x_axis == "z":
+        X = gas.z
+    else:
+        return -1
+    if y_axis == "x":
+        Y = gas.x
+    elif y_axis == "y":
+        Y = gas.y
+    elif y_axis == "z":
+        Y = gas.z
+    else:
+        return -1
+    if z_axis == "x":
+        Z = gas.x
+    elif z_axis == "y":
+        Z = gas.y
+    elif z_axis == "z":
+        Z = gas.z
+    else:
+        return -1
     n, x_edges, y_edges = numpy.histogram2d(
-        gas.x.value_in(length_unit),
-        gas.y.value_in(length_unit),
+        X.value_in(length_unit),
+        Y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
@@ -178,8 +208,8 @@ def make_mean_density_map(
     )
 
     gas_mdens, xedges, yedges = numpy.histogram2d(
-        gas.x.value_in(length_unit),
-        gas.y.value_in(length_unit),
+        X.value_in(length_unit),
+        Y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
@@ -245,8 +275,10 @@ def make_density_map(
 
 
 def make_temperature_map(
-        sph, N=default_settings.N, L=default_settings.L, offset_x=None, offset_y=None,
+        sph, N=default_settings.N, L=default_settings.L,
+        offset_x=None, offset_y=None, offset_z=None,
         length_unit=units.parsec, thickness=None,
+        x_axis="x", y_axis="y", z_axis="z",
 ):
     "Create a temperature map from an SPH code"
     logger.info("Creating temperature map for gas")
@@ -264,14 +296,43 @@ def make_temperature_map(
         ymax += offset_y
 
     gas = sph.gas_particles.copy()
-    gas.x -= offset_x | length_unit
-    gas.y -= offset_y | length_unit
+    if offset_x is not None:
+        gas.x -= offset_x | length_unit
+    if offset_y is not None:
+        gas.y -= offset_y | length_unit
+    if offset_z is not None:
+        gas.z -= offset_z | length_unit
     if thickness is not None:
-        gas = gas.select(lambda x: x < 0.5 * thickness and x > -0.5 * thickness, ["z"])
+        gas = gas.select(lambda x: x < 0.5 * thickness and x > -0.5 * thickness, [z_axis])
+
+    if x_axis == "x":
+        X = gas.x
+    elif x_axis == "y":
+        X = gas.y
+    elif x_axis == "z":
+        X = gas.z
+    else:
+        return -1
+    if y_axis == "x":
+        Y = gas.x
+    elif y_axis == "y":
+        Y = gas.y
+    elif y_axis == "z":
+        Y = gas.z
+    else:
+        return -1
+    if z_axis == "x":
+        Z = gas.x
+    elif z_axis == "y":
+        Z = gas.y
+    elif z_axis == "z":
+        Z = gas.z
+    else:
+        return -1
 
     n, x_edges, y_edges = numpy.histogram2d(
-        gas.x.value_in(length_unit),
-        gas.y.value_in(length_unit),
+        X.value_in(length_unit),
+        Y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
@@ -280,8 +341,8 @@ def make_temperature_map(
     )
 
     gas_u, xedges, yedges = numpy.histogram2d(
-        gas.x.value_in(length_unit),
-        gas.y.value_in(length_unit),
+        X.value_in(length_unit),
+        Y.value_in(length_unit),
         bins=N,
         range=[
             [-0.5*L, 0.5*L],
@@ -310,6 +371,7 @@ def plot_hydro_and_stars(
         filename=None,
         offset_x=None,
         offset_y=None,
+        offset_z=None,
         title="",
         gasproperties=["density",],
         colorbar=False,
@@ -320,6 +382,9 @@ def plot_hydro_and_stars(
         dpi=default_settings.dpi,
         return_figure=False,
         thickness=None,
+        x_axis="x",
+        y_axis="y",
+        z_axis="z",
 ):
     "Plot gas and stars"
     logger.info("Plotting gas and stars")
@@ -327,12 +392,30 @@ def plot_hydro_and_stars(
     xmax = L/2
     ymin = -L/2
     ymax = L/2
-    if offset_x is not None:
-        xmin += offset_x
-        xmax += offset_x
-    if offset_y is not None:
-        ymin += offset_y
-        ymax += offset_y
+    if x_axis == "x":
+        if offset_x is not None:
+            xmin += offset_x
+            xmax += offset_x
+    elif x_axis == "y":
+        if offset_y is not None:
+            xmin += offset_y
+            xmax += offset_y
+    elif x_axis == "z":
+        if offset_z is not None:
+            xmin += offset_z
+            xmax += offset_z
+    if y_axis == "x":
+        if offset_x is not None:
+            ymin += offset_x
+            ymax += offset_x
+    elif y_axis == "y":
+        if offset_y is not None:
+            ymin += offset_y
+            ymax += offset_y
+    elif y_axis == "z":
+        if offset_z is not None:
+            ymin += offset_z
+            ymax += offset_z
 
     number_of_subplots = max(
         1,
@@ -369,8 +452,10 @@ def plot_hydro_and_stars(
             if gasproperty == "density":
 
                 rho, xedges, yedges = make_mean_density_map(
-                    sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=N, L=L,
                     length_unit=length_unit, thickness=thickness,
+                    offset_x=offset_x, offset_y=offset_y, offset_z=offset_z,
+                    x_axis=x_axis, y_axis=y_axis,
                 )
                 rho = rho.transpose()
                 # print(xedges.min(), xedges.max())
@@ -426,7 +511,9 @@ def plot_hydro_and_stars(
 
             if gasproperty == "temperature":
                 temp = make_temperature_map(
-                    sph, N=N, L=L, offset_x=offset_x, offset_y=offset_y,
+                    sph, N=N, L=L,
+                    offset_x=offset_x, offset_y=offset_y, offset_z=offset_z,
+                    x_axis=x_axis, y_axis=y_axis, z_axis=z_axis,
                     thickness=thickness,
                 ).transpose()
                 vmin = 0
@@ -469,8 +556,18 @@ def plot_hydro_and_stars(
                 #     )**(1/3)
                 # ).value_in(units.parsec)
                 s = 0.1
-                x = sinks.x.value_in(length_unit)
-                y = sinks.y.value_in(length_unit)
+                if x_axis == "x":
+                    x = sinks.x.value_in(length_unit)
+                elif x_axis == "y":
+                    x = sinks.y.value_in(length_unit)
+                elif x_axis == "z":
+                    x = sinks.z.value_in(length_unit)
+                if y_axis == "x":
+                    y = sinks.x.value_in(length_unit)
+                elif y_axis == "y":
+                    y = sinks.y.value_in(length_unit)
+                elif y_axis == "z":
+                    y = sinks.z.value_in(length_unit)
                 c = "black" if gasproperty == "temperature" else "white"
                 ax.scatter(x, y, s=s, c=c, lw=0)
         if stars is not None:
@@ -483,15 +580,25 @@ def plot_hydro_and_stars(
                 # s = 0.1 * ((stars.mass / (7 | units.MSun))**(3.5 / 2))
                 s = 0.1  # 0.1 * ((stars.mass / (7 | units.MSun))**(3.5 / 2))
                 # c = stars.mass/stars.mass.mean()
-                x = stars.x.value_in(length_unit)
-                y = stars.y.value_in(length_unit)
+                if x_axis == "x":
+                    x = stars.x.value_in(length_unit)
+                elif x_axis == "y":
+                    x = stars.y.value_in(length_unit)
+                elif x_axis == "z":
+                    x = stars.z.value_in(length_unit)
+                if y_axis == "x":
+                    y = stars.x.value_in(length_unit)
+                elif y_axis == "y":
+                    y = stars.y.value_in(length_unit)
+                elif y_axis == "z":
+                    y = stars.z.value_in(length_unit)
                 c = "black" if gasproperty == "temperature" else "white"
                 ax.scatter(x, y, s=s, c=c, lw=0)
 
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
-        ax.set_xlabel("x [%s]" % length_unit)
-        ax.set_ylabel("y [%s]" % length_unit)
+        ax.set_xlabel("%s [%s]" % (x_axis, length_unit))
+        ax.set_ylabel("%s [%s]" % (y_axis, length_unit))
     # pyplot.title(title)
     fig.suptitle(title)
     # fig.tight_layout()

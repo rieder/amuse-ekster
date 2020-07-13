@@ -54,7 +54,7 @@ from gas_class import GasCode
 from sinks_class import accrete_gas, should_a_sink_form  # , sfe_to_density
 from star_cluster_class import StarCluster
 from plotting_class import plot_hydro_and_stars  # , plot_stars
-from plotting_class import u_to_temperature
+from plotting_class import u_to_temperature, temperature_to_u
 from merge_recipes import form_new_star
 from star_forming_region_class import form_stars  # StarFormingRegion
 from bridge import (
@@ -215,6 +215,7 @@ class ClusterInPotential(
             #     default_settings.gas_rscale,
             #     default_settings.gas_mscale,
             # )
+            self.isothermal_mode = False if default_settings.ieos != 1 else True
             self.gas_code = GasCode(
                 converter=new_gas_converter,
                 # begin_time=self.__begin_time,
@@ -378,8 +379,10 @@ class ClusterInPotential(
         """
         from_gas_attributes = [
             "x", "y", "z", "vx", "vy", "vz",
-            "density", "h_smooth", "u",
+            "density", "h_smooth",
         ]
+        if not self.isothermal_mode:
+            from_gas_attributes.append("u")
         from_sink_attributes = [
             "x", "y", "z", "vx", "vy", "vz", "mass",
         ]
@@ -418,15 +421,15 @@ class ClusterInPotential(
         channel_to_dm = \
             self.dm_particles.new_channel_to(self.gas_code.dm_particles)
         channel_to_gas.copy_attributes(
-            ["x", "y", "z", "vx", "vy", "vz", ]
+            ["x", "y", "z", "vx", "vy", "vz", "u",]
         )
         if not self.sink_particles.is_empty():
             channel_to_sinks.copy_attributes(
-                ["x", "y", "z", "vx", "vy", "vz", "mass", "radius", ]
+                ["x", "y", "z", "vx", "vy", "vz", "mass", "radius",]
             )
         if not self.dm_particles.is_empty():
             channel_to_dm.copy_attributes(
-                ["x", "y", "z", "vx", "vy", "vz", ]
+                ["x", "y", "z", "vx", "vy", "vz",]
             )
 
     def sync_from_evo_code(self):
@@ -600,7 +603,7 @@ class ClusterInPotential(
                     try:
                         form_sink, not_forming_message = should_a_sink_form(
                             origin_gas.as_set(), self.gas_particles,
-                            check_thermal=default_settings.ieos-1,
+                            # check_thermal=self.isothermal_mode,
                             accretion_radius=default_settings.minimum_sink_radius,
                         )
                         form_sink = form_sink[0]
@@ -656,7 +659,11 @@ class ClusterInPotential(
                     # Average of accreted gas is better but for isothermal this
                     # is fine
                     # new_sink.u = origin_gas.u
-                    new_sink.u = 0 | units.kms**2
+                    if self.isothermal_mode:
+                        new_sink.u = temperature_to_u(default_settings.isothermal_gas_temperature)
+                    else:
+                        new_sink.u = origin_gas.u.mean()
+                    # new_sink.u = 0 | units.kms**2
 
                     new_sink.accreted_mass = 0 | units.MSun
                     o_x, o_y, o_z = origin_gas.position
@@ -1483,7 +1490,7 @@ def main(
                 except KeyError:
                     pass
         except AttributeError:
-            u = temperature_to_u(30 | units.K)
+            u = temperature_to_u(default_settings.isothermal_gas_temperature)
             gas_.u = u
         # z = gas_.z
         # vz = gas_.vz

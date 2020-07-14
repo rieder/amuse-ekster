@@ -250,11 +250,16 @@ class StellarDynamicsCode:
                 )
                 break
             # print("step", end_time, self.__begin_time)
-            print("Starting evolve_model of stellar_dynamics")
-            result = self.code.evolve_model(
-                end_time-self.__begin_time
-            )
-            print("Finished evolve_model of stellar_dynamics")
+            if not self.code.particles.is_empty():
+                print("Starting evolve_model of stellar_dynamics")
+                result = self.code.evolve_model(
+                    end_time-self.__begin_time
+                )
+                print("Finished evolve_model of stellar_dynamics")
+            else:
+                print("Skipping evolve_model of stellar_dynamics, no particles!")
+                self.__begin_time = end_time
+                result = 0
             # print("step done")
             # while collision_detection.is_set():
             #     # If we don't handle stopping conditions, return instead

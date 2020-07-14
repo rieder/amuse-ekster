@@ -332,7 +332,8 @@ class ClusterInPotential(
             timestep=(
                 self.timestep
             ),
-            use_threading=True,
+            # use_threading=True,
+            use_threading=False,
         )
         self.system.add_system(
             self.star_code,
@@ -541,7 +542,10 @@ class ClusterInPotential(
         self.gas_code.gas_particles.remove_particles(accreted_gas)
         # self.remove_gas(accreted_gas)
 
-    def resolve_sink_formation(self):
+    def resolve_sink_formation(
+            self,
+            max_number_to_check=100,  # TODO: check all > 10 rho_crit; top X of rho_crit>rho>10rho_crit
+        ):
         "Identify high-density gas, and form sink(s) when needed"
         dump_saved = False
         removed_gas = Particles()
@@ -562,10 +566,9 @@ class ClusterInPotential(
             self.gas_code.parameters.stopping_condition_maximum_density
         )
         high_density_gas = self.gas_particles.select_array(
-            lambda density:
-            density > maximum_density,
+            lambda density: density > maximum_density,
             ["density"],
-        ).copy().sorted_by_attribute("density").reversed()
+        ).copy().sorted_by_attribute("density").reversed()[:max_number_to_check]
         current_max_density = self.gas_particles.density.max()
         print(
             "Max gas density: %s (%.3f critical)"
@@ -593,7 +596,7 @@ class ClusterInPotential(
                             (10 * maximum_density).in_(units.g * units.cm**-3),
                         )
                     )
-                    logger.info(
+                    self.logger.info(
                         "Sink formation override: gas density is %s (> %s), forming sink",
                         origin_gas.density.in_(units.g * units.cm**-3),
                         (100 * maximum_density).in_(units.g * units.cm**-3),
@@ -1277,8 +1280,9 @@ class ClusterInPotential(
             else:
                 check_for_new_sinks = True
             while check_for_new_sinks:
+                print("Checking for new sinks")
                 n_sink = len(self.sink_particles)
-                self.resolve_sink_formation()
+                self.resolve_sink_formation(max_number_to_check=100)
                 # self.resolve_sinks()
                 if len(self.sink_particles) == n_sink:
                     self.logger.info("No new sinks")

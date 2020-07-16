@@ -377,7 +377,18 @@ class GravityCodeInField(object):
             else:
                 self.kick(timestep)
 
+            logger.info(
+                "Drifting %s (%s to %s)",
+                self.code.__class__.__name__,
+                self.code.model_time,
+                self.time + timestep,
+            )
             self.drift(self.time+timestep)
+            logger.info(
+                "%s is now at %s",
+                self.code.__class__.__name__,
+                self.code.model_time,
+            )
 
             self.time += timestep
 
@@ -396,7 +407,10 @@ class GravityCodeInField(object):
 
             self.code.synchronize_model()
 
-            logger.info(".. done")
+            logger.info(
+                "%s done synchronizing",
+                self.code.__class__.__name__,
+            )
 
     def get_potential_at_point(self, radius, x, y, z):
         return self.code.get_potential_at_point(radius, x, y, z)
@@ -452,14 +466,19 @@ class GravityCodeInField(object):
         if not hasattr(self.code, "evolve_model"):
             return
         logger.info(
-            "%s is evolving to %s",
+            "%s is evolving from %s to %s",
             self.code.__class__.__name__,
+            self.code.model_time,
             tend,
         )
 
         self.code.evolve_model(tend)
 
-        logger.info(".. done")
+        logger.info(
+            "% done evolving - reached %s",
+            self.code.__class__.__name__,
+            self.code.model_time
+        )
 
     def cannot_kick(self):
         """
@@ -753,12 +772,23 @@ class Bridge(object):
         for x in self.codes:
             logger.info("Thread %i will drift code %s", len(threads), x.code.__name__)
             offset = self.time_offsets[x]
+            logger.info(
+                "Drifting %s (%s to %s)",
+                x.code.__class__.__name__,
+                x.code.model_time,
+                tend-offset,
+            )
             if hasattr(x, "drift"):
                 threads.append(threading.Thread(
                     target=x.drift, args=(tend-offset,)))
             elif hasattr(x, "evolve_model"):
                 threads.append(threading.Thread(
                     target=x.evolve_model, args=(tend-offset,)))
+            logger.info(
+                "After drift, %s is now at %s",
+                x.code.__class__.__name__,
+                x.code.model_time,
+            )
 
         if self.use_threading:
             for x in threads:

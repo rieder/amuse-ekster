@@ -25,9 +25,9 @@ try:
 except ImportError:
     Pentacle = None
 try:
-    from amuse.community.petar.interface import petar
+    from amuse.community.petar.interface import Petar
 except ImportError:
-    petar = None
+    Petar = None
 
 import default_settings
 
@@ -46,7 +46,7 @@ class StarCluster(
             epsilon_squared=(default_settings.epsilon_stars)**2,
             logger=None,
             begin_time=None,
-            star_code=Pentacle,
+            star_code=Petar,
             **kwargs
     ):
         self.logger = logger or logging.getLogger(__name__)
@@ -60,7 +60,7 @@ class StarCluster(
             stop_after_each_step=default_settings.stop_after_each_step,
             **kwargs
         )
-        if star_code is not petar:
+        if star_code is not Petar:
             self.star_code.parameters.epsilon_squared = epsilon_squared
         if not stars.is_empty():
             self.star_code.particles.add_particles(stars)
@@ -94,9 +94,10 @@ class StarCluster(
     @property
     def model_time(self):
         "Return the minimum time of the star and evo code times"
-        if self.star_code.model_time < self.evo_code.model_time:
-            return self.star_code.model_time
-        return self.evo_code.model_time
+        # if self.star_code.model_time < self.evo_code.model_time:
+        #     return self.star_code.model_time
+        # return self.evo_code.model_time
+        return self.star_code.model_time
 
     def evolve_model(self, tend):
         """
@@ -107,11 +108,12 @@ class StarCluster(
         time = self.model_time
         # self.model_to_evo_code.copy()
         while self.model_time < tend:
-            timestep = self.evo_code.particles.time_step.min()
-            time = min(
-                time+timestep,
-                tend,
-            )
+            # timestep = self.evo_code.particles.time_step.min()
+            # time = min(
+            #     time+timestep,
+            #     tend,
+            # )
+            time = tend
             print("calling evolve_model of evo_code")
             self.evo_code.evolve_model(time)
             print("finished evolve_model of evo_code")

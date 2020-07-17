@@ -475,7 +475,7 @@ class GravityCodeInField(object):
         self.code.evolve_model(tend)
 
         logger.info(
-            "% done evolving - reached %s",
+            "%s done evolving - reached %s",
             self.code.__class__.__name__,
             self.code.model_time
         )

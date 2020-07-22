@@ -664,10 +664,13 @@ class ClusterInPotential(
                     # Average of accreted gas is better but for isothermal this
                     # is fine
                     # new_sink.u = origin_gas.u
+
+                    # NOTE: this gets overwritten when gas is accreted, so
+                    # probably this is misleading code...
                     if self.isothermal_mode:
                         new_sink.u = temperature_to_u(default_settings.isothermal_gas_temperature)
                     else:
-                        new_sink.u = origin_gas.u.mean()
+                        new_sink.u = origin_gas.u
                     # new_sink.u = 0 | units.kms**2
 
                     new_sink.accreted_mass = 0 | units.MSun

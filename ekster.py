@@ -164,11 +164,13 @@ class ClusterInPotential(
         self.star_particles = Particles()
 
         mass_scale_stars = 200 | units.MSun  # or stars.mass.sum()
-        length_scale_stars = 1 | units.parsec
+        length_scale_stars = 0.25 | units.parsec
+        time_scale_stars = 0.01 | units.Myr  # resolve timescales on a factor 2^x times this
         if star_converter is None:
             converter_for_stars = nbody_system.nbody_to_si(
-                mass_scale_stars,
+                # mass_scale_stars,
                 length_scale_stars,
+                time_scale_stars,
             )
         else:
             converter_for_stars = star_converter
@@ -258,16 +260,16 @@ class ClusterInPotential(
         self.converter = converter_for_gas
 
         def new_field_tree_gravity_code(
-                code=BHTree,
+                # code=BHTree,
                 # code=FastKick,
-                # code=Fi,
+                code=Fi,
         ):
             "Create a new field tree code"
             print("Creating field tree code")
             result = code(
                 self.converter,
                 redirection="none",
-                # mode="openmp",
+                mode="openmp",
             )
             result.parameters.epsilon_squared = self.epsilon**2
             result.parameters.timestep = 0.5 * self.timestep
@@ -332,7 +334,8 @@ class ClusterInPotential(
             timestep=(
                 self.timestep
             ),
-            use_threading=True,
+            # use_threading=True,
+            use_threading=False,
         )
         self.system.add_system(
             self.star_code,
@@ -541,7 +544,10 @@ class ClusterInPotential(
         self.gas_code.gas_particles.remove_particles(accreted_gas)
         # self.remove_gas(accreted_gas)
 
-    def resolve_sink_formation(self):
+    def resolve_sink_formation(
+            self,
+            max_number_to_check=100,  # TODO: check all > 10 rho_crit; top X of rho_crit>rho>10rho_crit
+        ):
         "Identify high-density gas, and form sink(s) when needed"
         dump_saved = False
         removed_gas = Particles()
@@ -562,10 +568,9 @@ class ClusterInPotential(
             self.gas_code.parameters.stopping_condition_maximum_density
         )
         high_density_gas = self.gas_particles.select_array(
-            lambda density:
-            density > maximum_density,
+            lambda density: density > maximum_density,
             ["density"],
-        ).copy().sorted_by_attribute("density").reversed()
+        ).copy().sorted_by_attribute("density").reversed()[:max_number_to_check]
         current_max_density = self.gas_particles.density.max()
         print(
             "Max gas density: %s (%.3f critical)"
@@ -593,7 +598,7 @@ class ClusterInPotential(
                             (10 * maximum_density).in_(units.g * units.cm**-3),
                         )
                     )
-                    logger.info(
+                    self.logger.info(
                         "Sink formation override: gas density is %s (> %s), forming sink",
                         origin_gas.density.in_(units.g * units.cm**-3),
                         (100 * maximum_density).in_(units.g * units.cm**-3),
@@ -774,9 +779,10 @@ class ClusterInPotential(
         self.star_particles.remove_particles(stars)
 
     def resolve_star_formation(
-            self, stop_star_forming_time=10. | units.Myr,
-            # shrink_sinks=True,
-            shrink_sinks=False,
+            self,
+            stop_star_forming_time=10. | units.Myr,
+            shrink_sinks=True,
+            # shrink_sinks=False,
     ):
         if self.model_time >= stop_star_forming_time:
             self.logger.info(
@@ -1146,7 +1152,11 @@ class ClusterInPotential(
                 # finally, continue
             else:
                 self.sync_to_gas_code()
+            self.logger.info("Pre system evolve")
+            self.logger.info("Stellar code is at time %s", self.star_code.model_time)
             self.system.evolve_model(relative_tend)
+            self.logger.info("Post system evolve")
+            self.logger.info("Stellar code is at time %s", self.star_code.model_time)
 
             self.sync_from_gas_code()
             self.sync_from_star_code()
@@ -1277,8 +1287,9 @@ class ClusterInPotential(
             else:
                 check_for_new_sinks = True
             while check_for_new_sinks:
+                print("Checking for new sinks")
                 n_sink = len(self.sink_particles)
-                self.resolve_sink_formation()
+                self.resolve_sink_formation(max_number_to_check=100)
                 # self.resolve_sinks()
                 if len(self.sink_particles) == n_sink:
                     self.logger.info("No new sinks")
@@ -1431,7 +1442,7 @@ def main(
 
     logging_level = logging.INFO
     logging.basicConfig(
-        filename="%sembedded_star_cluster_info.log" % run_prefix,
+        filename="%sekster.log" % run_prefix,
         level=logging_level,
         format='%(asctime)s - %(name)s - %(levelname)s: %(message)s',
         datefmt='%Y%m%d %H:%M:%S'
@@ -1439,8 +1450,9 @@ def main(
     logger.info("git revision: %s", version())
 
     star_converter = nbody_system.nbody_to_si(
-        default_settings.star_mscale,
+        # default_settings.star_mscale,
         default_settings.star_rscale,
+        default_settings.timestep,
     )
 
     gas_converter = nbody_system.nbody_to_si(
@@ -1690,12 +1702,12 @@ def main(
                 model.model_time.value_in(units.Myr),
                 units.Myr,
             ),
-            offset_x=com[2].value_in(units.parsec),
+            offset_x=com[0].value_in(units.parsec),
             offset_y=com[1].value_in(units.parsec),
-            offset_z=com[0].value_in(units.parsec),
-            x_axis="z",
+            offset_z=com[2].value_in(units.parsec),
+            x_axis="x",
             y_axis="y",
-            z_axis="x",
+            z_axis="z",
             gasproperties=["density", ],
             # colorbar=True,
             starscale=default_settings.starscale,

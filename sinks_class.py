@@ -155,6 +155,7 @@ def should_a_sink_form(
         #    particles.potential_energy
         flags.append(True)
         messages.append("forming")
+        logger.info("All checks clear - forming a sink")
     return flags, messages
 
 

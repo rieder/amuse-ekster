@@ -48,7 +48,7 @@ tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
 # tide_type = "strong"
 # tide_time_offset = (2.2 * 1.4874E+15 | units.s)
 
-stop_after_each_step = True
+stop_after_each_step = False
 
 write_backups = True
 use_wind = False  # True

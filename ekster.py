@@ -56,7 +56,7 @@ from star_cluster_class import StarCluster
 from plotting_class import plot_hydro_and_stars  # , plot_stars
 from plotting_class import u_to_temperature, temperature_to_u
 from merge_recipes import form_new_star
-from star_forming_region_class import form_stars  # StarFormingRegion
+from star_forming_region_class import form_stars, form_stars_from_multiple_sinks  # StarFormingRegion
 from bridge import (
     Bridge, CalculateFieldForCodes,
 )
@@ -701,6 +701,8 @@ class ClusterInPotential(
                         # Alternatively, it could be based on the gas sound
                         # speed
                         # new_sink.u = accreted_gas.u.mean()
+                        
+                        accreted_gas.accreted_by_sink = new_sink.key
 
                         removed_gas.add_particles(accreted_gas.copy())
                         self.remove_gas(accreted_gas)
@@ -738,6 +740,8 @@ class ClusterInPotential(
         if abs(mass_initial - mass_final) >= self.gas_particles[0].mass:
             print("WARNING: mass is not conserved in sink formation!")
             self.logger.info("WARNING: mass is not conserved in sink formation!")
+        
+        return removed_gas
 
     def add_sink(self, sink):
         self.sink_code.sink_particles.add_particle(sink)
@@ -780,6 +784,7 @@ class ClusterInPotential(
 
     def resolve_star_formation(
             self,
+            newly_removed_gas,
             stop_star_forming_time=10. | units.Myr,
             shrink_sinks=True,
             # shrink_sinks=False,
@@ -810,25 +815,34 @@ class ClusterInPotential(
         for i, sink in enumerate(self.sink_particles):
             # TODO: this loop needs debugging/checking...
             self.logger.debug("Processing sink %i", i)
-            new_stars = form_stars(
+            #new_stars = form_stars(
+            #    sink,
+            #    local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
+            #    logger=self.logger,
+            #    randomseed=numpy.random.randint(2**32-1),
+            #)
+            new_stars = form_stars_from_multiple_sinks(
                 sink,
+                self.sink_particles,
+                newly_removed_gas,
                 local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
                 logger=self.logger,
                 randomseed=numpy.random.randint(2**32-1),
+                shrink_sinks=shrink_sinks
             )
             if new_stars is not None:
                 formed_stars = True
                 self.add_stars(new_stars)
                 stellar_mass_formed += new_stars.total_mass()
 
-            if shrink_sinks:
+            #if shrink_sinks:
                 # After forming stars, shrink the sink's (accretion) radius to
                 # prevent it from accreting relatively far away gas and moving
                 # a lot
-                sink.radius = (
-                    (sink.mass / sink.initial_density)
-                    / (4/3 * numpy.pi)
-                )**(1/3)
+            #    sink.radius = (
+            #        (sink.mass / sink.initial_density)
+            #        / (4/3 * numpy.pi)
+            #    )**(1/3)
 
         mass_after = (
             self.gas_particles.total_mass()
@@ -1286,11 +1300,14 @@ class ClusterInPotential(
                 check_for_new_sinks = False
             else:
                 check_for_new_sinks = True
+            
+            newly_removed_gas = Particles()
             while check_for_new_sinks:
                 print("Checking for new sinks")
                 n_sink = len(self.sink_particles)
-                self.resolve_sink_formation(max_number_to_check=100)
+                removed_gas = self.resolve_sink_formation(max_number_to_check=100)
                 # self.resolve_sinks()
+                newly_removed_gas.add_particles(removed_gas)
                 if len(self.sink_particles) == n_sink:
                     self.logger.info("No new sinks")
                     check_for_new_sinks = False
@@ -1307,6 +1324,18 @@ class ClusterInPotential(
                         + len(self.star_code.particles)
                     ),
                 )
+            
+            dead_gas = self.gas_particles.select_array(
+                lambda x: x <= (0. | units.parsec),
+                ["h_smooth"]
+            )
+            all_dead_gas = dead_gas.copy()
+            self.logger.info('Newly removed %i gas particles', len(newly_removed_gas))
+            self.logger.info("dead gas %i", len(all_dead_gas))
+            
+            #write_set_to_file(all_dead_gas, "deadgas.hdf5", 'amuse')
+            #write_set_to_file(self.sink_particles, "sinks_before_stars.hdf5","amuse")
+            #write_set_to_file(newly_removed_gas, "newly_removed_gas.hdf5","amuse")
 
             if not self.sink_particles.is_empty():
                 for i, sink in enumerate(self.sink_particles):
@@ -1316,8 +1345,20 @@ class ClusterInPotential(
                         sink.radius.in_(units.parsec),
                         sink.mass.in_(units.MSun),
                     )
+                    
+                    if not all_dead_gas.is_empty():
+                        all_dead_gas.lengths = (all_dead_gas.position - sink.position).lengths()
+                        dead_gas_within_this_sink = all_dead_gas.select_array(
+                            lambda lengths: lengths <= sink.radius*1.1, ["lengths"]
+                        )           # Factor 1.1 is a temporary fix
+                        dead_gas_within_this_sink.accreted_by_sink = sink.key
+                        newly_removed_gas.add_particles(dead_gas_within_this_sink.copy())
+                        all_dead_gas.remove_particles(dead_gas_within_this_sink)
+
+                self.logger.info('Newly removed (+ dead) %i gas particles', len(newly_removed_gas))
+
                 print("Forming stars")
-                formed_stars = self.resolve_star_formation()
+                formed_stars = self.resolve_star_formation(newly_removed_gas=newly_removed_gas)
                 if formed_stars and self.star_code is ph4:
                     self.star_code.zero_step_mode = True
                     self.star_code.evolve_model(relative_tend)
@@ -1344,10 +1385,10 @@ class ClusterInPotential(
             # Check for stopping conditions
 
             # Clean up accreted gas
-            dead_gas = self.gas_particles.select_array(
-                lambda x: x <= (0. | units.parsec),
-                ["h_smooth"]
-            )
+            #dead_gas = self.gas_particles.select_array(
+            #    lambda x: x <= (0. | units.parsec),
+            #    ["h_smooth"]
+            #)
             self.logger.info(
                 "Number of dead/accreted gas particles: %i", len(dead_gas)
             )
@@ -1705,9 +1746,9 @@ def main(
             offset_x=com[0].value_in(units.parsec),
             offset_y=com[1].value_in(units.parsec),
             offset_z=com[2].value_in(units.parsec),
-            x_axis="x",
+            x_axis="z",
             y_axis="y",
-            z_axis="z",
+            z_axis="x",
             gasproperties=["density", ],
             # colorbar=True,
             starscale=default_settings.starscale,

@@ -352,7 +352,8 @@ def form_stars_from_multiple_sinks(
     
     # Star forming regions that contain the removed gas and the group 
     # of sinks
-    removed_gas.radius = removed_gas.h_smooth
+    if not removed_gas.is_empty():
+        removed_gas.radius = removed_gas.h_smooth
     star_forming_regions = group.copy()
     star_forming_regions.density = (
         star_forming_regions.initial_density / 1000     
@@ -464,8 +465,8 @@ def form_stars_from_multiple_sinks(
     ratio = 1.0 - new_stars.total_mass()/group_mass
 
     # Create copy of sinks after mass reduction
-    sinks_after = group.copy()
-    sinks_after.mass *= ratio
+    #sinks_after = group.copy()
+    #sinks_after.mass *= ratio
 
     # Initial linear momenta
     group.momentum_x = group.mass * group.vx
@@ -499,7 +500,7 @@ def form_stars_from_multiple_sinks(
     conserved = False
     fail_mass  = fail_lin_mom = fail_ang_mom = fail_energy = 0
     count = 0
-    maxcount = 10000
+    maxcount = 1000
     while not conserved:
         count += 1
         
@@ -516,6 +517,7 @@ def form_stars_from_multiple_sinks(
             )
             return None
 
+        # Assign positions and velocities to stars
         stars_after = new_stars.copy() 
         dX, dV = delta_positions_and_velocities(
             new_stars, star_forming_regions, probabilities
@@ -523,28 +525,43 @@ def form_stars_from_multiple_sinks(
         stars_after.position += dX 
         stars_after.velocity += dV
  
-        t1 = time.time()
-        after_sinks = group.copy()
+        # Reduce sink mass in proportion to the distance to stars
+        sinks_after = group.copy()
+        removed_sinks = Particles()
         for star in stars_after:
-            after_sinks.distance_to_star = (star.position - after_sinks.position).lengths()
-            total_distance = after_sinks.distance_to_star.sum()
-            after_sinks.mass -= after_sinks.distance_to_star/total_distance * star.mass
+            sinks_after.distance_to_star = (
+                (star.position - sinks_after.position).lengths()
+            )
+            sinks_after.mass -= (
+                star.mass * sinks_after.distance_to_star
+                / sinks_after.distance_to_star.sum() 
+            )
+            negative_mass = sinks_after.select_array(
+                lambda mass: mass <= 0.0 | units.MSun, ["mass"]
+            )
 
-            negative_mass = after_sinks.select_array(lambda mass: mass <= 0.0 | units.MSun, ['mass'])
-        
-        #print(len(negative_mass), time.time() - t1)
-
-
-
-
-
-
-
-
-
-
-
-
+            # Remove sinks with negative mass and assign the leftover
+            # masses to the remaining sinks
+            while not negative_mass.is_empty():
+                total_negative_mass = -negative_mass.total_mass()
+                removed_sinks.add_particles(negative_mass.copy())
+                sinks_after.remove_particles(negative_mass)
+                
+                # Sanity check: sink mass should be more than star mass
+                if sinks_after.is_empty():
+                    logger.info(
+                        "Star mass is more than sinks mass, something "
+                        "is wrong! No stars returned"
+                    )
+                    return None
+                
+                sinks_after.mass -= (
+                    total_negative_mass * sinks_after.distance_to_star
+                    / sinks_after.distance_to_star.sum() 
+                )
+                negative_mass = sinks_after.select_array(
+                    lambda mass: mass <= 0.0 | units.MSun, ["mass"]
+                )
 
         # Create superset that contains the stars and sinks with reduced mass
         bodies_after = ParticlesSuperset([sinks_after, stars_after])
@@ -610,28 +627,31 @@ def form_stars_from_multiple_sinks(
         "Conservations fail: mass %i, lin mom %i, ang mom %i, energy %i", 
         fail_mass, fail_lin_mom, fail_ang_mom, fail_energy
     )
-
-    group.mass *= ratio
-    group.copy_values_of_attribute_to("mass", sink_particles)
     logger.info(
-        "Group mass reduced to %s",
-        group.mass.sum().in_(units.MSun)
+        "%i sinks removed: %s",
+        len(removed_sinks), removed_sinks.key 
+    )
+    
+    sinks_after.copy_values_of_attribute_to("mass", sink_particles)
+    #group.mass *= ratio
+    #group.copy_values_of_attribute_to("mass", sink_particles)
+    logger.info(
+        "Total sink mass in group: %s",
+        sinks_after.total_mass().in_(units.MSun)
     )
 
     if shrink_sinks:
-        logger.info(
-            "Old radii: %s", 
-            group.radius.in_(units.pc)
-        )
-        group.radius = (
-            (group.mass / group.initial_density)
+        sinks_after.radius = (
+            (sinks_after.mass / sinks_after.initial_density)
             / (4/3 * numpy.pi)
         )**(1/3)
-        group.copy_values_of_attribute_to("radius", sink_particles)
+        sinks_after.copy_values_of_attribute_to("radius", sink_particles)
         logger.info(
             "New radii: %s", 
-            group.radius.in_(units.pc)
+            sinks_after.radius.in_(units.pc)
         )
+
+    sink_particles.remove_particles(removed_sinks)
 
     logger.info("Updating new stars...")
     new_stars.position += dX
@@ -861,8 +881,8 @@ def main():
         set_version=-1,
         mass=150 | units.MSun,
         radius=1000 | units.AU,
-        position=[0,0,0] | units.parsec,
-        velocity=[0,0,0] | units.kms,
+        position=[0, 0, 0] | units.parsec,
+        velocity=[0, 0, 0] | units.kms,
         initial_mass_function="kroupa",
         binary_fraction=0,
         triple_fraction=0,
@@ -879,13 +899,14 @@ def main():
     print(q[0] == star_forming_region)
     print(p[0] == q[0])
     new_stars = p[0].yield_next()
-    active_sfr = q[0]
-    q_new_stars = active_sfr.yielf_next()
+    # active_sfr = q[0]
+    # q_new_stars = active_sfr.yield_next()
     i = 0
     while not new_stars.is_empty():
         print(i, new_stars.total_mass(), star_forming_region.mass)
         new_stars = p[0].yield_next()
         i += 1
+ 
 
 if __name__ == "__main__":
     main()

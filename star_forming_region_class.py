@@ -233,7 +233,9 @@ def form_stars_from_multiple_sinks(
     -   form stars within the h_smooth of removed gas and the sink 
         radius (priority given to the removed gas)
     -   check conservation laws
-    -   remove group mass equally from the stars formed
+    -   remove mass of sinks in group in proportion to their distances 
+        to the stars, then remove sinks with negative masses lastly 
+        assign the negative mass with the rest of sinks in group
     """
 
     logger = logger or logging.getLogger(__name__)

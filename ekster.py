@@ -812,7 +812,9 @@ class ClusterInPotential(
         # max_new_stars_per_timestep = 500
         formed_stars = False
         stellar_mass_formed = 0 | units.MSun
-        for i, sink in enumerate(self.sink_particles):
+
+        sinks_before_removal = self.sink_particles.copy()
+        for i, sink in enumerate(sinks_before_removal):
             # TODO: this loop needs debugging/checking...
             self.logger.debug("Processing sink %i", i)
             #new_stars = form_stars(
@@ -821,6 +823,17 @@ class ClusterInPotential(
             #    logger=self.logger,
             #    randomseed=numpy.random.randint(2**32-1),
             #)
+
+            if sink not in self.sink_particles:
+                self.logger.info(
+                    "Sink %i has already been removed",
+                    sink.key
+                )
+                continue
+            
+            # Use sink from self.sink_particles set instead of 
+            # sinks_before_removal set 
+            sink = self.sink_particles[self.sink_particles.key == sink.key]
             new_stars = form_stars_from_multiple_sinks(
                 sink,
                 self.sink_particles,
@@ -1330,13 +1343,12 @@ class ClusterInPotential(
                 ["h_smooth"]
             )
             all_dead_gas = dead_gas.copy()
-            self.logger.info('Newly removed %i gas particles', len(newly_removed_gas))
+            self.logger.info(
+                "Newly removed %i gas particles", 
+                len(newly_removed_gas)
+            )
             self.logger.info("dead gas %i", len(all_dead_gas))
             
-            #write_set_to_file(all_dead_gas, "deadgas.hdf5", 'amuse')
-            #write_set_to_file(self.sink_particles, "sinks_before_stars.hdf5","amuse")
-            #write_set_to_file(newly_removed_gas, "newly_removed_gas.hdf5","amuse")
-
             if not self.sink_particles.is_empty():
                 for i, sink in enumerate(self.sink_particles):
                     self.logger.info(
@@ -1346,19 +1358,33 @@ class ClusterInPotential(
                         sink.mass.in_(units.MSun),
                     )
                     
+                    # Track the dead gas particles to the sink particles
+                    # they accreted by
                     if not all_dead_gas.is_empty():
-                        all_dead_gas.lengths = (all_dead_gas.position - sink.position).lengths()
+                        all_dead_gas.lengths = (
+                            all_dead_gas.position - sink.position
+                        ).lengths()
                         dead_gas_within_this_sink = all_dead_gas.select_array(
-                            lambda lengths: lengths <= sink.radius*1.1, ["lengths"]
+                            lambda lengths: lengths <= sink.radius*1.1, 
+                            ["lengths"]
                         )           # Factor 1.1 is a temporary fix
                         dead_gas_within_this_sink.accreted_by_sink = sink.key
-                        newly_removed_gas.add_particles(dead_gas_within_this_sink.copy())
-                        all_dead_gas.remove_particles(dead_gas_within_this_sink)
+                        newly_removed_gas.add_particles(
+                            dead_gas_within_this_sink.copy()
+                        )
+                        all_dead_gas.remove_particles(
+                            dead_gas_within_this_sink
+                        )
 
-                self.logger.info('Newly removed (+ dead) %i gas particles', len(newly_removed_gas))
+                self.logger.info(
+                    "Newly removed (+ dead) %i gas particles", 
+                    len(newly_removed_gas)
+                )
 
                 print("Forming stars")
-                formed_stars = self.resolve_star_formation(newly_removed_gas=newly_removed_gas)
+                formed_stars = self.resolve_star_formation(
+                    newly_removed_gas=newly_removed_gas
+                )
                 if formed_stars and self.star_code is ph4:
                     self.star_code.zero_step_mode = True
                     self.star_code.evolve_model(relative_tend)

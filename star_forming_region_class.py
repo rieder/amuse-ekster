@@ -201,7 +201,7 @@ def form_stars(
 def check_conservation_error(
         value,
         value_in,
-        tolerance=1e-1
+        tolerance=1
 ):
     """
     Check conservation law and return True if conservation law is not 
@@ -339,11 +339,12 @@ def form_stars_from_multiple_sinks(
 
     # Find the newly removed gas in the group
     removed_gas = Particles()
-    for s in group:
-        removed_gas_by_this_sink = (
-            newly_removed_gas[newly_removed_gas.accreted_by_sink == s.key]
-        )
-        removed_gas.add_particles(removed_gas_by_this_sink)
+    if not newly_removed_gas.is_empty():
+        for s in group:
+            removed_gas_by_this_sink = (
+                newly_removed_gas[newly_removed_gas.accreted_by_sink == s.key]
+            )
+            removed_gas.add_particles(removed_gas_by_this_sink)
     
     logger.info(
         "%i removed gas found in this group", 

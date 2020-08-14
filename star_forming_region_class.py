@@ -201,7 +201,7 @@ def form_stars(
 def check_conservation_error(
         value,
         value_in,
-        tolerance=1
+        tolerance=0.1
 ):
     """
     Check conservation law and return True if conservation law is not 
@@ -462,13 +462,6 @@ def form_stars_from_multiple_sinks(
     # For Pentacle, this is the PP radius
     new_stars.radius = 0.05 | units.parsec
 
-    # Reduce sinks mass using mass ratio (TO FIX)
-    ratio = 1.0 - new_stars.total_mass()/group_mass
-
-    # Create copy of sinks after mass reduction
-    #sinks_after = group.copy()
-    #sinks_after.mass *= ratio
-
     # Initial linear momenta
     group.momentum_x = group.mass * group.vx
     group.momentum_y = group.mass * group.vy
@@ -634,8 +627,7 @@ def form_stars_from_multiple_sinks(
     )
     
     sinks_after.copy_values_of_attribute_to("mass", sink_particles)
-    #group.mass *= ratio
-    #group.copy_values_of_attribute_to("mass", sink_particles)
+    
     logger.info(
         "Total sink mass in group: %s",
         sinks_after.total_mass().in_(units.MSun)

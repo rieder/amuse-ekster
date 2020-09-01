@@ -207,7 +207,8 @@ class StellarDynamicsCode:
             # param.total_steps = False
             # param.use_gpu = False
             # param.zero_step_mode = False
-        if star_code is not Petar:
+        if True:  # star_code is not Petar:
+            print("setting eps2")
             param.epsilon_squared = epsilon_squared
         self.__current_state = "started"
         return code
@@ -420,9 +421,15 @@ class StellarDynamicsCode:
         self.code.particles.add_particles(
             self.__particles
         )
-        self.code.parameters.reset_from_memento(
-            self.__state["parameters"]
-        )
+        print(self.__state["parameters"])
+        if self.star_code is Petar:
+            for name in self.__state["parameters"].names():
+                if name != "timestep":
+                    setattr(self.code.parameters, name, getattr(self.__state["parameters"], name))
+        else:
+            self.code.parameters.reset_from_memento(
+                self.__state["parameters"]
+            )
         self.__current_state = "restarted"
 
     def stop(

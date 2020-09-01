@@ -260,19 +260,20 @@ class ClusterInPotential(
         self.converter = converter_for_gas
 
         def new_field_tree_gravity_code(
-                # code=BHTree,
+                code=BHTree,
                 # code=FastKick,
-                code=Fi,
+                # code=Fi,
+                # code=Petar,
         ):
             "Create a new field tree code"
             print("Creating field tree code")
             result = code(
                 self.converter,
                 redirection="none",
-                mode="openmp",
+                # mode="openmp",
             )
             result.parameters.epsilon_squared = self.epsilon**2
-            result.parameters.timestep = 0.5 * self.timestep
+            # result.parameters.timestep = 0.5 * self.timestep
             return result
 
         def new_field_direct_gravity_code(
@@ -284,7 +285,7 @@ class ClusterInPotential(
             print("Creating field direct code")
             result = code(
                 self.converter,
-                redirection="none",
+                # redirection="none",
                 number_of_workers=8,
             )
             result.parameters.epsilon_squared = self.epsilon**2
@@ -314,8 +315,8 @@ class ClusterInPotential(
             # self.star_code,
             new_field_code(
                 self.star_code,
-                # mode="direct",
-                mode="tree",
+                mode="direct",
+                # mode="tree",
             )
         )
         to_stars_codes = []
@@ -325,8 +326,8 @@ class ClusterInPotential(
             # self.gas_code,
             new_field_code(
                 self.gas_code,
-                # mode="direct",
-                mode="tree",
+                mode="direct",
+                # mode="tree",
             )
         )
 
@@ -582,6 +583,11 @@ class ClusterInPotential(
                 len(high_density_gas),
             )
         )
+        self.logger.info(
+            "Number of gas particles above maximum density (%s): %i",
+            maximum_density.in_(units.g * units.cm**-3),
+            len(high_density_gas),
+        )
         # for i, origin_gas in enumerate(high_density_gas):
         while not high_density_gas.is_empty():
             i = 0
@@ -590,18 +596,19 @@ class ClusterInPotential(
             if origin_gas in removed_gas:
                 high_density_gas.remove_particle(origin_gas)
             else:
+                override_factor = 10
                 form_sink = False
-                if origin_gas.density/maximum_density > 100:
+                if origin_gas.density/maximum_density > override_factor:
                     print(
                         "Sink formation override: gas density is %s (> %s), forming sink" % (
                             origin_gas.density.in_(units.g * units.cm**-3),
-                            (10 * maximum_density).in_(units.g * units.cm**-3),
+                            (override_factor * maximum_density).in_(units.g * units.cm**-3),
                         )
                     )
                     self.logger.info(
                         "Sink formation override: gas density is %s (> %s), forming sink",
                         origin_gas.density.in_(units.g * units.cm**-3),
-                        (100 * maximum_density).in_(units.g * units.cm**-3),
+                        (override_factor * maximum_density).in_(units.g * units.cm**-3),
                     )
                     form_sink = True
                 else:

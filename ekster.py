@@ -505,8 +505,8 @@ class ClusterInPotential(
                 self.sink_code.particles
             )
         if not self.sink_particles.is_empty():
-            print(self.sink_particles)
-            print(self.sink_code.particles)
+            # print(self.sink_particles)
+            # print(self.sink_code.particles)
             channel_to_sinks.copy_attributes(
                 to_stellar_gravity_attributes
             )
@@ -653,7 +653,6 @@ class ClusterInPotential(
 
                     # new_sink.radius = desired_sink_radius
                     new_sink.radius = minimum_sink_radius
-                    new_sink.initial_density = origin_gas.density
                     # Average of accreted gas is better but for isothermal this
                     # is fine
                     # new_sink.u = origin_gas.u
@@ -670,6 +669,7 @@ class ClusterInPotential(
                     o_x, o_y, o_z = origin_gas.position
 
                     new_sink.position = origin_gas.position
+                    new_sink.mass = 0 | units.MSun
                     new_sink = new_sink_particles(new_sink.as_set())
                     # print(self.sink_particles)
                     
@@ -678,6 +678,11 @@ class ClusterInPotential(
                     print(new_sink)
                     accreted_gas = new_sink.accrete(self.gas_particles)
                     print("done accreting")
+                    # new_sink.initial_density = origin_gas.density
+                    new_sink.initial_density = (
+                        new_sink.mass
+                        / (4/3 * numpy.pi * new_sink.radius**3)
+                    )
 
                     if accreted_gas.is_empty():
                         self.logger.info("Empty gas so no sink")
@@ -974,11 +979,14 @@ class ClusterInPotential(
         self.sink_code.particles.add_particle(sink)
         # self.sink_particles.add_sink(sink)
         self.sink_particles.add_particle(sink)
+        # self.sink_code.commit_particles()
 
     def add_sinks(self, sinks):
-        self.sink_code.particles.add_particles(sinks)
-        # self.sink_particles.add_sinks(sinks)
-        self.sink_particles.add_particles(sinks)
+        if not sinks.is_empty():
+            self.sink_code.particles.add_particles(sinks)
+            # self.sink_particles.add_sinks(sinks)
+            self.sink_particles.add_particles(sinks)
+            # self.sink_code.commit_particles()
 
     def remove_sinks(self, sinks):
         self.sink_code.particles.remove_particles(sinks)
@@ -999,11 +1007,13 @@ class ClusterInPotential(
         del gas
 
     def add_stars(self, stars):
-        self.star_particles.add_particles(stars)
-        self.evo_code_stars = self.evo_code.particles.add_particles(stars)
-        self.sync_from_evo_code()
-        self.star_code_stars = self.star_code.particles.add_particles(stars)
-        self.wind.particles.add_particles(stars)
+        if not stars.is_empty():
+            self.star_particles.add_particles(stars)
+            self.evo_code_stars = self.evo_code.particles.add_particles(stars)
+            self.sync_from_evo_code()
+            self.star_code.particles.add_particles(stars)
+            # self.star_code.commit_particles()
+            self.wind.particles.add_particles(stars)
 
     def remove_stars(self, stars):
         self.star_code.particles.remove_particles(stars)
@@ -1050,9 +1060,12 @@ class ClusterInPotential(
                 logger=self.logger,
                 randomseed=numpy.random.randint(2**32-1),
             )
-            self.logger.info("Forming %i stars within a %s radius", len(new_stars), sink.radius)
+            if new_stars.is_empty():
+                self.logger.info("Not forming any stars")
+            else:
+                self.logger.info("Forming %i stars within a %s radius", len(new_stars), sink.radius)
             self.logger.info("Mass remaining in sink: %s - next star to form: %s", sink.mass, sink.next_primary_mass)
-            if new_stars is not None:
+            if not new_stars.is_empty():
                 formed_stars = True
                 self.add_stars(new_stars)
                 stellar_mass_formed += new_stars.total_mass()

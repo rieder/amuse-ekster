@@ -176,7 +176,8 @@ class StellarDynamicsCode:
             code = star_code(
                 converter,
                 mode=mode,
-                redirection="none",  # redirection,
+                # redirection=redirection,
+                redirection="none",
                 # number_of_workers=number_of_workers,
                 **kwargs
             )
@@ -361,6 +362,10 @@ class StellarDynamicsCode:
     def stopping_conditions(self):
         """Return stopping conditions for dynamics code"""
         return self.code.stopping_conditions
+
+    @property
+    def commit_particles(self):
+        return self.code.commit_particles
 
     def get_gravity_at_point(self, *list_arguments, **keyword_arguments):
         """Return gravity at specified point"""

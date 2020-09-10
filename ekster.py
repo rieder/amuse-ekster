@@ -333,8 +333,8 @@ class ClusterInPotential(
             timestep=(
                 self.timestep
             ),
-            # use_threading=True,
-            use_threading=False,
+            use_threading=True,
+            # use_threading=False,
         )
         self.system.add_system(
             self.star_code,

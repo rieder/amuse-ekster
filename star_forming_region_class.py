@@ -108,7 +108,7 @@ def form_stars(
         logger.debug(
             "Sink %i is not massive enough for the next star", sink.key
         )
-        return Particles()
+        return [sink, Particles()]
 
     # We now have the first star that will be formed.
     # Next, we generate a list of stellar masses, so that the last star in the
@@ -194,7 +194,7 @@ def form_stars(
 
     # cleanup
     # sink.initialised = False
-    return new_stars
+    return [sink, new_stars]
 
 
 class StarFormingRegion(

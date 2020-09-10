@@ -9,6 +9,7 @@ import os
 import logging
 import pickle
 import numpy
+import concurrent.futures
 
 try:
     from amuse.community.fi.interface import Fi
@@ -669,13 +670,19 @@ class ClusterInPotential(
                     o_x, o_y, o_z = origin_gas.position
 
                     new_sink.position = origin_gas.position
-                    new_sink.mass = 0 | units.MSun
+                    new_sink.mass = origin_gas.mass  # 0 | units.MSun
+                    new_sink.velocity = origin_gas.velocity
+                    self.remove_gas(origin_gas.as_set())
+                    try:
+                        high_density_gas.remove_particle(origin_gas)
+                    except:
+                        print("already removed origin gas")
                     new_sink = new_sink_particles(new_sink.as_set())
                     # print(self.sink_particles)
                     
                     # Note: this *will* delete the accreted gas (all within sink_radius)!
                     print("accreting")
-                    print(new_sink)
+                    # print(new_sink)
                     accreted_gas = new_sink.accrete(self.gas_particles)
                     print("done accreting")
                     # new_sink.initial_density = origin_gas.density
@@ -768,6 +775,7 @@ class ClusterInPotential(
         self.gas_particles.synchronize_to(self.gas_code.gas_particles)
         # Sync sinks
         print("syncisink")
+        self.sink_code.code.evolve_model(self.sink_code.model_time)
         self.sync_to_star_code()
 
     def resolve_sink_formation(
@@ -1051,35 +1059,49 @@ class ClusterInPotential(
         formed_stars = False
         stellar_mass_formed = 0 | units.MSun
         self.logger.info("Looping over %i sinks", len(self.sink_particles))
-        for i, sink in enumerate(self.sink_particles):
-            # TODO: this loop needs debugging/checking...
-            self.logger.info("Processing sink %i, with mass %s", sink.sink_number, sink.mass)
-            new_stars = form_stars(
-                sink,
-                local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
-                logger=self.logger,
-                randomseed=numpy.random.randint(2**32-1),
-            )
-            if new_stars.is_empty():
-                self.logger.info("Not forming any stars")
-            else:
-                self.logger.info("Forming %i stars within a %s radius", len(new_stars), sink.radius)
-            self.logger.info("Mass remaining in sink: %s - next star to form: %s", sink.mass, sink.next_primary_mass)
-            if not new_stars.is_empty():
-                formed_stars = True
-                self.add_stars(new_stars)
-                stellar_mass_formed += new_stars.total_mass()
 
-            if shrink_sinks:
-                # After forming stars, shrink the sink's (accretion) radius to
-                # prevent it from accreting relatively far away gas and moving
-                # a lot
-                sink.radius = (
-                    (sink.mass / sink.initial_density)
-                    / (4/3 * numpy.pi)
-                )**(1/3)
-                sink.sink_radius = sink.radius
-            self.logger.info("Shrinking sink %i to a radius of %s", sink.sink_number, sink.radius)
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = []
+            for i, sink in enumerate(self.sink_particles):
+                # TODO: this loop needs debugging/checking...
+                # self.logger.info("Processing sink %i, with mass %s", sink.sink_number, sink.mass)
+                results.append(
+                    executor.submit(
+                        form_stars,
+                        sink,
+                        local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
+                        logger=self.logger,
+                        randomseed=numpy.random.randint(2**32-1),
+                    )
+                )
+            for sink, result in zip(self.sink_particles, results):
+                sink.mass = result.result()[0].mass
+                sink.next_primary_mass = result.result()[0].next_primary_mass
+                sink.initialised = result.result()[0].initialised
+                self.logger.info(
+                    "Mass remaining in sink: %s - next star to form: %s",
+                    sink.mass, sink.next_primary_mass
+                )
+                new_stars = result.result()[1]
+                # if new_stars.is_empty():
+                #     self.logger.info("Not forming any stars")
+                # else:
+                #     self.logger.info("Forming %i stars within a %s radius", len(new_stars), sink.radius)
+                if not new_stars.is_empty():
+                    formed_stars = True
+                    self.add_stars(new_stars)
+                    stellar_mass_formed += new_stars.total_mass()
+        
+                if shrink_sinks:
+                    # After forming stars, shrink the sink's (accretion) radius to
+                    # prevent it from accreting relatively far away gas and moving
+                    # a lot
+                    sink.radius = (
+                        (sink.mass / sink.initial_density)
+                        / (4/3 * numpy.pi)
+                    )**(1/3)
+                    sink.sink_radius = sink.radius
+                self.logger.info("Shrinking sink %i to a radius of %s", sink.sink_number, sink.radius)
 
         mass_after = (
             self.gas_particles.total_mass()
@@ -1102,6 +1124,7 @@ class ClusterInPotential(
         if abs(mass_before - mass_after) >= self.gas_particles[0].mass:
             print("WARNING: mass not conserved in star formation!")
             self.logger.info("WARNING: mass not conserved in star formation!")
+        self.star_code.code.evolve_model(self.star_code.model_time)
         self.sync_to_star_code()
         return formed_stars
 
@@ -1537,14 +1560,14 @@ class ClusterInPotential(
                 check_for_new_sinks = False
             else:
                 check_for_new_sinks = True
-            while check_for_new_sinks:
+            if check_for_new_sinks:
                 print("Checking for new sinks")
                 n_sink = len(self.sink_particles)
                 # self.resolve_sink_formation(max_number_to_check=100)
                 self.resolve_sinks()
                 if len(self.sink_particles) == n_sink:
                     self.logger.info("No new sinks")
-                    check_for_new_sinks = False
+                    # check_for_new_sinks = False
                 else:
                     self.logger.info("New sink formed")
                 self.logger.info(
@@ -1558,6 +1581,13 @@ class ClusterInPotential(
                         + len(self.star_code.particles)
                     ),
                 )
+                # As a workaround for PeTar, evolve gravity until its current
+                # time here to commit particles
+                if self.star_code.code is Petar:
+                    self.star_code.code.evolve_model(self.star_code.model_time)
+                else:
+                    print("Code is not Petar?")
+                    self.star_code.code.evolve_model(self.star_code.model_time)
 
             if not self.sink_particles.is_empty():
                 for i, sink in enumerate(self.sink_particles):

@@ -20,13 +20,14 @@ phantom_solarm = 1.9891e33 | units.g
 phantom_pc = 3.086e18 | units.cm
 gas_rscale = 0.1 * phantom_pc
 gas_mscale = 1.0 * phantom_solarm
-star_rscale = 0.25 | units.parsec
-star_mscale = 200 | units.MSun
+star_rscale = 0.1 | units.parsec
+star_mscale = 100 | units.MSun
 
 timestep = 0.01 | units.Myr
+timestep_bridge = 0.005 | units.Myr
 epsilon_gas = 0.1 | units.parsec
 epsilon_stars = 0.1 | units.parsec
-h_acc = 0.2 | units.parsec
+h_acc = 0.25 | units.parsec
 
 isothermal_gas_temperature = 20 | units.K
 
@@ -41,8 +42,8 @@ gamma = 5./3.
 ieos = 1  # 1 = isothermal, 2 = adiabatic
 icooling = 0  # 0 = disabled, 1 = h2cooling (if ichem=1) OR Gammie cooling (for disks), 2 = SD93 cooling, 4 = molecular clouds cooling
 
-Tide = TimeDependentSpiralArmsDiskModel
 # Tide = None
+Tide = TimeDependentSpiralArmsDiskModel
 tide_spiral_type = "normal"
 tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
 # tide_type = "strong"

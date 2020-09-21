@@ -194,6 +194,7 @@ def form_stars(
 
     # cleanup
     # sink.initialised = False
+    new_stars.birth_mass = new_stars.mass
     return [sink, new_stars]
 
 

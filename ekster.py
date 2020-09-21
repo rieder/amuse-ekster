@@ -453,8 +453,8 @@ class ClusterInPotential(
         copy relevant attributes changed by stellar evolution
         """
         from_stellar_evolution_attributes = [
-            "mass", "radius", "luminosity", "temperature", "age",
-            "stellar_type"
+            "radius", "luminosity", "temperature", "age",
+            "stellar_type",  # NOTE: ignoring mass for now!
         ]
         channel_from_star_evo = \
             self.evo_code.particles.new_channel_to(self.star_particles)
@@ -1148,7 +1148,7 @@ class ClusterInPotential(
                 "No star formation since time > %s",
                 stop_star_forming_time
             )
-            return None
+            return False
         self.logger.info("Resolving star formation")
         mass_before = (
             self.gas_particles.total_mass()
@@ -1707,11 +1707,12 @@ class ClusterInPotential(
                 )
                 # As a workaround for PeTar, evolve gravity until its current
                 # time here to commit particles
-                if self.star_code.code is Petar:
-                    self.star_code.code.evolve_model(self.star_code.model_time)
-                else:
-                    print("Code is not Petar?")
-                    self.star_code.code.evolve_model(self.star_code.model_time)
+                if not (self.sink_particles.is_empty() and self.sink_particles.is_empty()):
+                    if self.star_code.code is Petar:
+                        self.star_code.code.evolve_model(self.star_code.model_time)
+                    else:
+                        print("Code is not Petar?")
+                        self.star_code.code.evolve_model(self.star_code.model_time)
 
             if not self.sink_particles.is_empty():
                 for i, sink in enumerate(self.sink_particles):

@@ -8,6 +8,7 @@ from amuse.units import units
 from spiral_potential import (
     TimeDependentSpiralArmsDiskModel,
 )
+from amuse.community.petar.interface import Petar as star_code
 
 
 dpi = 200

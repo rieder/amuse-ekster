@@ -84,7 +84,7 @@ class GasCode(BasicCode):
         self.code = sph_code(
             # self.unit_converter if sph_code is not Phantom else None,
             self.unit_converter,
-            redirection="none",
+            # redirection="none",
             **keyword_arguments
         )
         self.parameters = self.code.parameters

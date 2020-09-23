@@ -60,8 +60,7 @@ class StarCluster(
             stop_after_each_step=default_settings.stop_after_each_step,
             **kwargs
         )
-        if star_code is not Petar:
-            self.star_code.parameters.epsilon_squared = epsilon_squared
+        self.star_code.parameters.epsilon_squared = epsilon_squared
         if not stars.is_empty():
             self.star_code.particles.add_particles(stars)
         self.logger.info("Initialised StellarDynamics")

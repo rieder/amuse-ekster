@@ -36,7 +36,7 @@ try:
 except ImportError:
     Pentacle = None
 try:
-    from amuse.community.petar.interface import petar as Petar
+    from amuse.community.petar.interface import Petar
 except ImportError:
     Petar = None
 
@@ -189,7 +189,7 @@ class ClusterInPotential(
             # star_code=Hermite,
             # star_code=Pentacle,
             # star_code=ph4,
-            star_code=Petar,
+            star_code=settings.star_code,
             # begin_time=self.__begin_time,
         )
         self.logger.info("Initialised StarCluster")
@@ -252,28 +252,29 @@ class ClusterInPotential(
         # We need to be careful here - stellar evolution needs to re-calculate
         # all the stars unfortunately...
         # self.add_stars(stars)
-        self.star_particles.add_particles(stars)
-
-        stars_with_original_mass = stars.copy()
-        stars_with_original_mass.mass = stars_with_original_mass.birth_mass
-        epochs, indices = numpy.unique(
-            stars_with_original_mass.birth_time,
-            return_inverse=True,
-        )
-
-        self.evo_code.__begin_time = epochs[0]
-        for i, time in enumerate(epochs):
-            if time != epochs[0]:
-                self.evo_code.evolve_model(time)
-            self.evo_code.particles.add_particles(
-                stars_with_original_mass[indices == i],
+        if not self.star_particles.is_empty():
+            self.star_particles.add_particles(stars)
+    
+            stars_with_original_mass = stars.copy()
+            stars_with_original_mass.mass = stars_with_original_mass.birth_mass
+            epochs, indices = numpy.unique(
+                stars_with_original_mass.birth_time,
+                return_inverse=True,
             )
-        self.evo_code.evolve_model(begin_time)
-        self.evo_code_stars = self.evo_code.particles
-        self.sync_from_evo_code()
-
-        self.star_code.particles.add_particles(stars)
-        self.wind.particles.add_particles(stars)
+    
+            self.evo_code.__begin_time = epochs[0]
+            for i, time in enumerate(epochs):
+                if time != epochs[0]:
+                    self.evo_code.evolve_model(time)
+                self.evo_code.particles.add_particles(
+                    stars_with_original_mass[indices == i],
+                )
+            self.evo_code.evolve_model(begin_time)
+            self.evo_code_stars = self.evo_code.particles
+            self.sync_from_evo_code()
+    
+            self.star_code.particles.add_particles(stars)
+            self.wind.particles.add_particles(stars)
 
         if not sinks.is_empty():
             self.add_sinks(sinks)
@@ -300,7 +301,7 @@ class ClusterInPotential(
             print("Creating field tree code")
             result = code(
                 self.converter,
-                redirection="none",
+                # redirection="none",
                 mode="openmp",
             )
             result.parameters.epsilon_squared = self.epsilon**2
@@ -869,8 +870,6 @@ class ClusterInPotential(
         # Remove accreted gas
         self.gas_particles.synchronize_to(self.gas_code.gas_particles)
         # Sync sinks
-        print("syncisink")
-        self.sink_code.code.evolve_model(self.sink_code.model_time)
         self.sync_to_star_code()
 
     def resolve_sink_formation(
@@ -1100,6 +1099,7 @@ class ClusterInPotential(
     def add_sinks(self, sinks):
         if not sinks.is_empty():
             self.sink_code.particles.add_particles(sinks)
+            self.sink_code.parameters_to_default(star_code=settings.star_code)
             # self.sink_particles.add_sinks(sinks)
             self.sink_particles.add_particles(sinks)
             # self.sink_code.commit_particles()
@@ -1128,6 +1128,7 @@ class ClusterInPotential(
             self.evo_code_stars = self.evo_code.particles.add_particles(stars)
             self.sync_from_evo_code()
             self.star_code.particles.add_particles(stars)
+            self.star_code.parameters_to_default(star_code=settings.star_code)
             # self.star_code.commit_particles()
             self.wind.particles.add_particles(stars)
 
@@ -1239,7 +1240,6 @@ class ClusterInPotential(
         if abs(mass_before - mass_after) >= self.gas_particles[0].mass:
             print("WARNING: mass not conserved in star formation!")
             self.logger.info("WARNING: mass not conserved in star formation!")
-        self.star_code.code.evolve_model(self.star_code.model_time)
         self.sync_to_star_code()
         return formed_stars
 
@@ -1680,6 +1680,16 @@ class ClusterInPotential(
                         overwrite_file=True,
                     )
 
+            if not self.sink_particles.is_empty():
+                for i, sink in enumerate(self.sink_particles):
+                    self.logger.info(
+                        "sink %i's radius = %s, mass = %s",
+                        sink.sink_number,
+                        sink.radius.in_(units.parsec),
+                        sink.mass.in_(units.MSun),
+                    )
+                print("Accreting gas")
+                self.resolve_sink_accretion()
             if self.model_time < self.system.timestep:
                 check_for_new_sinks = False
             else:
@@ -1707,23 +1717,14 @@ class ClusterInPotential(
                 )
                 # As a workaround for PeTar, evolve gravity until its current
                 # time here to commit particles
-                if not (self.sink_particles.is_empty() and self.sink_particles.is_empty()):
-                    if self.star_code.code is Petar:
-                        self.star_code.code.evolve_model(self.star_code.model_time)
-                    else:
-                        print("Code is not Petar?")
-                        self.star_code.code.evolve_model(self.star_code.model_time)
+                # if not (self.sink_particles.is_empty() and self.sink_particles.is_empty()):
+                #     if self.star_code.code is Petar:
+                #         self.star_code.code.evolve_model(self.star_code.model_time)
+                #     else:
+                #         print("Code is not Petar?")
+                #         self.star_code.code.evolve_model(self.star_code.model_time)
 
             if not self.sink_particles.is_empty():
-                for i, sink in enumerate(self.sink_particles):
-                    self.logger.info(
-                        "sink %i's radius = %s, mass = %s",
-                        sink.sink_number,
-                        sink.radius.in_(units.parsec),
-                        sink.mass.in_(units.MSun),
-                    )
-                print("Accreting gas")
-                self.resolve_sink_accretion()
                 print("Forming stars")
                 formed_stars = self.resolve_star_formation()
                 if formed_stars and self.star_code is ph4:

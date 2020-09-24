@@ -56,7 +56,8 @@ from star_cluster_class import StarCluster
 from plotting_class import plot_hydro_and_stars  # , plot_stars
 from plotting_class import u_to_temperature, temperature_to_u
 from merge_recipes import form_new_star
-from star_forming_region_class import form_stars, form_stars_from_multiple_sinks  # StarFormingRegion
+from star_forming_region_class import form_stars, form_stars_from_multiple_sinks
+from star_forming_region_class import form_stars_from_group, assign_sink_group  # StarFormingRegion
 from bridge import (
     Bridge, CalculateFieldForCodes,
 )
@@ -643,7 +644,9 @@ class ClusterInPotential(
                     print("Forming a sink from particle %s" % origin_gas.key)
                     new_sink = Particle()
                     new_sink.initialised = False
-
+                    new_sink.in_group = 0
+                    new_sink.birth_time = self.model_time
+                    
                     # Should do accretion here, and calculate the radius from
                     # the average density, stopping when the jeans radius
                     # becomes larger than the accretion radius!
@@ -701,7 +704,7 @@ class ClusterInPotential(
                         # Alternatively, it could be based on the gas sound
                         # speed
                         # new_sink.u = accreted_gas.u.mean()
-                        
+
                         accreted_gas.accreted_by_sink = new_sink.key
 
                         removed_gas.add_particles(accreted_gas.copy())
@@ -740,7 +743,7 @@ class ClusterInPotential(
         if abs(mass_initial - mass_final) >= self.gas_particles[0].mass:
             print("WARNING: mass is not conserved in sink formation!")
             self.logger.info("WARNING: mass is not conserved in sink formation!")
-        
+
         return removed_gas
 
     def add_sink(self, sink):
@@ -813,36 +816,50 @@ class ClusterInPotential(
         formed_stars = False
         stellar_mass_formed = 0 | units.MSun
 
-        sinks_before_removal = self.sink_particles.copy()
-        for i, sink in enumerate(sinks_before_removal):
-            # TODO: this loop needs debugging/checking...
-            self.logger.debug("Processing sink %i", i)
-            #new_stars = form_stars(
-            #    sink,
-            #    local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
-            #    logger=self.logger,
-            #    randomseed=numpy.random.randint(2**32-1),
-            #)
-
-            if sink not in self.sink_particles:
-                self.logger.info(
-                    "Sink %i has already been removed",
-                    sink.key
-                )
-                continue
-            
-            # Use sink from self.sink_particles set instead of 
-            # sinks_before_removal set 
-            sink = self.sink_particles[self.sink_particles.key == sink.key]
-            new_stars = form_stars_from_multiple_sinks(
+        # Grouping of sinks here
+        self.logger.info('Assigning groups to the sinks...')
+        self.sink_particles = (
+            self.sink_particles.sorted_by_attribute('mass')
+        ).reversed()
+        for i, sink in enumerate(self.sink_particles):
+            sink = assign_sink_group(
                 sink,
                 self.sink_particles,
-                newly_removed_gas,
+                logger=self.logger
+            )
+            self.logger.info("Sink %i in group #%i", sink.key, sink.in_group)
+
+        # Form stars according to groups
+        self.logger.info('Forming stars according to groups...')
+        number_of_groups = self.sink_particles.in_group.max()
+        for i in range(number_of_groups):
+            i += 1   # Change to one-based index
+            self.logger.info("Processing group %i (out of %i)",
+                i, number_of_groups
+            )
+            new_stars = form_stars_from_group(
+                group_index=i,
+                sink_particles=self.sink_particles,
+                newly_removed_gas=newly_removed_gas,
                 local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
                 logger=self.logger,
                 randomseed=numpy.random.randint(2**32-1),
                 shrink_sinks=shrink_sinks
             )
+
+        # for i, sink in enumerate(self.sink_particles):
+        #     # TODO: this loop needs debugging/checking...
+        #     self.logger.debug("Processing sink %i", sink.key)
+        #
+        #     new_stars = form_stars_from_multiple_sinks(
+        #         sink,
+        #         self.sink_particles,
+        #         newly_removed_gas,
+        #         local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
+        #         logger=self.logger,
+        #         randomseed=numpy.random.randint(2**32-1),
+        #         shrink_sinks=shrink_sinks
+        #     )
             if new_stars is not None:
                 formed_stars = True
                 self.add_stars(new_stars)
@@ -1313,7 +1330,7 @@ class ClusterInPotential(
                 check_for_new_sinks = False
             else:
                 check_for_new_sinks = True
-            
+
             newly_removed_gas = Particles()
             while check_for_new_sinks:
                 print("Checking for new sinks")
@@ -1337,18 +1354,18 @@ class ClusterInPotential(
                         + len(self.star_code.particles)
                     ),
                 )
-            
+
             dead_gas = self.gas_particles.select_array(
                 lambda x: x <= (0. | units.parsec),
                 ["h_smooth"]
             )
             all_dead_gas = dead_gas.copy()
             self.logger.info(
-                "Newly removed %i gas particles", 
+                "Newly removed %i gas particles",
                 len(newly_removed_gas)
             )
             self.logger.info("dead gas %i", len(all_dead_gas))
-            
+
             if not self.sink_particles.is_empty():
                 for i, sink in enumerate(self.sink_particles):
                     self.logger.info(
@@ -1357,7 +1374,7 @@ class ClusterInPotential(
                         sink.radius.in_(units.parsec),
                         sink.mass.in_(units.MSun),
                     )
-                    
+
                     # Track the dead gas particles to the sink particles
                     # they accreted by
                     if not all_dead_gas.is_empty():
@@ -1365,7 +1382,7 @@ class ClusterInPotential(
                             all_dead_gas.position - sink.position
                         ).lengths()
                         dead_gas_within_this_sink = all_dead_gas.select_array(
-                            lambda lengths: lengths <= sink.radius*1.1, 
+                            lambda lengths: lengths <= sink.radius*1.1,
                             ["lengths"]
                         )           # Factor 1.1 is a temporary fix
                         dead_gas_within_this_sink.accreted_by_sink = sink.key
@@ -1377,7 +1394,7 @@ class ClusterInPotential(
                         )
 
                 self.logger.info(
-                    "Newly removed (+ dead) %i gas particles", 
+                    "Newly removed (+ dead) %i gas particles",
                     len(newly_removed_gas)
                 )
 

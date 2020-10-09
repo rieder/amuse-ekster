@@ -32,7 +32,8 @@ isothermal_gas_temperature = 20 | units.K
 
 density_threshold = 1e-18 | units.g * units.cm**-3
 # minimum_sink_radius = 0.25 | units.pc
-minimum_sink_radius = 0.2 | units.pc
+# minimum_sink_radius = 0.2 | units.pc
+minimum_sink_radius = 0.1 | units.pc
 desired_sink_mass = 200 | units.MSun
 
 alpha = 0.1

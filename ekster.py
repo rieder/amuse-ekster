@@ -646,7 +646,6 @@ class ClusterInPotential(
                     new_sink.initialised = False
                     new_sink.in_group = 0
                     new_sink.birth_time = self.model_time
-                    
                     # Should do accretion here, and calculate the radius from
                     # the average density, stopping when the jeans radius
                     # becomes larger than the accretion radius!
@@ -840,7 +839,6 @@ class ClusterInPotential(
             new_stars = form_stars_from_group(
                 group_index=i,
                 sink_particles=self.sink_particles,
-                newly_removed_gas=newly_removed_gas,
                 local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
                 logger=self.logger,
                 randomseed=numpy.random.randint(2**32-1),

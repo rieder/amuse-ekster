@@ -33,7 +33,7 @@ except ImportError:
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
-import default_settings
+import default_settings as settings
 
 
 class StellarDynamicsCode:
@@ -46,7 +46,7 @@ class StellarDynamicsCode:
             # star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
-            epsilon_squared=(default_settings.epsilon_stars)**2,
+            epsilon_squared=(settings.epsilon_stars)**2,
             # mode="cpu",
             begin_time=0 | nbody_system.time,
             stop_after_each_step=False,
@@ -71,8 +71,8 @@ class StellarDynamicsCode:
             self.unit_converter = converter
         else:
             self.unit_converter = nbody_system.nbody_to_si(
-                default_settings.star_mscale,
-                default_settings.star_rscale,
+                settings.star_mscale,
+                settings.star_rscale,
             )
             # TODO: modify to allow N-body units
 
@@ -86,6 +86,10 @@ class StellarDynamicsCode:
             epsilon_squared=epsilon_squared,
             number_of_workers=number_of_workers,
             **kwargs)
+        self.parameters_to_default(
+            star_code=star_code,
+            epsilon_squared=epsilon_squared,
+        )
         if self.__stop_after_each_step:
             # self.code.commit_particles()
             self.stop(save_state=True)
@@ -97,7 +101,6 @@ class StellarDynamicsCode:
             self,
             converter=None,
             star_code=Hermite,
-            epsilon_squared=(default_settings.epsilon_stars)**2,
             redirection="null",
             mode="cpu",
             number_of_workers=8,
@@ -112,7 +115,51 @@ class StellarDynamicsCode:
                 number_of_workers=number_of_workers,
                 **kwargs
             )
-            param = code.parameters
+        elif star_code is Hermite:
+            code = star_code(
+                converter,
+                number_of_workers=number_of_workers,
+                redirection=redirection,
+            )
+        elif star_code is PhiGRAPE:
+            code = star_code(
+                converter,
+                number_of_workers=number_of_workers,
+                redirection=redirection,
+            )
+        elif star_code is BHTree:
+            code = star_code(
+                converter,
+                redirection=redirection,
+            )
+        elif star_code is Pentacle:
+            code = star_code(
+                converter,
+                # redirection=redirection,
+                redirection="none",
+            )
+        elif star_code is Petar:
+            code = star_code(
+                converter,
+                mode=mode,
+                # redirection=redirection,
+                redirection="none",
+                # number_of_workers=number_of_workers,
+                **kwargs
+            )
+        self.__current_state = "started"
+        return code
+
+    def parameters_to_default(
+            self,
+            star_code=Hermite,
+            epsilon_squared=(settings.epsilon_stars)**2,
+    ):
+        "Set default parameters"
+        logger = self.logger
+        param = self.code.parameters
+        param.epsilon_squared = epsilon_squared
+        if star_code is ph4:
             # Set the parameters explicitly to some default
             # param.block_steps = False
 
@@ -140,77 +187,43 @@ class StellarDynamicsCode:
             # param.use_gpu = False
             # param.zero_step_mode = False
         elif star_code is Hermite:
-            code = star_code(
-                converter,
-                number_of_workers=number_of_workers,
-                redirection=redirection,
-            )
-            param = code.parameters
-
             # Force Hermite to sync to the exact time requested - see
             # force_sync for ph4
             param.end_time_accuracy_factor = 0
-        elif star_code is PhiGRAPE:
-            code = star_code(
-                converter,
-                number_of_workers=number_of_workers,
-                redirection=redirection,
-            )
-            param = code.parameters
-        elif star_code is BHTree:
-            code = star_code(
-                converter,
-                redirection=redirection,
-            )
-            param = code.parameters
         elif star_code is Pentacle:
-            code = star_code(
-                converter,
-                # redirection=redirection,
-                redirection="none",
-            )
-            param = code.parameters
-            # param.time_step = 0.5 * default_settings.timestep
+            # param.time_step = 0.5 * settings.timestep
             param.time_step = 0.001 | units.Myr
         elif star_code is Petar:
-            code = star_code(
-                converter,
-                mode=mode,
-                redirection="none",  # redirection,
-                # number_of_workers=number_of_workers,
-                **kwargs
-            )
-            param = code.parameters
             # Set the parameters explicitly to some default
-            # param.block_steps = False
+            param.theta = 0.3
+            logger.info("Old r_out value: %s", param.r_out.in_(units.pc))
+            param.r_out = 0 | units.pc
+            param.ratio_r_cut = 0.1
+            logger.info("Old r_bin value: %s", param.r_bin.in_(units.pc))
+            param.r_bin = 1 | units.RSun
+            # param.r_search_min = 0 | units.pc
+            param.r_search_min = 1 | units.RSun  # very small = technically disabled
+            param.dt_soft = self.unit_converter.to_si(2**-8 | nbody_system.time)
+            # param.dt_soft = self.unit_converter.to_si(2**-11 | nbody_system.time)
+            # settings.timestep_bridge / 4  # 0 | units.Myr
+            # param.r_out = 10 * settings.epsilon_stars
 
-            # Force ph4 to synchronise to the exact time requested - important
-            # for Bridge!
-            # param.force_sync = True
-
-            # param.gpu_id = something
-            # param.initial_timestep_fac = 0.0625
-            # param.initial_timestep_limit = 0.03125
-            # param.initial_timestep_median = 8.0
-            # param.manage_encounters = 4
-            # # We won't use these stopping conditions anyway
-            # param.stopping_condition_maximum_density = some HUGE number
-            # param.stopping_condition_maximum_internal_energy = inf
-            # param.stopping_condition_minimum_density = - huge
-            # param.stopping_condition_minimum_internal_energy = - big number
-            # param.stopping_conditions_number_of_steps = 1
-            # param.stopping_conditions_out_of_box_size = 0 | units.m
-            # param.stopping_conditions_out_of_box_use_center_of_mass = True
-            # param.stopping_conditions_timeout = 4.0 | units.s
-            # param.sync_time = 0.0 | units.s
-            # param.timestep_parameter = 0.0
-            # param.total_steps = False
-            # param.use_gpu = False
-            # param.zero_step_mode = False
-        if star_code is not Petar:
-            param.epsilon_squared = epsilon_squared
-        self.__current_state = "started"
-        return code
+            # dt_soft: 9.765625e-06 Myr default: 0.0 Myr
+            # epsilon_squared: 0.0001 parsec**2 default: 0.0 parsec**2
+            # r_bin: 0.000137167681417 parsec default: 0.0 parsec
+            # r_out: 0.00171459601771 parsec default: 0.0 parsec
+            # r_search_min: 0.00206443388608 parsec default: 0.0 parsec
+            # ratio_r_cut: 0.1 default: 0.1
+            #   r_in         = 0.00043686
+            #   r_out        = 0.0043686
+            #   r_bin        = 0.00034949
+            #   r_search_min = 0.0056792
+            #   vel_disp     = 0.89469
+            #   dt_soft      = 0.00048828
+            # print("r_out: %s" % self.unit_converter.to_si(0.0043686 | nbody_system.length))
+            # print("r_bin: %s" % self.unit_converter.to_si(0.00034949 | nbody_system.length))
+            # print("dt_soft: %s" % self.unit_converter.to_si(0.00048828 | nbody_system.time))
+            # exit()
 
     def evolve_model(self, end_time):
         """
@@ -361,6 +374,10 @@ class StellarDynamicsCode:
         """Return stopping conditions for dynamics code"""
         return self.code.stopping_conditions
 
+    @property
+    def commit_particles(self):
+        return self.code.commit_particles
+
     def get_gravity_at_point(self, *list_arguments, **keyword_arguments):
         """Return gravity at specified point"""
         return self.code.get_gravity_at_point(
@@ -420,9 +437,15 @@ class StellarDynamicsCode:
         self.code.particles.add_particles(
             self.__particles
         )
-        self.code.parameters.reset_from_memento(
-            self.__state["parameters"]
-        )
+        print(self.__state["parameters"])
+        if self.star_code is Petar:
+            for name in self.__state["parameters"].names():
+                if name != "timestep":
+                    setattr(self.code.parameters, name, getattr(self.__state["parameters"], name))
+        else:
+            self.code.parameters.reset_from_memento(
+                self.__state["parameters"]
+            )
         self.__current_state = "restarted"
 
     def stop(
@@ -485,7 +508,7 @@ def main():
         )
         code.particles.add_particles(stars)
         # print(code.parameters)
-        timestep = default_settings.timestep
+        timestep = settings.timestep
         cumulative_time = 0. * timestep
         for step in range(10):
             time = step * timestep

@@ -28,13 +28,15 @@ timestep = 0.01 | units.Myr
 timestep_bridge = 0.005 | units.Myr
 epsilon_gas = 0.1 | units.parsec
 epsilon_stars = 0.1 | units.parsec
-h_acc = 0.25 | units.parsec
 
 isothermal_gas_temperature = 20 | units.K
 
 density_threshold = 1e-18 | units.g * units.cm**-3
+# For combined-sinks method, use smallest length i.e. epsilon_stars 
+minimum_sink_radius = epsilon_stars
+# h_acc should be the same as the sink radius
+h_acc = minimum_sink_radius
 # minimum_sink_radius = 0.25 | units.pc
-minimum_sink_radius = 0.25 | units.pc
 desired_sink_mass = 200 | units.MSun
 
 alpha = 0.1
@@ -55,3 +57,4 @@ stop_after_each_step = False
 
 write_backups = True
 use_wind = False
+star_formation_method = "grouped"  # or "single"

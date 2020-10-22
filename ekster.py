@@ -58,7 +58,8 @@ from star_cluster_class import StarCluster
 from plotting_class import plot_hydro_and_stars  # , plot_stars
 from plotting_class import u_to_temperature, temperature_to_u
 from merge_recipes import form_new_star
-from star_forming_region_class import form_stars  # StarFormingRegion
+from star_forming_region_class import form_stars, form_stars_from_multiple_sinks
+from star_forming_region_class import form_stars_from_group, assign_sink_group  # StarFormingRegion
 from bridge import (
     Bridge, CalculateFieldForCodes,
 )
@@ -881,224 +882,6 @@ class ClusterInPotential(
         # Sync sinks
         self.sync_to_star_code()
 
-    def resolve_sink_formation(
-            self,
-            # TODO: check all > 10 rho_crit; top X of rho_crit>rho>10rho_crit
-            max_number_to_check=100,
-    ):
-        return False
-        "Identify high-density gas, and form sink(s) when needed"
-        dump_saved = False
-        removed_gas = Particles()
-        mass_initial = (
-            self.gas_particles.total_mass()
-            + (
-                self.sink_particles.total_mass()
-                if not self.sink_particles.is_empty()
-                else (0 | units.MSun)
-            )
-            + (
-                self.star_particles.total_mass()
-                if not self.star_particles.is_empty()
-                else (0 | units.MSun)
-            )
-        )
-        maximum_density = (
-            self.gas_code.parameters.stopping_condition_maximum_density
-        )
-        high_density_gas = self.gas_particles.select_array(
-            lambda density: density > maximum_density,
-            ["density"],
-        ).copy().sorted_by_attribute("density").reversed()[
-            :max_number_to_check
-        ]
-        current_max_density = self.gas_particles.density.max()
-        print(
-            "Max gas density: %s (%.3f critical)"
-            % (current_max_density, current_max_density/maximum_density),
-        )
-        print(
-            "Number of gas particles above maximum density (%s): %i" % (
-                maximum_density.in_(units.g * units.cm**-3),
-                len(high_density_gas),
-            )
-        )
-        self.logger.info(
-            "Number of gas particles above maximum density (%s): %i",
-            maximum_density.in_(units.g * units.cm**-3),
-            len(high_density_gas),
-        )
-        # for i, origin_gas in enumerate(high_density_gas):
-        while not high_density_gas.is_empty():
-            i = 0
-            origin_gas = high_density_gas[i]
-
-            if origin_gas in removed_gas:
-                high_density_gas.remove_particle(origin_gas)
-            else:
-                override_factor = 10
-                form_sink = False
-                if origin_gas.density/maximum_density > override_factor:
-                    print(
-                        "Sink formation override: gas density is %s (> %s), "
-                        "forming sink" % (
-                            origin_gas.density.in_(units.g * units.cm**-3),
-                            (
-                                override_factor * maximum_density
-                            ).in_(units.g * units.cm**-3),
-                        )
-                    )
-                    self.logger.info(
-                        "Sink formation override: gas density is %s (> %s), "
-                        "forming sink",
-                        origin_gas.density.in_(units.g * units.cm**-3),
-                        (
-                            override_factor * maximum_density
-                        ).in_(units.g * units.cm**-3),
-                    )
-                    form_sink = True
-                else:
-                    try:
-                        form_sink, not_forming_message = should_a_sink_form(
-                            origin_gas.as_set(), self.gas_particles,
-                            # check_thermal=self.isothermal_mode,
-                            accretion_radius=settings.minimum_sink_radius,
-                        )
-                        form_sink = form_sink[0]
-                    except TypeError as te:
-                        print(te)
-                        print(origin_gas)
-                        form_sink = False
-                        not_forming_message = \
-                            "Something went wrong (TypeError)"
-                        dump_file_id = numpy.random.randint(100000000)
-                        key = origin_gas.key
-                        dumpfile = "dump-%08i-stars-key%i.hdf5" % (
-                            dump_file_id,
-                            key,
-                        )
-                        if not dump_saved:
-                            print("saving gas dump to %s" % dumpfile)
-                            write_set_to_file(
-                                self.gas_particles, dumpfile, "amuse",
-                            )
-                            dump_saved = True
-                        exit()
-                if not form_sink:
-                    self.logger.info(
-                        "Not forming a sink at t= %s - not meeting the"
-                        " requirements: %s",
-                        self.model_time,
-                        not_forming_message,
-                    )
-                    high_density_gas.remove_particle(origin_gas)
-                else:  # try:
-                    print("Forming a sink from particle %s" % origin_gas.key)
-                    new_sink = Particle()
-                    new_sink.initialised = False
-
-                    # Should do accretion here, and calculate the radius from
-                    # the average density, stopping when the jeans radius
-                    # becomes larger than the accretion radius!
-
-                    # Setting the radius to something that will lead to
-                    # >~150MSun per sink would be ideal.  So this radius is
-                    # related to the density.
-                    minimum_sink_radius = settings.minimum_sink_radius
-                    # desired_sink_mass = settings.desired_sink_mass
-                    # desired_sink_radius = max(
-                    #     (desired_sink_mass / origin_gas.density)**(1/3),
-                    #     minimum_sink_radius,
-                    # )
-
-                    # new_sink.radius = desired_sink_radius
-                    new_sink.radius = minimum_sink_radius
-                    new_sink.initial_density = origin_gas.density
-                    # Average of accreted gas is better but for isothermal this
-                    # is fine
-                    # new_sink.u = origin_gas.u
-
-                    # NOTE: this gets overwritten when gas is accreted, so
-                    # probably this is misleading code...
-                    if self.isothermal_mode:
-                        new_sink.u = temperature_to_u(
-                            settings.isothermal_gas_temperature
-                        )
-                    else:
-                        new_sink.u = origin_gas.u
-                    # new_sink.u = 0 | units.kms**2
-
-                    new_sink.accreted_mass = 0 | units.MSun
-                    o_x, o_y, o_z = origin_gas.position
-
-                    new_sink.position = origin_gas.position
-                    accreted_gas = accrete_gas(new_sink, self.gas_particles)
-                    if accreted_gas.is_empty():
-                        self.logger.info("Empty gas so no sink %i", i)
-                        high_density_gas.remove_particle(origin_gas)
-                    else:
-                        self.logger.info(
-                            "Number of accreted gas particles: %i",
-                            len(accreted_gas)
-                        )
-                        new_sink.position = accreted_gas.center_of_mass()
-                        new_sink.velocity = \
-                            accreted_gas.center_of_mass_velocity()
-                        new_sink.mass = accreted_gas.total_mass()
-                        new_sink.accreted_mass = (
-                            accreted_gas.total_mass() - origin_gas.mass
-                        )
-                        # Sink's "internal energy" is the velocity dispersion
-                        # of the infalling gas
-                        new_sink.u = (
-                            accreted_gas.velocity
-                            - accreted_gas.center_of_mass_velocity()
-                        ).lengths_squared().mean()
-                        # TODO: think about preferential directions for this
-                        # (radial?)
-                        # Alternatively, it could be based on the gas sound
-                        # speed
-                        # new_sink.u = accreted_gas.u.mean()
-
-                        removed_gas.add_particles(accreted_gas.copy())
-                        self.remove_gas(accreted_gas)
-                        # Which high-density gas particles are accreted and
-                        # should no longer be considered?
-                        accreted_high_density_gas = \
-                            high_density_gas.get_intersecting_subset_in(
-                                accreted_gas
-                            )
-                        high_density_gas.remove_particles(
-                            accreted_high_density_gas
-                        )
-                        self.add_sink(new_sink)
-                        self.logger.info(
-                            "Added sink %i with mass %s and radius %s", i,
-                            new_sink.mass.in_(units.MSun),
-                            new_sink.radius.in_(units.parsec),
-                        )
-                        # except:
-                        #     print("Could not add another sink")
-        del high_density_gas
-        mass_final = (
-            self.gas_particles.total_mass()
-            + (
-                self.sink_particles.total_mass()
-                if not self.sink_particles.is_empty()
-                else (0 | units.MSun)
-            )
-            + (
-                self.star_particles.total_mass()
-                if not self.star_particles.is_empty()
-                else (0 | units.MSun)
-            )
-        )
-        if abs(mass_initial - mass_final) >= self.gas_particles[0].mass:
-            print("WARNING: mass is not conserved in sink formation!")
-            self.logger.info(
-                "WARNING: mass is not conserved in sink formation!"
-            )
-
     def add_sink(self, sink):
         self.sink_code.particles.add_particle(sink)
         # self.sink_particles.add_sink(sink)
@@ -1176,57 +959,103 @@ class ClusterInPotential(
         # max_new_stars_per_timestep = 500
         formed_stars = False
         stellar_mass_formed = 0 | units.MSun
-        self.logger.info("Looping over %i sinks", len(self.sink_particles))
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            results = []
+        if settings.star_formation_method == "grouped":
+            # Grouping of sinks here
+            self.logger.info('Assigning groups to the sinks...')
+            self.sink_particles = (
+                self.sink_particles.sorted_by_attribute('mass')
+            ).reversed()
             for i, sink in enumerate(self.sink_particles):
-                # TODO: this loop needs debugging/checking...
-                # self.logger.info("Processing sink %i, with mass %s",
-                # sink.sink_number, sink.mass)
-                local_sound_speed = self.gas_code.parameters.polyk.sqrt()
-                results.append(
-                    executor.submit(
-                        form_stars,
-                        sink,
-                        local_sound_speed=local_sound_speed,
-                        logger=self.logger,
-                        randomseed=numpy.random.randint(2**32-1),
-                    )
+                sink = assign_sink_group(
+                    sink,
+                    self.sink_particles,
+                    logger=self.logger
                 )
-            for sink, result in zip(self.sink_particles, results):
-                sink.mass = result.result()[0].mass
-                sink.next_primary_mass = result.result()[0].next_primary_mass
-                sink.initialised = result.result()[0].initialised
-                self.logger.info(
-                    "Mass remaining in sink: %s - next star to form: %s",
-                    sink.mass, sink.next_primary_mass
+                self.logger.info("Sink %i in group #%i", sink.key, sink.in_group)
+
+            # Form stars according to groups
+            self.logger.info('Forming stars according to groups...')
+            number_of_groups = self.sink_particles.in_group.max()
+            for i in range(number_of_groups):
+                i += 1   # Change to one-based index
+                self.logger.info("Processing group %i (out of %i)",
+                    i, number_of_groups
                 )
-                new_stars = result.result()[1]
-                # if new_stars.is_empty():
-                #     self.logger.info("Not forming any stars")
-                # else:
-                #     self.logger.info("Forming %i stars within a %s radius",
-                #     len(new_stars), sink.radius)
-                if not new_stars.is_empty():
+                new_stars = form_stars_from_group(
+                    group_index=i,
+                    sink_particles=self.sink_particles,
+                    local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
+                    logger=self.logger,
+                    randomseed=numpy.random.randint(2**32-1),
+                    shrink_sinks=shrink_sinks
+                )
+
+                if new_stars is not None:
                     formed_stars = True
-                    new_stars.birth_time = self.model_time
                     self.add_stars(new_stars)
                     stellar_mass_formed += new_stars.total_mass()
 
-                if shrink_sinks:
-                    # After forming stars, shrink the sink's (accretion) radius
-                    # to prevent it from accreting relatively far away gas and
-                    # moving a lot
-                    sink.radius = (
-                        (sink.mass / sink.initial_density)
-                        / (4/3 * numpy.pi)
-                    )**(1/3)
-                    sink.sink_radius = sink.radius
-                self.logger.info(
-                    "Shrinking sink %i to a radius of %s",
-                    sink.sink_number, sink.radius
-                )
+                #if shrink_sinks:
+                    # After forming stars, shrink the sink's (accretion) radius to
+                    # prevent it from accreting relatively far away gas and moving
+                    # a lot
+                #    sink.radius = (
+                #        (sink.mass / sink.initial_density)
+                #        / (4/3 * numpy.pi)
+                #    )**(1/3)
+        else:
+            self.logger.info("Looping over %i sinks", len(self.sink_particles))
+
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                results = []
+                for i, sink in enumerate(self.sink_particles):
+                    # TODO: this loop needs debugging/checking...
+                    # self.logger.info("Processing sink %i, with mass %s",
+                    # sink.sink_number, sink.mass)
+                    local_sound_speed = self.gas_code.parameters.polyk.sqrt()
+                    results.append(
+                        executor.submit(
+                            form_stars,
+                            sink,
+                            local_sound_speed=local_sound_speed,
+                            logger=self.logger,
+                            randomseed=numpy.random.randint(2**32-1),
+                        )
+                    )
+                for sink, result in zip(self.sink_particles, results):
+                    sink.mass = result.result()[0].mass
+                    sink.next_primary_mass = result.result()[0].next_primary_mass
+                    sink.initialised = result.result()[0].initialised
+                    self.logger.info(
+                        "Mass remaining in sink: %s - next star to form: %s",
+                        sink.mass, sink.next_primary_mass
+                    )
+                    new_stars = result.result()[1]
+                    # if new_stars.is_empty():
+                    #     self.logger.info("Not forming any stars")
+                    # else:
+                    #     self.logger.info("Forming %i stars within a %s radius",
+                    #     len(new_stars), sink.radius)
+                    if not new_stars.is_empty():
+                        formed_stars = True
+                        new_stars.birth_time = self.model_time
+                        self.add_stars(new_stars)
+                        stellar_mass_formed += new_stars.total_mass()
+
+                    if shrink_sinks:
+                        # After forming stars, shrink the sink's (accretion) radius
+                        # to prevent it from accreting relatively far away gas and
+                        # moving a lot
+                        sink.radius = (
+                            (sink.mass / sink.initial_density)
+                            / (4/3 * numpy.pi)
+                        )**(1/3)
+                        sink.sink_radius = sink.radius
+                    self.logger.info(
+                        "Shrinking sink %i to a radius of %s",
+                        sink.sink_number, sink.radius
+                    )
 
         mass_after = (
             self.gas_particles.total_mass()
@@ -1705,10 +1534,10 @@ class ClusterInPotential(
                 check_for_new_sinks = False
             else:
                 check_for_new_sinks = True
+
             if check_for_new_sinks:
                 print("Checking for new sinks")
                 n_sink = len(self.sink_particles)
-                # self.resolve_sink_formation(max_number_to_check=100)
                 self.resolve_sinks()
                 if len(self.sink_particles) == n_sink:
                     self.logger.info("No new sinks")
@@ -1764,16 +1593,6 @@ class ClusterInPotential(
             )
             # self.evo_code_to_model.copy()
             # Check for stopping conditions
-
-            # # Clean up accreted gas
-            # dead_gas = self.gas_particles.select_array(
-            #     lambda x: x <= (0. | units.parsec),
-            #     ["h_smooth"]
-            # )
-            # self.logger.info(
-            #     "Number of dead/accreted gas particles: %i", len(dead_gas)
-            # )
-            # self.remove_gas(dead_gas)
 
             self.feedback_timestep = self.timestep
             if not self.star_particles.is_empty():

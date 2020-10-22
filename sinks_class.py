@@ -59,12 +59,13 @@ def should_a_sink_form(
         converter = nbody_system.nbody_to_si(
             neighbours.total_mass(), neighbours.distance.mean()
         )
-        helper = Hermite(converter)
-        helper.particles.add_particles(neighbours)
-        e_kin = helper.kinetic_energy
+        # helper = Hermite(converter)
+        # helper.particles.add_particles(neighbours)
+        # e_kin = helper.kinetic_energy
+        e_kin = neighbours.kinetic_energy()
         # e_rot = #FIXME
-        e_pot = helper.potential_energy
-        helper.stop()
+        e_pot = neighbours.potential_energy()
+        # helper.stop()
         if check_thermal:
             e_th = neighbours.thermal_energy()
         else:

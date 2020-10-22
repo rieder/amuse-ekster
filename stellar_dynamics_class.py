@@ -156,6 +156,7 @@ class StellarDynamicsCode:
             epsilon_squared=(settings.epsilon_stars)**2,
     ):
         "Set default parameters"
+        logger = self.logger
         param = self.code.parameters
         param.epsilon_squared = epsilon_squared
         if star_code is ph4:
@@ -195,11 +196,17 @@ class StellarDynamicsCode:
         elif star_code is Petar:
             # Set the parameters explicitly to some default
             param.theta = 0.3
+            logger.info("Old r_out value: %s", param.r_out.in_(units.pc))
             param.r_out = 0 | units.pc
             param.ratio_r_cut = 0.1
-            param.r_bin = 0 | units.pc
-            param.r_search_min = 0 | units.pc
-            param.dt_soft = 0 | units.Myr
+            logger.info("Old r_bin value: %s", param.r_bin.in_(units.pc))
+            param.r_bin = 1 | units.RSun
+            # param.r_search_min = 0 | units.pc
+            param.r_search_min = 1 | units.RSun  # very small = technically disabled
+            param.dt_soft = self.unit_converter.to_si(2**-8 | nbody_system.time)
+            # param.dt_soft = self.unit_converter.to_si(2**-11 | nbody_system.time)
+            # settings.timestep_bridge / 4  # 0 | units.Myr
+            # param.r_out = 10 * settings.epsilon_stars
 
             # dt_soft: 9.765625e-06 Myr default: 0.0 Myr
             # epsilon_squared: 0.0001 parsec**2 default: 0.0 parsec**2
@@ -207,6 +214,16 @@ class StellarDynamicsCode:
             # r_out: 0.00171459601771 parsec default: 0.0 parsec
             # r_search_min: 0.00206443388608 parsec default: 0.0 parsec
             # ratio_r_cut: 0.1 default: 0.1
+            #   r_in         = 0.00043686
+            #   r_out        = 0.0043686
+            #   r_bin        = 0.00034949
+            #   r_search_min = 0.0056792
+            #   vel_disp     = 0.89469
+            #   dt_soft      = 0.00048828
+            # print("r_out: %s" % self.unit_converter.to_si(0.0043686 | nbody_system.length))
+            # print("r_bin: %s" % self.unit_converter.to_si(0.00034949 | nbody_system.length))
+            # print("dt_soft: %s" % self.unit_converter.to_si(0.00048828 | nbody_system.time))
+            # exit()
 
     def evolve_model(self, end_time):
         """

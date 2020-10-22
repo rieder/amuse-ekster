@@ -1788,22 +1788,9 @@ class ClusterInPotential(
                 #         print("Code is not Petar?")
                 #         self.star_code.code.evolve_model(self.star_code.model_time)
 
-            dead_gas = self.gas_particles.select_array(
-                lambda x: x <= (0. | units.parsec),
-                ["h_smooth"]
-            )
-            all_dead_gas = dead_gas.copy()
-            self.logger.info(
-                "Newly removed %i gas particles",
-                len(newly_removed_gas)
-            )
-            self.logger.info("dead gas %i", len(all_dead_gas))
-
             if not self.sink_particles.is_empty():
                 print("Forming stars")
-                formed_stars = self.resolve_star_formation(
-                    newly_removed_gas=newly_removed_gas
-                )
+                formed_stars = self.resolve_star_formation()
                 if formed_stars and self.star_code is ph4:
                     self.star_code.zero_step_mode = True
                     self.star_code.evolve_model(relative_tend)

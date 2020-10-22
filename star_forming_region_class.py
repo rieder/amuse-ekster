@@ -228,6 +228,9 @@ def assign_sink_group(
     """
     logger = logger or logging.getLogger(__name__)
 
+    if not hasattr(sink, "in_group"):
+        sink.in_group = 0
+
     number_of_groups = sink_particles.in_group.max()
 
     logger.info(

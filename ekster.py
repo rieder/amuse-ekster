@@ -728,6 +728,7 @@ class ClusterInPotential(
                     0 if self.sink_particles.is_empty()
                     else max(self.sink_particles.sink_number)+1
                 )
+                new_sink.birth_time = self.model_time
                 new_sink.initialised = False
 
                 # Should do accretion here, and calculate the radius from
@@ -1961,9 +1962,9 @@ def main(
                 model.model_time.value_in(units.Myr),
                 units.Myr,
             ),
-            offset_x=com[0].value_in(units.parsec),
-            offset_y=com[1].value_in(units.parsec),
-            offset_z=com[2].value_in(units.parsec),
+            offset_x=com[0],
+            offset_y=com[1],
+            offset_z=com[2],
             x_axis="x",
             y_axis="y",
             z_axis="z",

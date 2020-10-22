@@ -1155,7 +1155,6 @@ class ClusterInPotential(
 
     def resolve_star_formation(
             self,
-            newly_removed_gas,
             stop_star_forming_time=10. | units.Myr,
             shrink_sinks=True,
             # shrink_sinks=False,

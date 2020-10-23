@@ -582,6 +582,13 @@ def new_argument_parser():
         default=False,
         help='Center on center of mass [False]',
     )
+    parser.add_argument(
+        '--starscale',
+        dest='starscale',
+        type=float,
+        help='starscale (%f)' % default_settings.starscale,
+        default=default_settings.starscale,
+    )
     return parser.parse_args()
 
 
@@ -596,6 +603,7 @@ def main():
     offset_y = o.y | units.pc
     offset_z = o.z | units.pc
     w = o.w
+    starscale = o.starscale
     width = w | units.pc
     image_size_scale = (
         default_settings.image_size_scale * (default_settings.N / n)
@@ -677,7 +685,7 @@ def main():
             # alpha_sfe=0.02,
             # stars_are_sinks=False,
             thickness=None,
-            starscale=default_settings.starscale,
+            starscale=starscale,
             length_unit=units.parsec,
             return_figure=True
         )

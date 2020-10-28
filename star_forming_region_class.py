@@ -117,6 +117,7 @@ def form_stars(
     mass_left = sink.mass - sink.next_primary_mass
     masses = new_star_cluster(
         stellar_mass=mass_left,
+        initial_mass_function="kroupa",
         upper_mass_limit=upper_mass_limit,
     ).mass
     number_of_stars = len(masses)

@@ -58,8 +58,9 @@ from star_cluster_class import StarCluster
 from plotting_class import plot_hydro_and_stars  # , plot_stars
 from plotting_class import u_to_temperature, temperature_to_u
 from merge_recipes import form_new_star
-from star_forming_region_class import form_stars, form_stars_from_multiple_sinks
-from star_forming_region_class import form_stars_from_group, assign_sink_group  # StarFormingRegion
+from star_forming_region_class import (
+    form_stars, form_stars_from_group, assign_sink_group #, StarFormingRegion
+)
 from bridge import (
     Bridge, CalculateFieldForCodes,
 )

@@ -217,9 +217,9 @@ def check_conservation_error(
 def assign_sink_group(
         sink,
         sink_particles,
-        group_radius=3|units.pc,
+        group_radius=1|units.pc,
         group_age=0.1|units.Myr,
-        group_speed=2|units.kms,
+        group_speed=0.2|units.kms,
         logger=None
 ):
     """
@@ -432,6 +432,8 @@ def form_stars_from_group(
     masses = new_star_cluster(
         stellar_mass=mass_left,
         upper_mass_limit=upper_mass_limit,
+        lower_mass_limit=0.01|units.MSun,
+        initial_mass_function='kroupa'
     ).mass
     number_of_stars = len(masses)
 
@@ -600,7 +602,7 @@ def form_stars_from_group(
 
     return new_stars
 
-
+#test
 def form_stars_from_group_older_version(
     group_index,
     sink_particles,

@@ -12,10 +12,10 @@ from amuse.community.petar.interface import Petar as star_code
 
 
 dpi = 200
-L = 600
+L = 20
 N = 800
 image_size_scale = 2
-starscale = 1
+starscale = 100  #1
 
 phantom_solarm = 1.9891e33 | units.g
 phantom_pc = 3.086e18 | units.cm
@@ -27,7 +27,7 @@ star_mscale = 100 | units.MSun
 timestep = 0.01 | units.Myr
 timestep_bridge = 0.005 | units.Myr
 epsilon_gas = 0.1 | units.parsec
-epsilon_stars = 0.1 | units.parsec
+epsilon_stars = 0.05 | units.parsec
 
 isothermal_gas_temperature = 20 | units.K
 
@@ -45,10 +45,10 @@ gamma = 5./3.
 ieos = 1  # 1 = isothermal, 2 = adiabatic
 icooling = 0  # 0 = disabled, 1 = h2cooling (if ichem=1) OR Gammie cooling (for disks), 2 = SD93 cooling, 4 = molecular clouds cooling
 
-# Tide = None
-Tide = TimeDependentSpiralArmsDiskModel
-tide_spiral_type = "normal"
-tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
+Tide = None
+#Tide = TimeDependentSpiralArmsDiskModel
+#tide_spiral_type = "normal"
+#tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
 # tide_type = "strong"
 # tide_time_offset = (2.2 * 1.4874E+15 | units.s)
 
@@ -57,4 +57,4 @@ stop_after_each_step = False
 
 write_backups = True
 use_wind = False
-star_formation_method = "grouped"  # or "single"
+star_formation_method = "grouped"  # "single"

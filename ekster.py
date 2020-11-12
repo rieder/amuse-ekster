@@ -971,6 +971,9 @@ class ClusterInPotential(
                 sink = assign_sink_group(
                     sink,
                     self.sink_particles,
+                    group_radius=1|units.pc,
+                    group_speed=5*self.gas_code.parameters.polyk.sqrt(),
+                    group_age=0.1|units.Myr,
                     logger=self.logger
                 )
                 self.logger.info("Sink %i in group #%i", sink.key, sink.in_group)
@@ -1014,6 +1017,7 @@ class ClusterInPotential(
                     # TODO: this loop needs debugging/checking...
                     # self.logger.info("Processing sink %i, with mass %s",
                     # sink.sink_number, sink.mass)
+                    self.logger.info("Processing sink %i", sink.key)
                     local_sound_speed = self.gas_code.parameters.polyk.sqrt()
                     results.append(
                         executor.submit(
@@ -1024,15 +1028,22 @@ class ClusterInPotential(
                             randomseed=numpy.random.randint(2**32-1),
                         )
                     )
+                    self.logger.info('Done processing sink %i', sink.key)
+
+                self.logger.info("Going to second loop...")
                 for sink, result in zip(self.sink_particles, results):
+                    self.logger.info("Second loop for sink %i", sink.key)
                     sink.mass = result.result()[0].mass
+                    self.logger.info("sink mass %s", sink.mass)
                     sink.next_primary_mass = result.result()[0].next_primary_mass
+                    self.logger.info("sink next primary mass %s", sink.next_primary_mass)
                     sink.initialised = result.result()[0].initialised
                     self.logger.info(
                         "Mass remaining in sink: %s - next star to form: %s",
                         sink.mass, sink.next_primary_mass
                     )
                     new_stars = result.result()[1]
+                    self.logger.info("finish new_stars")
                     # if new_stars.is_empty():
                     #     self.logger.info("Not forming any stars")
                     # else:

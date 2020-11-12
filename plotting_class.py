@@ -86,10 +86,42 @@ def make_column_density_map(
     mapper.parameters.target_y = offset_y
     mapper.parameters.image_width = width
     mapper.parameters.image_size = [N, N]
-    # positive z = top layer
-    mapper.parameters.projection_direction = [0, 0, -1]
+    
+    # positive x = up
+    if y_axis == 'x':
+        mapper.parameters.upvector = [1, 0, 0]
+        if x_axis == 'y':
+            # negative z = top layer
+            mapper.parameters.projection_direction = [0, 0, 1]
+        elif x_axis == 'z':
+            # positive y = top layer
+            mapper.parameters.projection_direction = [0, -1, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
+    
     # positive y = up
-    mapper.parameters.upvector = [0, 1, 0]  # y
+    if y_axis == 'y':
+        mapper.parameters.upvector = [0, 1, 0]
+        if x_axis == 'x':
+            # positive z = top layer
+            mapper.parameters.projection_direction = [0, 0, -1]
+        elif x_axis == 'z':
+            # negative x = top layer
+            mapper.parameters.projection_direction = [1, 0, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
+
+    # positive z = up
+    if y_axis == 'z':
+        mapper.parameters.upvector = [0, 0, 1]
+        if x_axis == 'x':
+            # negative y = top layer
+            mapper.parameters.projection_direction = [0, 1, 0]
+        elif x_axis == 'y':
+            # positive x = top layer
+            mapper.parameters.projection_direction = [-1, 0, 0]
 
     pixel_size = (width / N)**2
     weight = (gas.mass / pixel_size).value_in(weight_unit)
@@ -222,6 +254,8 @@ def plot_hydro_and_stars(
             gas.radius = gas.h_smooth
         mapper.particles.add_particles(gas)
         stop_mapper = True
+
+    print(mapper)
 
     for i in range(number_of_subplots):
         ax = fig.add_subplot(1, naxes, i+1)

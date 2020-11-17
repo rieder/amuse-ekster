@@ -86,6 +86,7 @@ def form_stars(
     """
     Let a sink form stars.
     """
+    
     logger = logger or logging.getLogger(__name__)
     if randomseed is not None:
         logger.info("setting random seed to %i", randomseed)

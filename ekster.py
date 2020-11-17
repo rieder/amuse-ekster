@@ -118,6 +118,12 @@ def new_argument_parser():
         default="./",
         help='directory to store run in (optional) [./]',
     )
+    parser.add_argument(
+        '-gp',
+        dest='groupingparameters',
+        default=[1|units.pc, 5, 0.1|units.Myr],
+        help='list containing grouping parameters; distance, Mach number, age [1 pc, 5, 0.1 Myr]',
+    )
     return parser.parse_args()
 
 
@@ -972,9 +978,9 @@ class ClusterInPotential(
                 sink = assign_sink_group(
                     sink,
                     self.sink_particles,
-                    group_radius=1|units.pc,
-                    group_speed=5*self.gas_code.parameters.polyk.sqrt(),
-                    group_age=0.1|units.Myr,
+                    group_radius=initialfile.grouping_distance,
+                    group_speed=initialfile.grouping_speed_mach*self.gas_code.parameters.polyk.sqrt(),
+                    group_age=initialfile.grouping_age,
                     logger=self.logger
                 )
                 self.logger.info("Sink %i in group #%i", sink.key, sink.in_group)
@@ -1030,7 +1036,8 @@ class ClusterInPotential(
                         )
                     )
                     self.logger.info('Done processing sink %i', sink.key)
-
+                
+                
                 self.logger.info("Going to second loop...")
                 for sink, result in zip(self.sink_particles, results):
                     self.logger.info("Second loop for sink %i", sink.key)
@@ -1683,7 +1690,7 @@ def main(
         os.makedirs(rundir)
     # TODO: get time stamp from gas, stars, or sinks
     # Default for the initial spiral gas is 1.4874E+15 seconds
-
+    
     if randomfilename is None:
         numpy.random.seed(seed)
     else:
@@ -1693,6 +1700,16 @@ def main(
         randomstate = pickle.loads(pickled_state)
         numpy.random.set_state(randomstate.get_state())
     run_prefix = rundir + "/"
+
+    # Hard hack to accomodate different grouping parameters, 
+    # revise in future
+    sys.path.insert(1, run_prefix)
+    import initialfile
+    global initialfile
+    print(initialfile.grouping_distance)
+    print(initialfile.grouping_speed_mach)
+    print(initialfile.grouping_age)
+
 
     logging_level = logging.INFO
     # logging_level = logging.DEBUG

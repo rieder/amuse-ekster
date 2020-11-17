@@ -118,12 +118,6 @@ def new_argument_parser():
         default="./",
         help='directory to store run in (optional) [./]',
     )
-    parser.add_argument(
-        '-gp',
-        dest='groupingparameters',
-        default=[1|units.pc, 5, 0.1|units.Myr],
-        help='list containing grouping parameters; distance, Mach number, age [1 pc, 5, 0.1 Myr]',
-    )
     return parser.parse_args()
 
 

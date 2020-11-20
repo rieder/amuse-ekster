@@ -255,8 +255,6 @@ def plot_hydro_and_stars(
         mapper.particles.add_particles(gas)
         stop_mapper = True
 
-    print(mapper)
-
     for i in range(number_of_subplots):
         ax = fig.add_subplot(1, naxes, i+1)
         # if colorbar:

@@ -614,6 +614,32 @@ def new_argument_parser():
         default=False,
         help='Center on center of mass [False]',
     )
+    parser.add_argument(
+        '-t',
+        dest='time',
+        type=float,
+        default=0,
+        help='Time for the snapshot in Myr [0]',
+    )
+    parser.add_argument(
+        '--timestamp-off',
+        dest='timestamp_off',
+        action='store_true',
+        default=False,
+        help='Disable timestamp from gas particle set [False]',
+    )
+    parser.add_argument(
+        '-X',
+        dest='X',
+        default='x',
+        help='Horizontal axis ["x"]',
+    )
+    parser.add_argument(
+        '-Y',
+        dest='Y',
+        default='y',
+        help='Vertical axis ["y"]',
+    )
     return parser.parse_args()
 
 
@@ -628,6 +654,8 @@ def main():
     offset_y = o.y | units.pc
     offset_z = o.z | units.pc
     w = o.w
+    x_axis = o.X
+    y_axis = o.Y
     width = w | units.pc
     image_size_scale = (
         default_settings.image_size_scale * (default_settings.N / n)
@@ -670,12 +698,19 @@ def main():
         offset_z = com[2]
 
     print(com.value_in(units.parsec))
-    try:
-        time = gas.get_timestamp()
-    except AttributeError:
-        time = 0.0 | units.Myr
-    if time is None:
-        time = 0.0 | units.Myr
+    
+    time = o.time | units.Myr
+    if not o.timestamp_off:
+        try:
+            time = gas.get_timestamp()
+        except AttributeError:
+            print('Unable to get timestamp, set time to 0 Myr.')
+            time = 0.0 | units.Myr
+        if time is None:
+            print('Time is None, set time to 0 Myr')
+            time = 0.0 | units.Myr
+    print(time.in_(units.Myr))
+
     converter = nbody_system.nbody_to_si(
         # 1 | units.pc, 1 | units.MSun,
         default_settings.gas_rscale,
@@ -700,6 +735,8 @@ def main():
             offset_x=offset_x,
             offset_y=offset_y,
             offset_z=offset_z,
+            x_axis=x_axis,
+            y_axis=y_axis,
             title="time = %06.2f %s" % (
                 time.value_in(units.Myr),
                 units.Myr,

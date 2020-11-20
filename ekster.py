@@ -277,7 +277,7 @@ class ClusterInPotential(
                 self.evo_code.particles.add_particles(
                     stars_with_original_mass[indices == i],
                 )
-            self.evo_code.evolve_model(begin_time)
+            self.evo_code.evolve_model(self.__begin_time)
             self.evo_code_stars = self.evo_code.particles
             self.sync_from_evo_code()
     
@@ -1008,6 +1008,7 @@ class ClusterInPotential(
         else:
             self.logger.info("Looping over %i sinks", len(self.sink_particles))
 
+            multithread = False
             with concurrent.futures.ProcessPoolExecutor() as executor:
                 results = []
                 for i, sink in enumerate(self.sink_particles):
@@ -1015,24 +1016,36 @@ class ClusterInPotential(
                     # self.logger.info("Processing sink %i, with mass %s",
                     # sink.sink_number, sink.mass)
                     local_sound_speed = self.gas_code.parameters.polyk.sqrt()
-                    results.append(
-                        executor.submit(
-                            form_stars,
-                            sink,
-                            local_sound_speed=local_sound_speed,
-                            logger=self.logger,
-                            randomseed=numpy.random.randint(2**32-1),
+                    if multithread:
+                        results.append(
+                            executor.submit(
+                                form_stars,
+                                sink,
+                                local_sound_speed=local_sound_speed,
+                                logger=self.logger,
+                                randomseed=numpy.random.randint(2**32-1),
+                            )
                         )
-                    )
+                    else:
+                        results.append(
+                            form_stars(
+                                sink,
+                                local_sound_speed=local_sound_speed,
+                                logger=self.logger,
+                                randomseed=numpy.random.randint(2**32-1),
+                            )
+                        )
                 for sink, result in zip(self.sink_particles, results):
-                    sink.mass = result.result()[0].mass
-                    sink.next_primary_mass = result.result()[0].next_primary_mass
-                    sink.initialised = result.result()[0].initialised
+                    if multithread:
+                        result = result.result()
+                    sink.mass = result[0].mass
+                    sink.next_primary_mass = result[0].next_primary_mass
+                    sink.initialised = result[0].initialised
                     self.logger.info(
                         "Mass remaining in sink: %s - next star to form: %s",
                         sink.mass, sink.next_primary_mass
                     )
-                    new_stars = result.result()[1]
+                    new_stars = result[1]
                     # if new_stars.is_empty():
                     #     self.logger.info("Not forming any stars")
                     # else:
@@ -1722,63 +1735,28 @@ def main(
     if gasfilename is not None:
         print("reading gas")
         gas_ = read_set_from_file(gasfilename, "amuse", close_file=True,)
-        begin_time = gas_.get_timestamp()
-        settings.tide_time_offset = begin_time
-        begin_time = 0 | units.Myr  # NOTE evil hack! Solve ASAP
-        if begin_time is None:
-            try:
-                begin_time = gas_.collection_attributes.timestamp
-            except AttributeError:
-                begin_time = None
-        try:
-            if begin_time is None:
-                begin_time = 0.0 | units.Myr
+        if gas_.get_timestamp() is not None:
+            begin_time = gas_.get_timestamp()
+            settings.tide_time_offset = settings.tide_time_offset + gas_.get_timestamp()
+        else:
+            begin_time = 0 | units.Myr
+        # begin_time = 0 | units.Myr  # NOTE evil hack! Solve ASAP
+        if begin_time == 0.0 | units.Myr:
+            if hasattr(gas_, 'u'):
                 if gas_.u.in_base().unit is units.K:
-                    try:
-                        temp = gas_.temp
-                        del gas_.temp
-                    except AttributeError:
-                        temp = gas_.u
-                        del gas_.u
-                    u = temperature_to_u(temp)
-                    # u = temp
-                    # u = temperature_to_u(100 | units.K)
-                    gas_.u = u
-                try:
-                    del gas_.pressure
-                except KeyError:
-                    pass
-        except AttributeError:
-            u = temperature_to_u(settings.isothermal_gas_temperature)
-            gas_.u = u
-        if not hasattr(gas_, "u"):
-            u = temperature_to_u(settings.isothermal_gas_temperature)
-            gas_.u = u
-        # z = gas_.z
-        # vz = gas_.vz
-        # gas_.z = gas_.x
-        # gas_.vz = gas_.vx
-        # gas_.x = z
-        # gas_.vx = vz
-        # del z
-        # del vz
+                    temp = gas_.u
+                    del gas_.u
+                    gas_.u = temperature_to_u(temp)
+            else:
+                u = temperature_to_u(settings.isothermal_gas_temperature)
+                gas_.u = u
+            if hasattr(gas_, 'pressure'):
+                del gas_.pressure
 
-        # gas_.h_smooth = 1 | units.parsec
-
-        # xrel = gas_.x + (1810 | units.parsec)
-        # gas_x = gas_[xrel**2 < (50 | units.parsec)**2]
-        # yrel = gas_x.y + (1820 | units.parsec)
-        # gas = gas_x[yrel**2 < (50 | units.parsec)**2]
         gas = gas_
         print("Using %i particles" % len(gas))
         have_gas = True
-        # print(gas.h_smooth.mean().in_(units.parsec))
-        # gas.h_smooth = 20 | units.parsec  # FIXME this should be calculated?
         print(len(gas))
-        # print(gas.center_of_mass())
-        # print(gas.center_of_mass_velocity())
-        # print(gas[])
-        # exit()
     else:
         from amuse.ext.molecular_cloud import molecular_cloud
         if not have_stars:

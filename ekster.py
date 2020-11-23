@@ -1593,8 +1593,26 @@ class ClusterInPotential(
                         self.star_particles.mass.mean().in_(units.MSun),
                         self.sink_particles.mass.mean().in_(units.MSun),
                     )
+                    self.logger.info(
+                        "Total mass of stars: %s. "
+                        "Total mass of sinks: %s.",
+                        self.star_particles.total_mass().in_(units.MSun),
+                        self.sink_particles.total_mass().in_(units.MSun),
+                    )
             else:
                 print("No sinks (yet?)")
+
+            self.logger.info(
+                "Now we have %i stars; %i sinks and %i gas, %i particles"
+                " in total.",
+                len(self.star_particles),
+                len(self.sink_particles),
+                len(self.gas_particles),
+                (
+                    len(self.gas_code.particles)
+                    + len(self.star_code.particles)
+                ),
+            )
 
             self.logger.info(
                 "Evo time is now %s",

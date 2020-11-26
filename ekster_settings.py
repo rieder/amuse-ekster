@@ -177,7 +177,11 @@ class Settings:
         # disks), 2 = SD93 cooling, 4 = molecular clouds cooling
         self.icooling = 0
 
-        self.Tide = None
+        # If self.Tide is "none", other tide parameters are ignored but should
+        # still exist!
+        self.Tide = "none"
+        self.tide_spiral_type = "none"
+        self.tide_time_offset = 0 | units.Myr
         # self.Tide = "TimeDependentSpiralArmsDiskModel"
         # self.tide_spiral_type = "normal"
         # self.tide_time_offset = (5.0802 * 1.4874E+15 | units.s)

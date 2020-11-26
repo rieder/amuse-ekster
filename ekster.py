@@ -1222,17 +1222,6 @@ class ClusterInPotential(
                     # check_for_new_sinks = False
                 else:
                     self.logger.info("New sink formed")
-                self.logger.info(
-                    "Now we have %i stars; %i sinks and %i gas, %i particles"
-                    " in total.",
-                    len(self.star_particles),
-                    len(self.sink_particles),
-                    len(self.gas_particles),
-                    (
-                        len(self.gas_code.particles)
-                        + len(self.star_code.particles)
-                    ),
-                )
 
             if not self.sink_particles.is_empty():
                 print("Forming stars")

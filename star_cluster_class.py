@@ -29,7 +29,7 @@ try:
 except ImportError:
     Petar = None
 
-import default_settings
+import ekster_settings
 
 
 class StarCluster(
@@ -43,12 +43,14 @@ class StarCluster(
             self,
             stars=Particles(),
             converter=None,
-            epsilon_squared=(default_settings.epsilon_stars)**2,
             logger=None,
             begin_time=None,
             star_code=Petar,
+            settings=ekster_settings.Settings(),
             **kwargs
     ):
+        self.settings = settings
+        epsilon_squared = (settings.epsilon_stars)**2
         self.logger = logger or logging.getLogger(__name__)
         self.logger.info("Initialising StellarDynamics")
         self.star_code = StellarDynamicsCode(
@@ -57,7 +59,7 @@ class StarCluster(
             logger=logger,
             redirection="null",
             begin_time=begin_time,
-            stop_after_each_step=default_settings.stop_after_each_step,
+            stop_after_each_step=settings.stop_after_each_step,
             **kwargs
         )
         self.star_code.parameters.epsilon_squared = epsilon_squared

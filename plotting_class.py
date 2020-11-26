@@ -19,7 +19,7 @@ from amuse.community.fi.interface import FiMap
 # from distinct_colours import get_distinct
 # from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-import default_settings
+import ekster_settings
 
 
 logger = logging.getLogger(__name__)
@@ -72,26 +72,27 @@ def u_to_temperature(
 def make_column_density_map(
         mapper,
         gas,
-        N=default_settings.N,
-        width=default_settings.L | units.pc,
         offset_x=0 | units.pc,
         offset_y=0 | units.pc,
         offset_z=0 | units.pc,
-        weight_unit=units.MSun * units.pc**-2,  #  2 * units.amu * units.cm**-3,  # * units.pc**-2,
+        weight_unit=units.MSun * units.pc**-2,
         x_axis="x",
         y_axis="y",
         z_axis="z",
+        settings=ekster_settings.Settings(),
 ):
+    bins = settings.plot_bins
+    width = settings.plot_width
     mapper.parameters.target_x = offset_x
     mapper.parameters.target_y = offset_y
     mapper.parameters.image_width = width
-    mapper.parameters.image_size = [N, N]
+    mapper.parameters.image_size = [bins, bins]
     # positive z = top layer
     mapper.parameters.projection_direction = [0, 0, -1]
     # positive y = up
     mapper.parameters.upvector = [0, 1, 0]  # y
 
-    pixel_size = (width / N)**2
+    pixel_size = (width / bins)**2
     weight = (gas.mass / pixel_size).value_in(weight_unit)
     # weight = gas.mass.value_in(units.MSun)  # density.value_in(weight_unit)
     mapper.particles.weight = weight
@@ -102,8 +103,6 @@ def make_column_density_map(
 def make_temperature_map(
         mapper,
         gas,
-        N=default_settings.N,
-        width=default_settings.L | units.pc,
         offset_x=0 | units.pc,
         offset_y=0 | units.pc,
         offset_z=0 | units.pc,
@@ -111,14 +110,17 @@ def make_temperature_map(
         x_axis="x",
         y_axis="y",
         z_axis="z",
+        settings=ekster_settings.Settings(),
 ):
     "Create a temperature map"
+    bins = settings.plot_bins,
+    width = settings.plot_width,
     logger.info("Creating temperature map for gas")
 
     mapper.parameters.target_x = offset_x
     mapper.parameters.target_y = offset_y
     mapper.parameters.image_width = width
-    mapper.parameters.image_size = [N, N]
+    mapper.parameters.image_size = [bins, bins]
     # positive z = top layer
     mapper.parameters.projection_direction = [0, 0, -1]
     # positive y = up
@@ -126,7 +128,7 @@ def make_temperature_map(
 
     temperature = u_to_temperature(gas.u)
     mapper.particles.weight = temperature.value_in(weight_unit)
-    temperature_map = mapper.image.pixel_value.transpose()
+    temperature_map = mapper.image.pixel_value.transpose() | units.K
     mapper.particles.weight = 1
     count_map = mapper.image.pixel_value.transpose()
     mean_temperature_map = temperature_map / count_map
@@ -140,10 +142,6 @@ def plot_hydro_and_stars(
         stars=None,
         sinks=None,
         gas=None,
-        width=default_settings.L | units.pc,
-        L=default_settings.L,
-        N=default_settings.N,
-        image_size_scale=default_settings.image_size_scale,
         vmin=None,
         vmax=None,
         filename=None,
@@ -152,20 +150,24 @@ def plot_hydro_and_stars(
         offset_z=0 | units.pc,
         title="",
         gasproperties=["density", ],
-        colorbar=False,
         alpha_sfe=0.02,
         stars_are_sinks=False,
-        starscale=default_settings.starscale,
         length_unit=units.parsec,
-        dpi=default_settings.dpi,
         return_figure=False,
         thickness=None,
         x_axis="x",
         y_axis="y",
         z_axis="z",
         use_fresco=False,
+        settings=ekster_settings.Settings(),
 ):
     "Plot gas and stars"
+    width = settings.plot_width
+    bins = settings.plot_bins
+    image_size_scale = settings.plot_image_size_scale
+    starscale = settings.plot_starscale
+    dpi = settings.plot_dpi
+    colorbar = settings.plot_colorbar
     logger.info("Plotting gas and stars")
     xmin = (-width/2).value_in(length_unit)
     xmax = (width/2).value_in(length_unit)
@@ -199,7 +201,7 @@ def plot_hydro_and_stars(
     right = 1
     top = 0.9
     # fig = pyplot.figure(figsize=(6, 5))
-    image_size = [image_size_scale*N, image_size_scale*N]
+    image_size = [image_size_scale*bins, image_size_scale*bins]
     naxes = len(gasproperties)
     figwidth = image_size[0] / dpi / (right - left)
     figheight = image_size[1] / dpi / (top - bottom)
@@ -240,8 +242,6 @@ def plot_hydro_and_stars(
                 image = make_column_density_map(
                     mapper,
                     gas,
-                    N=N,
-                    width=width,
                     offset_x=offset_x,
                     offset_y=offset_y,
                     offset_z=offset_z,
@@ -249,10 +249,10 @@ def plot_hydro_and_stars(
                     x_axis=x_axis,
                     y_axis=y_axis,
                     z_axis=z_axis,
+                    settings=settings
                 )
 
                 logscale_image = numpy.log10(image)
-                # numpy.nan_to_num(logscale_image, nan=10**vmin, neginf=10**vmin, posinf=10**vmax)
                 extent = [xmin, xmax, ymin, ymax]
                 origin = "lower"
                 vmin = -1
@@ -286,26 +286,29 @@ def plot_hydro_and_stars(
 
             if gasproperty == "temperature":
                 temperature_map = make_temperature_map(
-                    mapper, gas, N=N, width=L | units.pc,
+                    mapper, gas,
                     offset_x=offset_x, offset_y=offset_y, offset_z=offset_z,
                     x_axis=x_axis, y_axis=y_axis, z_axis=z_axis,
                     weight_unit=units.K,
+                    settings=settings,
                 )
-                logscale_temperature_map = numpy.log10(temperature_map)
                 vmin = 0
                 vmax = 4
                 # No gas -> probably should be very hot
                 # temperature_map[
                 #     temperature_map < (10**vmin) | units.K
                 # ] = 10**vmax | units.K
+                logscale_temperature_map = numpy.log10(
+                    temperature_map.value_in(units.K)
+                )
 
                 img = ax.imshow(
                     logscale_temperature_map,
                     extent=[xmin, xmax, ymin, ymax],
                     vmin=vmin,
                     vmax=vmax,
-                    # cmap="inferno",
-                    cmap="cividis",
+                    cmap="inferno",
+                    # cmap="cividis",
                     # cmap="coolwarm",
                     origin="lower",
                 )
@@ -329,7 +332,9 @@ def plot_hydro_and_stars(
         if sinks is not None:
             if not sinks.is_empty():
                 # Scale sinks the same way as stars
-                s = starscale * 0.1 * ((sinks.mass / (7 | units.MSun))**(3.5 / 2))
+                s = starscale * 0.1 * (
+                        (sinks.mass / (7 | units.MSun))**(3.5 / 2)
+                    )
                 if x_axis == "x":
                     x = sinks.x.value_in(length_unit)
                 elif x_axis == "y":
@@ -347,7 +352,9 @@ def plot_hydro_and_stars(
         if stars is not None:  # and not use_fresco:
             # if not stars_are_sinks:
             if not stars.is_empty():
-                s = starscale * 0.1 * ((stars.mass / (7 | units.MSun))**(3.5 / 2))
+                s = starscale * 0.1 * (
+                    (stars.mass / (7 | units.MSun))**(3.5 / 2)
+                )
                 if x_axis == "x":
                     x = stars.x.value_in(length_unit)
                 elif x_axis == "y":
@@ -388,13 +395,13 @@ def plot_hydro_and_stars(
                 gas=gas,
                 converter=converter,
                 image_width=width,
-                image_size=[N, N],
+                image_size=[bins, bins],
                 percentile=0.9995,
                 calc_temperature=True,
                 age=0 | units.Myr,
                 vmax=None,
                 sourcebands='ubvri',
-                zoom_factor=N/2048,
+                zoom_factor=bins/2048,
                 psf_type='hubble',
                 psf_sigma=1.0,
                 return_vmax=True,
@@ -434,29 +441,28 @@ def plot_stars(
         sph=None,
         stars=None,
         sinks=None,
-        L=default_settings.L,
-        N=None,
         filename=None,
         offset_x=0 | units.pc,
         offset_y=0 | units.pc,
         title="",
         gasproperties="density",
-        colorbar=False,
         alpha_sfe=0.02,
         stars_are_sinks=False,
-        starscale=default_settings.starscale,
         fig=None,
+        settings=ekster_settings.Settings(),
 ):
     "Plot stars, but still accept sph keyword for compatibility reasons"
+    starscale = settings.plot_starscale
+    width = settings.plot_width
     logger.info("Plotting stars")
     if sph is None:
         max_density = 100 | units.MSun * units.parsec**-3
     else:
         max_density = sph.parameters.stopping_condition_maximum_density
-    xmin = -L/2
-    xmax = L/2
-    ymin = -L/2
-    ymax = L/2
+    xmin = -width/2
+    xmax = width/2
+    ymin = -width/2
+    ymax = width/2
     xmin += offset_x
     xmax += offset_x
     ymin += offset_y
@@ -495,8 +501,8 @@ def plot_stars(
             y = stars.y.value_in(units.parsec)
             ax.scatter(-x, y, s=s, c="white", lw=0)
 
-    ax.set_xlim(xmax, xmin)
-    ax.set_ylim(ymin, ymax)
+    ax.set_xlim(xmax.value_in(units.pc), xmin.value_in(units.pc))
+    ax.set_ylim(ymin.value_in(units.pc), ymax.value_in(units.pc))
     ax.set_xlabel("x [pc]")
     ax.set_ylabel("y [pc]")
     ax.set_aspect(1)
@@ -504,7 +510,7 @@ def plot_stars(
     fig.suptitle(title)
     if filename is None:
         filename = "test.png"
-    pyplot.savefig(filename, dpi=default_settings.dpi)
+    pyplot.savefig(filename, dpi=settings.plot_dpi)
 
     if close_fig_when_done:
         pyplot.close(fig)
@@ -512,7 +518,7 @@ def plot_stars(
         # just clear up
 
 
-def new_argument_parser():
+def new_argument_parser(settings):
     "Parse command line arguments"
     import argparse
     parser = argparse.ArgumentParser()
@@ -542,10 +548,10 @@ def new_argument_parser():
     )
     parser.add_argument(
         '-n',
-        dest='n',
-        default=default_settings.N,
+        dest='bins',
+        default=settings.plot_bins,
         type=int,
-        help='number of bins (None)',
+        help='number of bins (%i)' % settings.plot_bins,
     )
     parser.add_argument(
         '-x',
@@ -571,9 +577,9 @@ def new_argument_parser():
     parser.add_argument(
         '-w',
         dest='w',
-        default=default_settings.L,
+        default=settings.plot_width.value_in(units.pc),
         type=float,
-        help='Width (None)',
+        help='Width in pc (%f)' % settings.plot_bins.value_in(units.pc),
     )
     parser.add_argument(
         '--com',
@@ -586,14 +592,15 @@ def new_argument_parser():
         '--starscale',
         dest='starscale',
         type=float,
-        help='starscale (%f)' % default_settings.starscale,
-        default=default_settings.starscale,
+        default=settings.plot_starscale,
+        help='starscale (%f)' % settings.plot_starscale,
     )
     return parser.parse_args()
 
 
 def main():
-    o = new_argument_parser()
+    settings = ekster_settings.Settings()
+    o = new_argument_parser(settings)
     gasfilename = o.gasfilename
     starsfilename = o.starsfilename
     sinksfilename = o.sinksfilename
@@ -603,11 +610,11 @@ def main():
     offset_y = o.y | units.pc
     offset_z = o.z | units.pc
     w = o.w
-    starscale = o.starscale
-    width = w | units.pc
-    image_size_scale = (
-        default_settings.image_size_scale * (default_settings.N / n)
-    ) or default_settings.image_size_scale
+    settings.plot_starscale = o.starscale
+    settings.plot_width = w | units.pc
+    settings.plot_image_size_scale = (
+        settings.plot_image_size_scale * (settings.plot_bins / n)
+    ) or settings.plot_image_size_scale
     stars = read_set_from_file(
         starsfilename,
         "amuse",
@@ -654,24 +661,20 @@ def main():
         time = 0.0 | units.Myr
     converter = nbody_system.nbody_to_si(
         # 1 | units.pc, 1 | units.MSun,
-        default_settings.gas_rscale,
-        default_settings.gas_mscale,
+        settings.gas_rscale,
+        settings.gas_mscale,
     )
 
-    # gasproperties = ["density", "temperature"]
-    gasproperties = ["density"]
+    gasproperties = ["density", "temperature"]
+    # gasproperties = ["density"]
     for gasproperty in gasproperties:
-        L = o.w or default_settings.L
-        N = o.n or default_settings.N
+        settings.plot_width = o.w | units.pc
+        settings.plot_bins = o.n
         figure, ax = plot_hydro_and_stars(
             time,
             stars=stars,
             sinks=sinks,
             gas=gas,
-            width=width,
-            L=L,
-            N=N,
-            image_size_scale=image_size_scale,
             filename=imagefilename+".pdf",
             offset_x=offset_x,
             offset_y=offset_y,
@@ -685,9 +688,9 @@ def main():
             # alpha_sfe=0.02,
             # stars_are_sinks=False,
             thickness=None,
-            starscale=starscale,
             length_unit=units.parsec,
-            return_figure=True
+            return_figure=True,
+            settings=settings,
         )
         plot_cluster_locations = False
         if plot_cluster_locations:
@@ -707,7 +710,7 @@ def main():
                 ax.add_artist(circle)
         pyplot.savefig(
             gasproperty + "-" + imagefilename + ".png",
-            dpi=default_settings.dpi,
+            dpi=settings.plot_dpi,
         )
 
 

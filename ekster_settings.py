@@ -193,8 +193,12 @@ class Settings:
 
         self.write_backups = True
         self.use_wind = False
+
         # star_formation_method = "grouped"  # or "single"
         self.star_formation_method = "single"
+        self.group_distance = 1 | units.pc
+        self.group_speed_mach = 5
+        self.group_age = 0.1 | units.Myr
 
         self.star_code = "Petar"
 

@@ -4,8 +4,7 @@
 import logging
 import numpy
 
-from amuse.community.fi.interface import Fi
-from amuse.community.phantom.interface import Phantom
+from available_codes import Fi, Phantom
 # from amuse.datamodel import Particles, Particle
 from amuse.units import units, nbody_system, constants
 
@@ -15,7 +14,7 @@ from cooling_class import SimplifiedThermalModelEvolver
 # from sinks_class import accrete_gas  # , SinkParticles
 # from amuse.ext.sink import SinkParticles
 
-import default_settings
+import ekster_settings
 
 
 def sfe_to_density(e_loc, alpha=0.02):
@@ -43,6 +42,7 @@ class GasCode(BasicCode):
             # cooling_type="thermal_model",
             cooling_type="default",
             begin_time=0.0 | units.Myr,
+            settings=ekster_settings.Settings(),
             **keyword_arguments
     ):
         self.typestr = "Hydro"
@@ -54,8 +54,8 @@ class GasCode(BasicCode):
             self.unit_converter = converter
         else:
             self.unit_converter = nbody_system.nbody_to_si(
-                default_settings.gas_mscale,
-                default_settings.gas_rscale,
+                settings.gas_mscale,
+                settings.gas_rscale,
             )
         if begin_time is None:
             begin_time = 0. | units.Myr
@@ -63,10 +63,10 @@ class GasCode(BasicCode):
 
         self.cooling_type = cooling_type
 
-        self.epsilon = default_settings.epsilon_gas
+        self.epsilon = settings.epsilon_gas
         # self.density_threshold = (5e-20 | units.g * units.cm**-3)
         # self.density_threshold = (5e5 | units.amu * units.cm**-3)
-        self.density_threshold = default_settings.density_threshold
+        self.density_threshold = settings.density_threshold
         print(
             "Density threshold for sink formation: %s (%s / %s)" % (
                 self.density_threshold.in_(units.MSun * units.parsec**-3),
@@ -93,21 +93,21 @@ class GasCode(BasicCode):
             self.parameters.self_gravity_flag = True
             # Maybe make these depend on the converter?
             self.parameters.periodic_box_size = \
-                100 * default_settings.gas_rscale
-            self.parameters.timestep = default_settings.timestep * 0.5
+                100 * settings.gas_rscale
+            self.parameters.timestep = settings.timestep * 0.5
             self.parameters.verbosity = 0
             self.parameters.integrate_entropy_flag = False
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
         elif sph_code is Phantom:
-            self.parameters.alpha = default_settings.alpha
-            self.parameters.beta = default_settings.beta
+            self.parameters.alpha = settings.alpha
+            self.parameters.beta = settings.beta
             # self.parameters.gamma = 5./3.
-            self.parameters.gamma = default_settings.gamma
-            self.parameters.ieos = default_settings.ieos
-            self.parameters.icooling = default_settings.icooling
+            self.parameters.gamma = settings.gamma
+            self.parameters.ieos = settings.ieos
+            self.parameters.icooling = settings.icooling
             mu = self.parameters.mu  # mean molecular weight
-            temperature = 10 | units.K
+            temperature = settings.isothermal_gas_temperature
             polyk = (
                 constants.kB
                 * temperature
@@ -117,9 +117,9 @@ class GasCode(BasicCode):
             self.parameters.rho_crit = 20*self.density_threshold
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
-            self.parameters.h_soft_sinkgas = default_settings.epsilon_gas
-            self.parameters.h_soft_sinksink = default_settings.epsilon_gas
-            self.parameters.h_acc = default_settings.h_acc
+            self.parameters.h_soft_sinkgas = settings.epsilon_gas
+            self.parameters.h_soft_sinksink = settings.epsilon_gas
+            self.parameters.h_acc = settings.h_acc
 
         if self.cooling_type == "thermal_model":
             if sph_code is Fi:

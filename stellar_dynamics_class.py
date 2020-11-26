@@ -33,7 +33,8 @@ except ImportError:
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
-import default_settings as settings
+import ekster_settings
+import available_codes
 
 
 class StellarDynamicsCode:
@@ -46,18 +47,20 @@ class StellarDynamicsCode:
             # star_code=Hermite,
             logger=None,
             handle_stopping_conditions=False,
-            epsilon_squared=(settings.epsilon_stars)**2,
             # mode="cpu",
             begin_time=0 | nbody_system.time,
             stop_after_each_step=False,
             number_of_workers=8,
+            settings=ekster_settings.Settings(),
             **kwargs
     ):
+        self.settings = settings
+        epsilon_squared = settings.epsilon_stars**2
         self.typestr = "Nbody"
         self.star_code = star_code
         try:
             self.namestr = self.star_code.__name__
-        except:
+        except AttributeError:
             self.namestr = "unknown name"
         self.__name__ = "StellarDynamics"
         self.logger = logger or logging.getLogger(__name__)
@@ -66,7 +69,9 @@ class StellarDynamicsCode:
         self.__current_state = "stopped"
         self.__state = {}
         self.__particles = Particles()
-        self.__stop_after_each_step = stop_after_each_step if self.star_code is not Petar else False
+        self.__stop_after_each_step = (
+            stop_after_each_step if self.star_code is not Petar else False
+        )
         if converter is not None:
             self.unit_converter = converter
         else:
@@ -88,7 +93,6 @@ class StellarDynamicsCode:
             **kwargs)
         self.parameters_to_default(
             star_code=star_code,
-            epsilon_squared=epsilon_squared,
         )
         if self.__stop_after_each_step:
             # self.code.commit_particles()
@@ -107,6 +111,8 @@ class StellarDynamicsCode:
             # handle_stopping_conditions=False,
             **kwargs
     ):
+        if hasattr(available_codes, star_code):
+            star_code = getattr(available_codes, star_code)
         if star_code is ph4:
             code = star_code(
                 converter,
@@ -147,15 +153,20 @@ class StellarDynamicsCode:
                 # number_of_workers=number_of_workers,
                 **kwargs
             )
+        else:
+            raise Exception(
+                "Code not found: %s" % star_code
+            )
         self.__current_state = "started"
         return code
 
     def parameters_to_default(
             self,
             star_code=Hermite,
-            epsilon_squared=(settings.epsilon_stars)**2,
     ):
         "Set default parameters"
+        settings = self.settings
+        epsilon_squared = settings.epsilon_stars**2
         logger = self.logger
         param = self.code.parameters
         param.epsilon_squared = epsilon_squared

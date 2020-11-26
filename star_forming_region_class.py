@@ -7,18 +7,13 @@ This module omits multiple stars for simplicity
 """
 import logging
 import numpy
-import time
 
 from amuse.units import units  # , constants, nbody_system
-from amuse.datamodel import Particle, Particles, ParticlesSuperset
+from amuse.datamodel import Particle, Particles
 # from amuse.ic.plummer import new_plummer_model
 from amuse.ic.brokenimf import MultiplePartIMF
 from amuse.units.trigo import sin, cos
 from amuse.ext.masc import new_star_cluster
-from amuse.ext.sink import SinkParticles
-
-from sinks_class import should_a_sink_form
-import default_settings
 
 
 def new_kroupa_mass_distribution(
@@ -86,7 +81,7 @@ def form_stars(
     """
     Let a sink form stars.
     """
-    
+
     logger = logger or logging.getLogger(__name__)
     if randomseed is not None:
         logger.info("setting random seed to %i", randomseed)
@@ -119,6 +114,7 @@ def form_stars(
     mass_left = sink.mass - sink.next_primary_mass
     masses = new_star_cluster(
         stellar_mass=mass_left,
+        initial_mass_function="kroupa",
         upper_mass_limit=upper_mass_limit,
     ).mass
     number_of_stars = len(masses)
@@ -238,7 +234,7 @@ def assign_sink_group(
         for i in range(number_of_groups):
             i += 1   # Change to one-based index
             group_i = sink_particles[sink_particles.in_group == i]
-            
+
             # Check 1: see if this sink is within the sampling radius
             # from the center of mass of the i-th group.
             distance_from_group_com = (
@@ -302,7 +298,8 @@ def assign_sink_group(
                 continue
 
             # At this point, this sink passes all checks
-            logger.info("Sink %i passes all checks for group #%i",
+            logger.info(
+                "Sink %i passes all checks for group #%i",
                 sink.key, i
             )
             smallest_Etot = Etot
@@ -353,9 +350,6 @@ def form_stars_from_group(
         logger.info("Setting random seed to %i", randomseed)
         numpy.random.seed(randomseed)
 
-    # Copy to avoid messing up original sink particle set.
-    all_sinks = sink_particles.copy()
-
     # Sanity check: each sink particle must be in a group.
     ungrouped_sinks = sink_particles.select_array(
         lambda x: x <= 0, ['in_group']
@@ -389,7 +383,7 @@ def form_stars_from_group(
         # a mass, or 0 MSun. If all values are 0 MSun, this is a
         # new group. Else, only interested on the non-zero value. The
         # non-zero values are the same.
-        
+
         #logger.info(
         #    'SANITY CHECK: group_next_primary_mass %s',
         #    group.group_next_primary_mass
@@ -606,7 +600,7 @@ def form_stars_from_group_older_version(
     """
     Form stars from specific group of sinks.
 
-    NOTE: This is the older version where removed gas is 
+    NOTE: This is the older version where removed gas is
     considered as star-forming region. This is now being
     updated to the above latest version.
     """
@@ -618,9 +612,6 @@ def form_stars_from_group_older_version(
     if randomseed is not None:
         logger.info("Setting random seed to %i", randomseed)
         numpy.random.seed(randomseed)
-
-    # Copy to avoid messing up original sink particle set.
-    all_sinks = sink_particles.copy()
 
     # Sanity check: each sink particle must be in a group.
     ungrouped_sinks = sink_particles.select_array(
@@ -791,7 +782,8 @@ def form_stars_from_group_older_version(
 
         # Random position of stars within the sink radius they assigned to
         rho = (
-            numpy.random.random(number_of_stars) * new_stars.star_forming_radius
+            numpy.random.random(number_of_stars)
+            * new_stars.star_forming_radius
         )
         theta = (
             numpy.random.random(number_of_stars)
@@ -806,8 +798,8 @@ def form_stars_from_group_older_version(
 
         X = list(zip(*[x, y, z])) | units.pc
 
-        # Random velocity, sample magnitude from gaussian with local sound speed
-        # like Wall et al (2019)
+        # Random velocity, sample magnitude from gaussian with local sound
+        # speed like Wall et al (2019)
         # temperature = 10 | units.K
 
         # or (gamma * local_pressure / density).sqrt()
@@ -1044,64 +1036,6 @@ class StarFormingRegion(
             self.generate_next_mass()
             return new_stars
         return Particles()
-
-
-def form_sinks(
-        gas, sinks, critical_density,
-        logger=None,
-        minimum_sink_radius=default_settings.minimum_sink_radius,
-        desired_sink_mass=default_settings.desired_sink_mass,
-):
-    """
-    Determines where sinks should form from gas.
-    Non-destructive function that creates new sinks and adds them to sinks.
-    Accretes gas onto sinks.
-    Returns new sinks and accreted particles.
-    """
-    if logger is None:
-        logger = logging.getLogger(__name__)
-    sink_cores = Particles()
-
-    high_density_gas = gas.select_array(
-        lambda density:
-        density > critical_density,
-        ["density"],
-    ).sorted_by_attribute("density").reversed()
-    print(
-        "Number of gas particles above critical density (%s): %i" % (
-            critical_density.in_(units.g * units.cm**-3),
-            len(high_density_gas),
-        )
-    )
-
-    high_density_gas.form_sink = False
-    high_density_gas[
-        high_density_gas.density/critical_density > 10
-        ].form_sink = True
-    high_density_gas[high_density_gas.form_sink is False].form_sink = \
-        should_a_sink_form(
-            high_density_gas[high_density_gas.form_sink is False], gas
-        )
-    sink_cores = high_density_gas[high_density_gas.form_sink]
-    del sink_cores.form_sink
-    desired_sink_radius = (desired_sink_mass / sink_cores.density)**(1/3)
-    desired_sink_radius[
-        desired_sink_radius < minimum_sink_radius
-    ] = minimum_sink_radius
-
-    sink_cores.radius = desired_sink_radius
-    sink_cores.initial_density = sink_cores.density
-    sink_cores.u = 0 | units.kms**2
-    sinks = SinkParticles(sink_cores)
-    print("AAP: ", sink_cores in gas)
-    accreted_gas = sink_cores.copy()
-    accreted_gas.add_particles(sinks.accrete(gas))
-
-    logger.info(
-        "Number of new sinks: %i",
-        len(sinks)
-    )
-    return sinks, accreted_gas
 
 
 def main():

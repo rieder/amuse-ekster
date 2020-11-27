@@ -199,9 +199,9 @@ def form_stars(
 def assign_sink_group(
         sink,
         sink_particles,
-        group_radius=1|units.pc,
-        group_age=0.1|units.Myr,
-        group_speed=0.2|units.kms,
+        group_radius=1 | units.pc,
+        group_age=0.1 | units.Myr,
+        group_speed=0.2 | units.kms,
         logger=None
 ):
     """
@@ -337,7 +337,7 @@ def form_stars_from_group(
     **keyword_arguments
 ):
     """
-    Version 2 (Latest version)
+    Last reviwed on 27 Nov 2020.
 
     Form stars from specific group of sinks.
     """
@@ -415,7 +415,7 @@ def form_stars_from_group(
     masses = new_star_cluster(
         stellar_mass=mass_left,
         upper_mass_limit=upper_mass_limit,
-        lower_mass_limit=0.01|units.MSun,
+        lower_mass_limit=0.01 | units.MSun,
         initial_mass_function='kroupa'
     ).mass
     number_of_stars = len(masses)

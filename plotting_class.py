@@ -381,7 +381,10 @@ def plot_hydro_and_stars(
                     y = sinks.y.value_in(length_unit)
                 elif y_axis == "z":
                     y = sinks.z.value_in(length_unit)
-                c = "black" if gasproperty == "temperature" else "red"
+                c = (
+                    "black" if gasproperty == "temperature"
+                    else settings.plot_csinks
+                )
                 ax.scatter(x, y, s=s, c=c, lw=0)
         if stars is not None:  # and not use_fresco:
             # if not stars_are_sinks:
@@ -401,7 +404,10 @@ def plot_hydro_and_stars(
                     y = stars.y.value_in(length_unit)
                 elif y_axis == "z":
                     y = stars.z.value_in(length_unit)
-                c = "black" if gasproperty == "temperature" else "white"
+                c = (
+                    "black" if gasproperty == "temperature"
+                    else settings.plot_cstars
+                )
                 if not use_fresco:
                     use_fresco = 0
                 ax.scatter(x, y, s=s, c=c, lw=0, alpha=1-use_fresco)

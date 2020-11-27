@@ -28,7 +28,6 @@ from sinks_class import should_a_sink_form  # , sfe_to_density
 from star_cluster_class import StarCluster
 from plotting_class import plot_hydro_and_stars  # , plot_stars
 from plotting_class import u_to_temperature, temperature_to_u
-from merge_recipes import form_new_star
 from star_forming_region_class import (
     form_stars,
     form_stars_from_group, assign_sink_group,
@@ -1040,7 +1039,6 @@ class ClusterInPotential(
         return
 
     def evolve_model(self, real_tend):
-        #TODO
         "Evolve system to specified time"
         settings = self.settings
         relative_tend = real_tend - self.begin_time

@@ -103,6 +103,13 @@ def new_argument_parser(settings):
         default="default",
         help='configuration setup [default]',
     )
+    parser.add_argument(
+        '--writesetup',
+        dest='writesetup',
+        default=False,
+        action="store_true",
+        help='write default settings file and exit',
+    )
     return parser.parse_args()
 
 
@@ -1364,7 +1371,7 @@ def main(
     # TODO: get time stamp from gas, stars, or sinks
     # Default for the initial spiral gas is 1.4874E+15 seconds
 
-    if filename_random is None:
+    if filename_random is None or filename_random == "None":
         numpy.random.seed(seed)
     else:
         state_file = open(filename_random, 'rb')
@@ -1405,7 +1412,7 @@ def main(
         settings.gas_rscale,
     )
 
-    if filename_stars is not None:
+    if filename_stars is not None and filename_stars != "None":
         stars = read_set_from_file(filename_stars, "amuse", close_file=True,)
         have_stars = True
     else:
@@ -1421,7 +1428,7 @@ def main(
         stars.x += 250 | units.pc
         stars.vx += 0.5 | units.kms
         # have_stars = False
-    if filename_gas is not None:
+    if filename_gas is not None and filename_gas != "None":
         print("reading gas")
         gas = read_set_from_file(filename_gas, "amuse", close_file=True,)
         if hasattr(gas, 'u'):
@@ -1678,4 +1685,9 @@ def main(
 if __name__ == "__main__":
     settings = ekster_settings.Settings()
     args = new_argument_parser(settings)
+    if args.writesetup:
+        ekster_settings.write_config(
+            settings, args.settingfilename, args.setup
+        )
+        exit()
     model = main(args, settings=settings)

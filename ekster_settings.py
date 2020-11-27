@@ -140,6 +140,11 @@ class Settings:
         self.plot_image_size_scale = 2
         self.plot_starscale = 1
         self.plot_colorbar = False
+        self.plot_xaxis = "x"
+        self.plot_yaxis = "y"
+        self.plot_zaxis = "z"
+        self.plot_csinks = "red"
+        self.plot_cstars = "white"
 
         # phantom_solarm = 1.9891e30 | units.kg
         # phantom_pc = 3.086e16 | units.m

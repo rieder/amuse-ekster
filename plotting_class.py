@@ -87,10 +87,44 @@ def make_column_density_map(
     mapper.parameters.target_y = offset_y
     mapper.parameters.image_width = width
     mapper.parameters.image_size = [bins, bins]
-    # positive z = top layer
-    mapper.parameters.projection_direction = [0, 0, -1]
+    # positive x = up
+    if y_axis == 'x':
+        mapper.parameters.upvector = [1, 0, 0]
+        if x_axis == 'y':
+            # negative z = top layer
+            mapper.parameters.projection_direction = [0, 0, 1]
+        elif x_axis == 'z':
+            # positive y = top layer
+            mapper.parameters.projection_direction = [0, -1, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
+
     # positive y = up
-    mapper.parameters.upvector = [0, 1, 0]  # y
+    if y_axis == 'y':
+        mapper.parameters.upvector = [0, 1, 0]
+        if x_axis == 'x':
+            # positive z = top layer
+            mapper.parameters.projection_direction = [0, 0, -1]
+        elif x_axis == 'z':
+            # negative x = top layer
+            mapper.parameters.projection_direction = [1, 0, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
+
+    # positive z = up
+    if y_axis == 'z':
+        mapper.parameters.upvector = [0, 0, 1]
+        if x_axis == 'x':
+            # negative y = top layer
+            mapper.parameters.projection_direction = [0, 1, 0]
+        elif x_axis == 'y':
+            # positive x = top layer
+            mapper.parameters.projection_direction = [-1, 0, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
 
     pixel_size = (width / bins)**2
     weight = (gas.mass / pixel_size).value_in(weight_unit)
@@ -347,7 +381,10 @@ def plot_hydro_and_stars(
                     y = sinks.y.value_in(length_unit)
                 elif y_axis == "z":
                     y = sinks.z.value_in(length_unit)
-                c = "black" if gasproperty == "temperature" else "white"
+                c = (
+                    "black" if gasproperty == "temperature"
+                    else settings.plot_csinks
+                )
                 ax.scatter(x, y, s=s, c=c, lw=0)
         if stars is not None:  # and not use_fresco:
             # if not stars_are_sinks:
@@ -367,7 +404,10 @@ def plot_hydro_and_stars(
                     y = stars.y.value_in(length_unit)
                 elif y_axis == "z":
                     y = stars.z.value_in(length_unit)
-                c = "black" if gasproperty == "temperature" else "white"
+                c = (
+                    "black" if gasproperty == "temperature"
+                    else settings.plot_cstars
+                )
                 if not use_fresco:
                     use_fresco = 0
                 ax.scatter(x, y, s=s, c=c, lw=0, alpha=1-use_fresco)
@@ -589,12 +629,39 @@ def new_argument_parser(settings):
         help='Center on center of mass [False]',
     )
     parser.add_argument(
+        '-t',
+        dest='time',
+        type=float,
+        default=0,
+        help='Time for the snapshot in Myr [0]',
+    )
+    parser.add_argument(
+        '--timestamp-off',
+        dest='timestamp_off',
+        action='store_true',
+        default=False,
+        help='Disable timestamp from gas particle set [False]',
+    )
+    parser.add_argument(
+        '-X',
+        dest='x_axis',
+        default='x',
+        help='Horizontal axis ["x"]',
+    )
+    parser.add_argument(
+        '-Y',
+        dest='y_axis',
+        default='y',
+        help='Vertical axis ["y"]',
+    )
+    parser.add_argument(
         '--starscale',
         dest='starscale',
         type=float,
         default=settings.plot_starscale,
         help='starscale (%f)' % settings.plot_starscale,
     )
+
     return parser.parse_args()
 
 
@@ -610,11 +677,14 @@ def main():
     offset_y = o.y | units.pc
     offset_z = o.z | units.pc
     w = o.w
+    x_axis = o.x_axis
+    y_axis = o.y_axis
     settings.plot_starscale = o.starscale
     settings.plot_width = w | units.pc
     settings.plot_image_size_scale = (
         settings.plot_image_size_scale * (settings.plot_bins / n)
     ) or settings.plot_image_size_scale
+
     stars = read_set_from_file(
         starsfilename,
         "amuse",
@@ -653,12 +723,19 @@ def main():
         offset_z = com[2]
 
     print(com.value_in(units.parsec))
-    try:
-        time = gas.get_timestamp()
-    except AttributeError:
-        time = 0.0 | units.Myr
-    if time is None:
-        time = 0.0 | units.Myr
+
+    time = o.time | units.Myr
+    if not o.timestamp_off:
+        try:
+            time = gas.get_timestamp()
+        except AttributeError:
+            print('Unable to get timestamp, set time to 0 Myr.')
+            time = 0.0 | units.Myr
+        if time is None:
+            print('Time is None, set time to 0 Myr')
+            time = 0.0 | units.Myr
+    print(time.in_(units.Myr))
+
     converter = nbody_system.nbody_to_si(
         # 1 | units.pc, 1 | units.MSun,
         settings.gas_rscale,
@@ -679,6 +756,8 @@ def main():
             offset_x=offset_x,
             offset_y=offset_y,
             offset_z=offset_z,
+            x_axis=x_axis,
+            y_axis=y_axis,
             title="time = %06.2f %s" % (
                 time.value_in(units.Myr),
                 units.Myr,

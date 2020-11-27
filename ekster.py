@@ -913,6 +913,12 @@ class ClusterInPotential(
                 sink = assign_sink_group(
                     sink,
                     self.sink_particles,
+                    group_radius=settings.group_distance,
+                    group_speed=(
+                        settings.group_speed_mach
+                        * self.gas_code.parameters.polyk.sqrt()
+                    ),
+                    group_age=settings.group_age,
                     logger=self.logger
                 )
                 self.logger.info(
@@ -952,6 +958,7 @@ class ClusterInPotential(
                     # TODO: this loop needs debugging/checking...
                     # self.logger.info("Processing sink %i, with mass %s",
                     # sink.sink_number, sink.mass)
+                    self.logger.info("Processing sink %i", sink.key)
                     local_sound_speed = self.gas_code.parameters.polyk.sqrt()
                     if multithread:
                         results.append(
@@ -1225,17 +1232,6 @@ class ClusterInPotential(
                     # check_for_new_sinks = False
                 else:
                     self.logger.info("New sink formed")
-                self.logger.info(
-                    "Now we have %i stars; %i sinks and %i gas, %i particles"
-                    " in total.",
-                    len(self.star_particles),
-                    len(self.sink_particles),
-                    len(self.gas_particles),
-                    (
-                        len(self.gas_code.particles)
-                        + len(self.star_code.particles)
-                    ),
-                )
 
             if not self.sink_particles.is_empty():
                 print("Forming stars")
@@ -1252,8 +1248,26 @@ class ClusterInPotential(
                         self.star_particles.mass.mean().in_(units.MSun),
                         self.sink_particles.mass.mean().in_(units.MSun),
                     )
+                    self.logger.info(
+                        "Total mass of stars: %s. "
+                        "Total mass of sinks: %s.",
+                        self.star_particles.total_mass().in_(units.MSun),
+                        self.sink_particles.total_mass().in_(units.MSun),
+                    )
             else:
                 print("No sinks (yet?)")
+
+            self.logger.info(
+                "Now we have %i stars; %i sinks and %i gas, %i particles"
+                " in total.",
+                len(self.star_particles),
+                len(self.sink_particles),
+                len(self.gas_particles),
+                (
+                    len(self.gas_code.particles)
+                    + len(self.star_code.particles)
+                ),
+            )
 
             self.logger.info(
                 "Evo time is now %s",
@@ -1568,6 +1582,9 @@ def main(
                 % model.star_particles.center_of_mass()
             )
         plotname = "%sdensity-%04i.png" % (run_prefix, step)
+        offset_x_index = ["x", "y", "z"].index(settings.plot_xaxis)
+        offset_y_index = ["x", "y", "z"].index(settings.plot_yaxis)
+        offset_z_index = ["x", "y", "z"].index(settings.plot_zaxis)
         plot_hydro_and_stars(
             model.physical_time,
             stars=model.star_particles,
@@ -1578,12 +1595,12 @@ def main(
                 model.physical_time.value_in(units.Myr),
                 units.Myr,
             ),
-            offset_x=com[0],
-            offset_y=com[1],
-            offset_z=com[2],
-            x_axis="x",
-            y_axis="y",
-            z_axis="z",
+            x_axis=settings.plot_xaxis,
+            y_axis=settings.plot_yaxis,
+            z_axis=settings.plot_zaxis,
+            offset_x=com[offset_x_index],
+            offset_y=com[offset_y_index],
+            offset_z=com[offset_z_index],
             gasproperties=["density", ],
             # stars_are_sinks=True,
             # stars_are_sinks=False,

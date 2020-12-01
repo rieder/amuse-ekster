@@ -24,7 +24,7 @@ class StellarEvolutionCode:
             self,
             evo_code=SeBa,
             logger=None,
-            begin_time=0 | units.Myr,
+            time_offset=0 | units.Myr,
             **keyword_arguments
     ):
         self.typestr = "Evolution"
@@ -46,9 +46,9 @@ class StellarEvolutionCode:
                 **keyword_arguments
             )
         self.parameters = self.code.parameters
-        if begin_time is None:
-            begin_time = 0 | units.Myr
-        self.__begin_time = begin_time
+        if time_offset is None:
+            time_offset = 0 | units.Myr
+        self.__time_offset = time_offset
 
     @property
     def particles(self):
@@ -58,13 +58,13 @@ class StellarEvolutionCode:
     @property
     def model_time(self):
         "return the time of the evolution code"
-        return self.code.model_time + self.__begin_time
+        return self.code.model_time + self.__time_offset
 
     def evolve_model(self, tend):
         "Evolve stellar evolution to time and sync"
-        print("Starting stellar evolution evolve_model")
-        result = self.code.evolve_model(tend)
-        print("Finished stellar evolution evolve_model")
+        print("Starting stellar evolution evolve_model to %s" % tend)
+        result = self.code.evolve_model(tend-self.__time_offset)
+        print("Finished stellar evolution evolve_model to %s" % tend)
         return result
 
     def save_state(self):

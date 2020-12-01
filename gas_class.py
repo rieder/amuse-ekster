@@ -9,7 +9,6 @@ from available_codes import Fi, Phantom
 from amuse.units import units, nbody_system, constants
 
 from basic_class import BasicCode
-from cooling_class import SimplifiedThermalModelEvolver
 # from plotting_class import plot_hydro_and_stars
 # from sinks_class import accrete_gas  # , SinkParticles
 # from amuse.ext.sink import SinkParticles
@@ -30,7 +29,7 @@ def density_to_sfe(rho, alpha=0.02):
 
 
 class GasCode(BasicCode):
-    """Wraps around gas code, supports star formation and cooling"""
+    """Wraps around gas code"""
 
     def __init__(
             self,
@@ -39,9 +38,7 @@ class GasCode(BasicCode):
             converter=None,
             logger=None,
             internal_star_formation=False,
-            # cooling_type="thermal_model",
-            cooling_type="default",
-            begin_time=0.0 | units.Myr,
+            time_offset=0.0 | units.Myr,
             settings=ekster_settings.Settings(),
             **keyword_arguments
     ):
@@ -57,32 +54,26 @@ class GasCode(BasicCode):
                 settings.gas_mscale,
                 settings.gas_rscale,
             )
-        if begin_time is None:
-            begin_time = 0. | units.Myr
-        self.__begin_time = self.unit_converter.to_si(begin_time)
-
-        self.cooling_type = cooling_type
+        if time_offset is None:
+            time_offset = 0. | units.Myr
+        self.__time_offset = self.unit_converter.to_si(time_offset)
 
         self.epsilon = settings.epsilon_gas
-        # self.density_threshold = (5e-20 | units.g * units.cm**-3)
-        # self.density_threshold = (5e5 | units.amu * units.cm**-3)
         self.density_threshold = settings.density_threshold
         print(
-            "Density threshold for sink formation: %s (%s / %s)" % (
+            "Density threshold for sink formation: %s (%s; %s)" % (
                 self.density_threshold.in_(units.MSun * units.parsec**-3),
                 self.density_threshold.in_(units.g * units.cm**-3),
                 self.density_threshold.in_(units.amu * units.cm**-3),
             )
         )
         self.logger.info(
-            "Density threshold for sink formation: %s (%s / %s)",
+            "Density threshold for sink formation: %s (%s; %s)",
             self.density_threshold.in_(units.MSun * units.parsec**-3),
             self.density_threshold.in_(units.g * units.cm**-3),
             self.density_threshold.in_(units.amu * units.cm**-3),
         )
-        # self.density_threshold = (1 | units.MSun) / (self.epsilon)**3
         self.code = sph_code(
-            # self.unit_converter if sph_code is not Phantom else None,
             self.unit_converter,
             redirection="none",
             **keyword_arguments
@@ -121,31 +112,6 @@ class GasCode(BasicCode):
             self.parameters.h_soft_sinksink = settings.epsilon_gas
             self.parameters.h_acc = settings.h_acc
 
-        if self.cooling_type == "thermal_model":
-            if sph_code is Fi:
-                # Have to do our own cooling
-                # self.parameters.isothermal_flag = True
-                # self.parameters.gamma = 1
-                self.parameters.isothermal_flag = False
-                self.parameters.radiation_flag = False
-                self.parameters.gamma = 5./3.
-            # elif sph_code is Phantom:
-                # self.parameters.ieos = "adiabatic"
-            self.cooling = SimplifiedThermalModelEvolver(
-                self.gas_particles
-            )
-            self.cooling.model_time = self.model_time
-        elif self.cooling_type == "default":
-            self.cooling = False
-            if sph_code is Fi:
-                self.parameters.gamma = 1.
-                self.parameters.isothermal_flag = True
-                self.parameters.radiation_flag = False
-
-        # self.get_gravity_at_point = self.code.get_gravity_at_point
-        # self.get_potential_at_point = self.code.get_potential_at_point
-        # self.get_hydro_state_at_point = self.code.get_hydro_state_at_point
-
     def get_potential_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return potential at specified point"""
         return self.code.get_potential_at_point(
@@ -167,7 +133,7 @@ class GasCode(BasicCode):
     @property
     def model_time(self):
         """Return the current time"""
-        return self.code.model_time + self.__begin_time
+        return self.code.model_time + self.__time_offset
 
     @property
     def stopping_conditions(self):
@@ -199,21 +165,19 @@ class GasCode(BasicCode):
         """Stop the simulation code"""
         return self.code.stop
 
-    def evolve_model(self, real_end_time):
+    def evolve_model(self, end_time):
         """
         Evolve model, and manage these stopping conditions:
         - density limit detection
         --> form stars when this happens
 
         Use the code time step to advance until 'end_time' is reached.
-        Each step, also do cooling (if enabled).
 
         - returns immediately if the code would not evolve a step, i.e. when
           (end_time - model_time) is smaller than half a code timestep (for
-          Fi). Because we don't want to do cooling then either!
+          Fi).
         """
-        end_time = real_end_time - self.__begin_time
-        time_unit = real_end_time.unit
+        time_unit = end_time.unit
         print("Evolve gas until %s" % end_time.in_(time_unit))
 
         # if code_name is Fi:
@@ -229,16 +193,11 @@ class GasCode(BasicCode):
         if self.internal_star_formation:
             density_limit_detection.enable()
 
-        # Do cooling with a leapfrog scheme
-        first = True
-        if self.cooling and first:
-            self.cooling.evolve_for(timestep/2)
-            first = False
-
         # short offset
-        while self.code.model_time < (end_time - timestep*0.0001):
-            if self.cooling and not first:
-                self.cooling.evolve_for(timestep)
+        time_fraction = 2**-14 * timestep
+        while (
+                self.model_time < (end_time - time_fraction)
+        ):
             next_time = self.code.model_time + timestep
             # temp = self.code.gas_particles[0].u
             print(
@@ -248,26 +207,6 @@ class GasCode(BasicCode):
             )
             self.code.evolve_model(next_time)
             print("evolve_model of code is done")
-            if density_limit_detection.is_set():
-                # We don't want to do star formation in this bit of code (since
-                # we can't tell other codes about it). But we must make sure to
-                # synchronise the cooling up to this point before we return,
-                # otherwise we will cool too much (or too little)...
-                # So we should probably:
-                # - set the time step short enough to make this not a problem
-                # - Finish our loop here for this timestep by doing a final
-                # half-timestep cooling
-                # NOTE: make sure code is not doing sub-'timestep' steps or
-                # this will not work as expected!
-                if self.cooling:
-                    self.cooling.evolve_for(timestep/2)
-                return
-            # while density_limit_detection.is_set():
-            #     self.resolve_starformation()
-            #     self.code.evolve_model(next_time)
-        # Make sure cooling and the code are synchronised when the loop ends
-        if self.cooling:
-            self.cooling.evolve_for(timestep/2)
 
         return
 
@@ -336,7 +275,6 @@ def main():
 
     model = GasCode(
         converter=converter,
-        # internal_cooling=False,
     )
     model.gas_particles.add_particles(gas)
     print(model.parameters)

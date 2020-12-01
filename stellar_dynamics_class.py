@@ -48,7 +48,7 @@ class StellarDynamicsCode:
             logger=None,
             handle_stopping_conditions=False,
             # mode="cpu",
-            begin_time=0 | nbody_system.time,
+            time_offset=0 | nbody_system.time,
             stop_after_each_step=False,
             number_of_workers=8,
             settings=ekster_settings.Settings(),
@@ -81,9 +81,9 @@ class StellarDynamicsCode:
             )
             # TODO: modify to allow N-body units
 
-        if begin_time is None:
-            begin_time = 0. | units.Myr
-        self.__begin_time = self.unit_converter.to_si(begin_time)
+        if time_offset is None:
+            time_offset = 0. | units.Myr
+        self.__time_offset = self.unit_converter.to_si(time_offset)
 
         self.code = self.new_code(
             converter=self.unit_converter,
@@ -213,9 +213,13 @@ class StellarDynamicsCode:
             logger.info("Old r_bin value: %s", param.r_bin.in_(units.pc))
             param.r_bin = 1 | units.RSun
             # param.r_search_min = 0 | units.pc
-            param.r_search_min = 1 | units.RSun  # very small = technically disabled
-            param.dt_soft = self.unit_converter.to_si(2**-8 | nbody_system.time)
-            # param.dt_soft = self.unit_converter.to_si(2**-11 | nbody_system.time)
+
+            # very small = technically disabled
+            param.r_search_min = 1 | units.RSun
+
+            param.dt_soft = self.unit_converter.to_si(
+                2**-8 | nbody_system.time
+            )
             # settings.timestep_bridge / 4  # 0 | units.Myr
             # param.r_out = 10 * settings.epsilon_stars
 
@@ -231,126 +235,86 @@ class StellarDynamicsCode:
             #   r_search_min = 0.0056792
             #   vel_disp     = 0.89469
             #   dt_soft      = 0.00048828
-            # print("r_out: %s" % self.unit_converter.to_si(0.0043686 | nbody_system.length))
-            # print("r_bin: %s" % self.unit_converter.to_si(0.00034949 | nbody_system.length))
-            # print("dt_soft: %s" % self.unit_converter.to_si(0.00048828 | nbody_system.time))
-            # exit()
 
     def evolve_model(self, end_time):
         """
         Evolve model, handle collisions when they occur
         """
-        # print("Evo step")
         if self.__stop_after_each_step:
             # print("Code will be stopped after each step")
             if self.__current_state == "stopped":
                 # print("Code is currently stopped - restarting")
                 self.restart()
-        # collision_detection = \
-        #     self.code.stopping_conditions.collision_detection
-        # collision_detection.enable()
-        # ph4 has a dynamical timestep, so it will stop on or slightly after
-        # 'end_time'
         result = 0
         time_unit = end_time.unit
         time_fraction = 1 | units.s
         print(
-            "START model time: %s -> end_time: %s (begin_time: %s)" % (
+            "START model time: %s -> end_time: %s" % (
                 self.model_time.in_(units.Myr),
                 end_time.in_(units.Myr),
-                self.__begin_time.in_(units.Myr),
             )
         )
         self.logger.info(
-            "Starting evolve of %s, model time is %s, end time is %s - %s",
+            "Starting evolve of %s, model time is %s, end time is %s",
             self.__name__,
             self.model_time.in_(time_unit),
             end_time.in_(time_unit),
-            self.__begin_time.in_(time_unit),
         )
-        while self.model_time < (end_time - self.__begin_time):
+        while self.model_time < end_time:
             print(
-                "%s < (%s-%s), continuing" % (
+                "%s < %s, continuing" % (
                     self.model_time.in_(time_unit), end_time.in_(time_unit),
-                    self.__begin_time.in_(time_unit)
                 )
             )
             if self.model_time >= (
-                    end_time - self.__begin_time - time_fraction
+                    end_time - time_fraction
             ):
                 print(
-                    "but %s >= (%s-%s-%s), not continuing" % (
+                    "but %s >= (%s-%s), not continuing" % (
                         self.model_time.in_(time_unit),
                         end_time.in_(time_unit),
-                        self.__begin_time.in_(time_unit),
                         time_fraction.in_(time_unit)
                     )
                 )
                 break
-            # print("step", end_time, self.__begin_time)
             if not self.code.particles.is_empty():
                 print("Starting evolve_model of stellar_dynamics")
                 result = self.code.evolve_model(
-                    end_time-self.__begin_time
+                    end_time-self.__time_offset
                 )
                 print("Finished evolve_model of stellar_dynamics")
             else:
                 self.logger.info(
-                    "No particles, skipping evolve and readjusting begin_time"
+                    "No particles, skipping evolve and readjusting time offset"
                 )
-                print("Skipping evolve_model of stellar_dynamics, no particles!")
-                self.__begin_time = end_time
+                print(
+                    "Skipping evolve_model of stellar_dynamics, no particles!"
+                )
+                self.__time_offset = end_time
                 result = 0
-            # print("step done")
-            # while collision_detection.is_set():
-            #     # If we don't handle stopping conditions, return instead
-            #     if self.handle_stopping_conditions:
-            #         self.resolve_collision(collision_detection)
-            #         result = self.code.evolve_model(code_dt)
-            #     else:
-            #         return result
-        # print(
-        #     "Reached BT=%s MT=%s CT=%s Nc=%s Nm=%s" % (
-        #         self.__begin_time,
-        #         self.model_time,
-        #         self.code.model_time,
-        #         len(self.code.particles),
-        #         len(self.particles),
-        #     )
-        # )
 
         if self.__stop_after_each_step:
             # print("Now stopping code")
             self.stop(save_state=True)
         print(
-            "FINISH model time: %s > end_time: %s ?  (begin_time: %s)" % (
+            "FINISH model time: %s > end_time: %s" % (
                 self.model_time.in_(units.Myr),
                 end_time.in_(units.Myr),
-                self.__begin_time.in_(units.Myr),
             )
         )
         self.logger.info(
-            "Finishing evolve of %s, model time is %s, end time is %s - %s",
+            "Finishing evolve of %s, model time is %s, end time is %s",
             self.__name__,
             self.model_time.in_(time_unit),
             end_time.in_(time_unit),
-            self.__begin_time.in_(time_unit),
         )
-        # print("FINISH model time: %s end_time: %s begin_time: %s" % (self.model_time, end_time, self.__begin_time))
         return result
-
-    @property
-    def begin_time(self):
-        """Return begin_time"""
-        begin_time = self.__begin_time
-        return begin_time
 
     @property
     def model_time(self):
         """Return code model_time"""
         if self.__current_state != "stopped":
-            # time = self.__begin_time + self.code.model_time
-            time = self.code.model_time
+            time = self.code.model_time + self.__time_offset
             return time
         time = self.__last_time
         return time
@@ -413,10 +377,7 @@ class StellarDynamicsCode:
         self.__state["mode"] = "cpu"  # FIXME
         self.__state["handle_stopping_conditions"] = \
             self.handle_stopping_conditions
-        # print("SAVING model time: %s begin_time: %s" % (self.model_time, self.__begin_time))
-        # self.__begin_time = self.model_time
         self.__last_time = self.model_time
-        # print("SAVED model time: %s begin_time: %s" % (self.model_time, self.__begin_time))
 
     def save_particles(self):
         """
@@ -452,7 +413,11 @@ class StellarDynamicsCode:
         if self.star_code is Petar:
             for name in self.__state["parameters"].names():
                 if name != "timestep":
-                    setattr(self.code.parameters, name, getattr(self.__state["parameters"], name))
+                    setattr(
+                        self.code.parameters,
+                        name,
+                        getattr(self.__state["parameters"], name)
+                    )
         else:
             self.code.parameters.reset_from_memento(
                 self.__state["parameters"]
@@ -465,13 +430,6 @@ class StellarDynamicsCode:
             **keyword_arguments
     ):
         """Stop code"""
-        # print(
-        #     "Stopping at BT=%s MT=%s CT=%s" % (
-        #         self.__begin_time,
-        #         self.model_time,
-        #         self.code.model_time,
-        #     )
-        # )
         if save_state:
             self.save_state(**keyword_arguments)
             self.save_particles(**keyword_arguments)
@@ -485,6 +443,7 @@ def main():
     import sys
     import numpy
     numpy.random.seed(52)
+    settings = ekster_settings.Settings()
     try:
         from amuse.ext.masc import new_star_cluster
         use_masc = True
@@ -533,7 +492,6 @@ def main():
                 code.particles[0].vx.in_(units.kms),
                 cumulative_time.in_(units.Myr),
                 # code.code.model_time.in_(units.Myr),
-                code.begin_time.in_(units.Myr),
             )
         # print(code.particles[0])
         print("\n\n")

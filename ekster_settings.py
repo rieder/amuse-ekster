@@ -134,6 +134,7 @@ class Settings:
         self.filename_sinks = None
         self.filename_random = None
         self.step = 0
+        self.number_of_steps = 2000
         self.plot_dpi = 200
         self.plot_width = 10 | units.pc
         self.plot_bins = 800
@@ -205,7 +206,9 @@ class Settings:
         self.group_speed_mach = 5
         self.group_age = 0.1 | units.Myr
 
+        self.evo_code = "SeBa"
         self.star_code = "Petar"
+        self.code_redirection = "none"
 
         self.begin_time = 0 | units.Myr
         self.model_time = 0 | units.Myr

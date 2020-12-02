@@ -203,17 +203,18 @@ class ClusterInPotential(
             self.timestep_bridge = settings.timestep_bridge
             self.logger.info("Initialised Gas")
 
-        self.wind_particles = Particles()
-        self.wind = stellar_wind.new_stellar_wind(
-            self.gas_particles.mass.min(),
-            mode="heating",
-            # mode="accelerate",
-            # mode="simple",
-            r_max=0.1 | units.parsec,
-            derive_from_evolution=True,
-            target_gas=self.wind_particles,
-            timestep=self.timestep,
-        )
+        if settings.use_wind:
+            self.wind_particles = Particles()
+            self.wind = stellar_wind.new_stellar_wind(
+                self.gas_particles.mass.min(),
+                mode="heating",
+                # mode="accelerate",
+                # mode="simple",
+                r_max=0.1 | units.parsec,
+                derive_from_evolution=True,
+                target_gas=self.wind_particles,
+                timestep=self.timestep,
+            )
 
         # We need to be careful here - stellar evolution needs to re-calculate
         # all the stars unfortunately...
@@ -279,7 +280,8 @@ class ClusterInPotential(
                 self.sync_from_evo_code()
 
                 self.star_code.particles.add_particles(stars)
-                self.wind.particles.add_particles(stars)
+                if settings.use_wind:
+                    self.wind.particles.add_particles(stars)
 
             if not sinks.is_empty():
                 self.add_sinks(sinks)
@@ -865,12 +867,14 @@ class ClusterInPotential(
             self.star_code.particles.add_particles(stars)
             # self.star_code.parameters_to_default(star_code=settings.star_code)
             # self.star_code.commit_particles()
-            self.wind.particles.add_particles(stars)
+            if settings.use_wind:
+                self.wind.particles.add_particles(stars)
 
     def remove_stars(self, stars):
         self.star_code.particles.remove_particles(stars)
         self.evo_code.particles.remove_particles(stars)
-        self.wind.particles.remove_particles(stars)
+        if settings.use_wind:
+            self.wind.particles.remove_particles(stars)
         self.star_particles.remove_particles(stars)
 
     def resolve_star_formation(
@@ -1164,9 +1168,6 @@ class ClusterInPotential(
                 self.wind.evolve_model(end_time)
                 self.sync_from_wind_code()
 
-            # if self.wind.has_new_wind_particles():
-            #     wind_p = self.wind.create_wind_particles()
-            if not self.wind_particles.is_empty():
                 wind_p = self.wind_particles
                 print(
                     "\n\nAdding %i wind particles with <T> %s\n\n"

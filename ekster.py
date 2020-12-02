@@ -669,7 +669,10 @@ class ClusterInPotential(
                 new_sink = Particle()
                 new_sink.sink_number = (
                     0 if self.sink_particles.is_empty()
-                    else max(self.sink_particles.sink_number)+1
+                    else max(
+                        max(self.sink_particles.sink_number),
+                        max(new_sinks.sink_number),
+                    )+1
                 )
                 new_sink.birth_time = self.model_time
                 new_sink.initialised = False
@@ -1076,7 +1079,7 @@ class ClusterInPotential(
         substep = 0
         minimum_substeps = 1
         while (
-                self.model_time < end_time
+                self.model_time < (end_time - self.system.timestep/4)
                 or (substep < minimum_substeps)
         ):
             substep += 1

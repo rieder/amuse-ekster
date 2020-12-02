@@ -219,72 +219,71 @@ class ClusterInPotential(
         # We need to be careful here - stellar evolution needs to re-calculate
         # all the stars unfortunately...
         # self.add_stars(stars)
-        if not stars.is_empty() and sinks.is_empty():
-            stars_time_offset = 0 | units.yr
-            if stars_time_offset is not None:
-                stars_time_offset = stars.get_timestamp()
-            elif sinks.get_timestamp() is not None:
-                stars_time_offset = sinks.get_timestamp()
-            self.star_code = StellarDynamicsCode(
-                converter=converter_for_stars,
-                star_code=settings.star_code,
-                logger=self.logger,
-                redirection=settings.code_redirection,
-                time_offset=stars_time_offset,
-                stop_after_each_step=settings.stop_after_each_step,
-            )
-            self.sink_code = self.star_code
-            self.star_code.parameters.epsilon_squared = \
-                settings.epsilon_stars**2
-            evo_code = getattr(available_codes, settings.evo_code)
-            self.evo_code = StellarEvolutionCode(
-                evo_code=evo_code,
-                logger=self.logger,
-                # redirection=settings.code_redirection,
-                time_offset=stars.birth_time.min(),
-            )
+        stars_time_offset = 0 | units.yr
+        if stars_time_offset is not None:
+            stars_time_offset = stars.get_timestamp()
+        elif sinks.get_timestamp() is not None:
+            stars_time_offset = sinks.get_timestamp()
+        self.star_code = StellarDynamicsCode(
+            converter=converter_for_stars,
+            star_code=settings.star_code,
+            logger=self.logger,
+            redirection=settings.code_redirection,
+            time_offset=stars_time_offset,
+            stop_after_each_step=settings.stop_after_each_step,
+        )
+        self.sink_code = self.star_code
+        self.star_code.parameters.epsilon_squared = \
+            settings.epsilon_stars**2
+        evo_code = getattr(available_codes, settings.evo_code)
+        self.evo_code = StellarEvolutionCode(
+            evo_code=evo_code,
+            logger=self.logger,
+            # redirection=settings.code_redirection,
+            time_offset=stars.birth_time.min(),
+        )
 
-            if not stars.is_empty():
-                self.star_particles.add_particles(stars)
+        if not stars.is_empty():
+            self.star_particles.add_particles(stars)
 
-                stars_with_original_mass = stars.copy()
-                if not hasattr(stars_with_original_mass, "birth_mass"):
-                    self.logger.info(
-                        "No birth mass recorded for stars, setting to current"
-                        " mass"
-                    )
-                    stars_with_original_mass.birth_mass = \
-                        stars_with_original_mass.mass
-                else:
-                    stars_with_original_mass.mass = \
-                        stars_with_original_mass.birth_mass
-                if not hasattr(stars_with_original_mass, "birth_time"):
-                    self.logger.info(
-                        "No birth time recorded for stars, setting to current"
-                        " time"
-                    )
-                    stars_with_original_mass.birth_time = 0 | units.Myr
-                epochs, indices = numpy.unique(
-                    stars_with_original_mass.birth_time,
-                    return_inverse=True,
+            stars_with_original_mass = stars.copy()
+            if not hasattr(stars_with_original_mass, "birth_mass"):
+                self.logger.info(
+                    "No birth mass recorded for stars, setting to current"
+                    " mass"
                 )
+                stars_with_original_mass.birth_mass = \
+                    stars_with_original_mass.mass
+            else:
+                stars_with_original_mass.mass = \
+                    stars_with_original_mass.birth_mass
+            if not hasattr(stars_with_original_mass, "birth_time"):
+                self.logger.info(
+                    "No birth time recorded for stars, setting to current"
+                    " time"
+                )
+                stars_with_original_mass.birth_time = 0 | units.Myr
+            epochs, indices = numpy.unique(
+                stars_with_original_mass.birth_time,
+                return_inverse=True,
+            )
 
-                for i, time in enumerate(epochs):
-                    if time != epochs[0]:
-                        self.evo_code.evolve_model(time)
-                    self.evo_code.particles.add_particles(
-                        stars_with_original_mass[indices == i],
-                    )
-                self.evo_code.evolve_model(settings.model_time)
-                self.evo_code_stars = self.evo_code.particles
-                self.sync_from_evo_code()
+            for i, time in enumerate(epochs):
+                if time != epochs[0]:
+                    self.evo_code.evolve_model(time)
+                self.evo_code.particles.add_particles(
+                    stars_with_original_mass[indices == i],
+                )
+            self.evo_code.evolve_model(settings.model_time)
+            self.evo_code_stars = self.evo_code.particles
+            self.sync_from_evo_code()
 
-                self.star_code.particles.add_particles(stars)
-                if settings.use_wind:
-                    self.wind.particles.add_particles(stars)
+            self.star_code.particles.add_particles(stars)
+            if settings.use_wind:
+                self.wind.particles.add_particles(stars)
 
-            if not sinks.is_empty():
-                self.add_sinks(sinks)
+        if not sinks.is_empty():
+            self.add_sinks(sinks)
 
         if hasattr(spiral_potential, settings.Tide):
             Tide = getattr(spiral_potential, settings.Tide)

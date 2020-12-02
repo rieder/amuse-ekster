@@ -147,7 +147,10 @@ class ClusterInPotential(
                 (phantom_length**3 / (phantom_gg*phantom_mass))**0.5,
             )
             self.isothermal_mode = False if settings.ieos != 1 else True
-            gas_time_offset = gas.get_timestamp()
+            try:
+                gas_time_offset = gas.get_timestamp()
+            except AttributeError:
+                gas_time_offset = 0 | units.Myr
             if gas_time_offset is None:
                 gas_time_offset = 0 | units.yr
             self.gas_code = GasCode(
@@ -179,11 +182,18 @@ class ClusterInPotential(
         # We need to be careful here - stellar evolution needs to re-calculate
         # all the stars unfortunately...
         # self.add_stars(stars)
-        stars_time_offset = 0 | units.yr
-        if stars_time_offset is not None:
+        try:
             stars_time_offset = stars.get_timestamp()
-        elif sinks.get_timestamp() is not None:
-            stars_time_offset = sinks.get_timestamp()
+        except AttributeError:
+            stars_time_offset = None
+        if stars_time_offset is None:
+            try:
+                stars_time_offset = sinks.get_timestamp()
+            except AttributeError:
+                stars_time_offset = None
+        if stars_time_offset is None:
+            stars_time_offset = 0 | units.yr
+
         self.star_code = StellarDynamicsCode(
             converter=converter_for_stars,
             star_code=settings.star_code,
@@ -1396,7 +1406,8 @@ def main(
             ))
             stars.x -= 2 | units.pc
             stars.birth_mass = stars.mass
-            stars.birth_time = 0 | units.Myr  # ??
+            stars.birth_time = 0 | units.Myr
+            gas.collection_attributes.timestamp = 0 | units.yr
             have_stars = True
         gas_density = 2e-18 | units.g * units.cm**-3
         increase_vol = 5
@@ -1408,6 +1419,7 @@ def main(
         gasconverter = nbody_system.nbody_to_si(Mgas, radius)
         gas = molecular_cloud(targetN=Ngas, convert_nbody=gasconverter).result
         gas.u = temperature_to_u(30 | units.K)
+        gas.collection_attributes.timestamp = 0 | units.yr
         have_gas = True
 
     filename_sinks = settings.filename_sinks

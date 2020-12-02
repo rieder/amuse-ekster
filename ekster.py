@@ -52,46 +52,6 @@ def new_argument_parser(settings):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-s',
-        dest='filename_stars',
-        default=settings.filename_stars,
-        help='file containing stars (optional) [%s]' % (
-            settings.filename_stars
-        ),
-    )
-    parser.add_argument(
-        '-i',
-        dest='filename_sinks',
-        default=settings.filename_sinks,
-        help='file containing sinks (optional) [%s]' % (
-            settings.filename_sinks
-        ),
-    )
-    parser.add_argument(
-        '-g',
-        dest='filename_gas',
-        default=settings.filename_gas,
-        help='file containing gas (optional) [%s]' % (
-            settings.filename_gas
-        ),
-    )
-    parser.add_argument(
-        '-r',
-        dest='filename_random',
-        default=settings.filename_random,
-        help='file containing random state (optional) [%s]' % (
-            settings.filename_random
-        ),
-    )
-    parser.add_argument(
-        '-d',
-        dest='rundir',
-        default=settings.rundir,
-        help='directory to store run in (optional) [%s]' % (
-            settings.rundir
-        ),
-    )
-    parser.add_argument(
         '-c',
         dest='settingfilename',
         default='settings.ini',

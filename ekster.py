@@ -637,13 +637,13 @@ class ClusterInPotential(
                 # accreted later on and we don't want to duplicate its
                 # accretion.
                 new_sink = Particle()
-                new_sink.sink_number = (
-                    0 if self.sink_particles.is_empty()
-                    else max(
-                        max(self.sink_particles.sink_number),
-                        max(new_sinks.sink_number),
-                    )+1
-                )
+                last_sink_number = 0
+                if not self.sink_particles.is_empty():
+                    last_sink_number = max(self.sink_particles.sink_number)
+                if not new_sinks.is_empty():
+                    last_sink_number = max(new_sinks.sink_number)
+
+                new_sink.sink_number = last_sink_number + 1
                 new_sink.birth_time = self.model_time
                 new_sink.initialised = False
 
@@ -1019,6 +1019,8 @@ class ClusterInPotential(
     def evolve_model(self, end_time):
         "Evolve system to specified time"
         settings = self.settings
+        start_time = self.model_time
+        timestep = self.system.timestep
 
         # dmax = self.gas_code.parameters.stopping_condition_maximum_density
         Myr = units.Myr
@@ -1042,39 +1044,30 @@ class ClusterInPotential(
         print("Starting loop")
         time_unit = units.Myr
         print(
-            self.model_time.in_(time_unit),
+            start_time.in_(time_unit),
             end_time.in_(time_unit),
-            self.system.timestep.in_(time_unit),
+            timestep.in_(time_unit),
         )
         substep = 0
-        minimum_substeps = 1
-        while (
-                self.model_time < (end_time - self.system.timestep/4)
-                or (substep < minimum_substeps)
-        ):
+        number_of_steps = int(numpy.ceil((end_time - start_time) / timestep))
+        while substep < number_of_steps:
             substep += 1
-            print("Substep %i" % substep)
+            evolve_to_time = start_time + substep*timestep
+            print("Substep %i/%i" % (substep, number_of_steps))
             if not self.star_particles.is_empty():
                 evo_timestep = self.evo_code.particles.time_step.min()
                 self.logger.info(
                     "Smallest evo timestep: %s", evo_timestep.in_(Myr)
                 )
 
-            print("Evolving to %s" % end_time.in_(Myr))
-            self.logger.info("Evolving to %s", end_time.in_(Myr))
+            print("Evolving to %s" % evolve_to_time.in_(Myr))
+            self.logger.info("Evolving to %s", evolve_to_time.in_(Myr))
             if not self.star_particles.is_empty():
                 self.logger.info("Stellar evolution...")
-                self.evo_code.evolve_model(end_time)
+                self.evo_code.evolve_model(evolve_to_time)
                 self.sync_from_evo_code()
 
             self.logger.info("System...")
-
-            print("Evolving system")
-            print("Gas state is ", self.gas_state)
-            print(
-                "Gas timestep = %s"
-                % self.gas_code.parameters.time_step.in_(units.Myr)
-            )
 
             if self.gas_state == "modified":
                 print("Gas modified, smaller step!")
@@ -1082,15 +1075,14 @@ class ClusterInPotential(
                 # shorter timesteps in the gas code.
                 # Since we don't want to shorten the Bridge timestep, need to
                 # be creative here...
-                system_dt = self.system.timestep
-                gas_dt = system_dt/2  # self.gas_code.parameters.time_step
+                gas_dt = timestep  # self.gas_code.parameters.time_step
                 substeps = 2**16
                 gas_small_dt = gas_dt / substeps
                 self.gas_code.parameters.time_step = gas_small_dt
 
                 self.sync_to_gas_code()
                 # Bridge kick 1
-                self.system.kick_codes(system_dt/2)
+                self.system.kick_codes(timestep/2)
 
                 # Drift gas with initially small and then increasingly long
                 # timestep
@@ -1106,12 +1098,12 @@ class ClusterInPotential(
 
                 # Bridge drift
                 self.system.drift_codes(
-                    self.system.time + self.system.timestep
+                    self.system.time + timestep
                 )
                 self.system.channels.copy()
-                self.system.time += self.system.timestep
+                self.system.time += timestep
                 # Bridge kick 2
-                self.system.kick_codes(system_dt/2)
+                self.system.kick_codes(timestep/2)
 
                 self.gas_code.parameters.time_step = gas_dt
                 self.gas_state = "clean"
@@ -1126,7 +1118,7 @@ class ClusterInPotential(
             )
             star_code = getattr(available_codes, settings.star_code)
             self.star_code.parameters_to_default(star_code=star_code)
-            self.system.evolve_model(end_time)
+            self.system.evolve_model(evolve_to_time)
             self.logger.info("Post system evolve")
             self.logger.info(
                 "Stellar code is at time %s", self.star_code.model_time
@@ -1137,7 +1129,7 @@ class ClusterInPotential(
 
             if settings.use_wind and not self.star_particles.is_empty():
                 self.sync_to_wind_code()
-                self.wind.evolve_model(end_time)
+                self.wind.evolve_model(evolve_to_time)
                 self.sync_from_wind_code()
 
                 wind_p = self.wind_particles
@@ -1148,7 +1140,7 @@ class ClusterInPotential(
                 self.logger.info(
                     "Adding %i wind particle(s) at t=%s, <T>=%s",
                     len(wind_p),
-                    end_time.in_(units.Myr),
+                    self.wind.model_time.in_(units.Myr),
                     u_to_temperature(wind_p.u).mean()
                 )
 
@@ -1163,14 +1155,7 @@ class ClusterInPotential(
                 self.add_gas(wind_p)
                 wind_p.remove_particles(wind_p)
 
-            print("number of gas particles: %i" % len(self.gas_particles))
-            if (
-                    self.gas_code.model_time
-                    < (end_time - self.system.timestep)
-            ):
-                print("******Evolving gas code a bit more")
-                self.gas_code.evolve_model(end_time)
-                self.sync_from_gas_code()
+                print("number of gas particles: %i" % len(self.gas_particles))
             print("Evolved system")
 
             if not self.sink_particles.is_empty():
@@ -1203,7 +1188,7 @@ class ClusterInPotential(
                 formed_stars = self.resolve_star_formation()
                 if formed_stars and self.star_code is available_codes.ph4:
                     self.star_code.zero_step_mode = True
-                    self.star_code.evolve_model(end_time)
+                    self.star_code.evolve_model(evolve_to_time)
                     self.star_code.zero_step_mode = False
                 print("Formed stars")
                 if not self.star_particles.is_empty():
@@ -1252,7 +1237,7 @@ class ClusterInPotential(
 
             self.logger.info(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s",
-                end_time.in_(units.Myr),
+                evolve_to_time.in_(units.Myr),
                 (self.model_time).in_(Myr),
                 (self.gas_code.model_time).in_(Myr),
                 (self.star_code.model_time).in_(Myr),
@@ -1260,7 +1245,7 @@ class ClusterInPotential(
             )
             print(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s" % (
-                    end_time.in_(units.Myr),
+                    evolve_to_time.in_(units.Myr),
                     (self.model_time).in_(Myr),
                     (self.gas_code.model_time).in_(Myr),
                     (self.star_code.model_time).in_(Myr),

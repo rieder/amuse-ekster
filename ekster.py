@@ -1308,32 +1308,12 @@ def main(
 
     logger = logging.getLogger(__name__)
 
-    if args.filename_gas is not None:
-        filename_gas = args.filename_gas
-    else:
-        filename_gas = settings.filename_gas
-    if args.filename_stars is not None:
-        filename_stars = args.filename_stars
-    else:
-        filename_stars = settings.filename_stars
-    if args.filename_sinks is not None:
-        filename_sinks = args.filename_sinks
-    else:
-        filename_sinks = settings.filename_sinks
-    if args.filename_random is not None:
-        filename_random = args.filename_random
-    else:
-        filename_random = settings.filename_random
-    if args.rundir is not None:
-        rundir = args.rundir
-    else:
-        rundir = settings.rundir
-
+    rundir = settings.rundir
     if not os.path.exists(rundir):
         os.makedirs(rundir)
-    # TODO: get time stamp from gas, stars, or sinks
-    # Default for the initial spiral gas is 1.4874E+15 seconds
+    run_prefix = rundir + "/"
 
+    filename_random = settings.filename_random
     if filename_random is None or filename_random == "None":
         numpy.random.seed(seed)
     else:
@@ -1342,7 +1322,6 @@ def main(
         state_file.close()
         randomstate = pickle.loads(pickled_state)
         numpy.random.set_state(randomstate.get_state())
-    run_prefix = rundir + "/"
 
     logging_level = logging.INFO
     # logging_level = logging.DEBUG
@@ -1364,6 +1343,7 @@ def main(
         settings.gas_rscale,
     )
 
+    filename_stars = settings.filename_stars
     if filename_stars is not None and filename_stars != "None":
         stars = read_set_from_file(filename_stars, "amuse", close_file=True,)
         have_stars = True
@@ -1380,6 +1360,7 @@ def main(
         stars.x += 250 | units.pc
         stars.vx += 0.5 | units.kms
         # have_stars = False
+    filename_gas = settings.filename_gas
     if filename_gas is not None and filename_gas != "None":
         print("reading gas")
         gas = read_set_from_file(filename_gas, "amuse", close_file=True,)
@@ -1429,6 +1410,7 @@ def main(
         gas.u = temperature_to_u(30 | units.K)
         have_gas = True
 
+    filename_sinks = settings.filename_sinks
     if filename_sinks != "None" and filename_sinks is not None:
         sinks = read_set_from_file(filename_sinks, "amuse", close_file=True,)
         have_sinks = True

@@ -1049,7 +1049,10 @@ class ClusterInPotential(
             timestep.in_(time_unit),
         )
         substep = 0
-        number_of_steps = int(numpy.ceil((end_time - start_time) / timestep))
+        number_of_steps = int(
+            0.5 +
+            (end_time - start_time) / timestep
+        )
         while substep < number_of_steps:
             substep += 1
             evolve_to_time = start_time + substep*timestep

@@ -1407,7 +1407,7 @@ def main(
             stars.x -= 2 | units.pc
             stars.birth_mass = stars.mass
             stars.birth_time = 0 | units.Myr
-            gas.collection_attributes.timestamp = 0 | units.yr
+            stars.collection_attributes.timestamp = 0 | units.yr
             have_stars = True
         gas_density = 2e-18 | units.g * units.cm**-3
         increase_vol = 5

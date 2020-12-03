@@ -431,7 +431,8 @@ def form_stars_from_group(
     new_stars[1:].mass = masses[:-1]
     group.group_next_primary_mass = masses[-1]
     new_stars = new_stars.sorted_by_attribute("mass").reversed()
-
+    new_stars.in_group = group_index
+    
     # Create placeholders for attributes of new_stars
     new_stars.position = [0, 0, 0] | units.pc
     new_stars.velocity = [0, 0, 0] | units.kms

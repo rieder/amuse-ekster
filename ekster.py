@@ -258,9 +258,9 @@ class ClusterInPotential(
         if not sinks.is_empty():
             self.add_sinks(sinks)
 
-        if hasattr(spiral_potential, settings.Tide):
-            Tide = getattr(spiral_potential, settings.Tide)
-            self.logger.info("Using tidal field %s", settings.Tide)
+        if hasattr(spiral_potential, settings.tide):
+            Tide = getattr(spiral_potential, settings.tide)
+            self.logger.info("Using tidal field %s", settings.tide)
             self.tidal_field = Tide(
                 t_start=settings.model_time + settings.tide_time_offset,
                 spiral_type=settings.tide_spiral_type,

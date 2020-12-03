@@ -210,7 +210,10 @@ class ClusterInPotential(
             evo_code=evo_code,
             logger=self.logger,
             # redirection=settings.code_redirection,
-            time_offset=stars.birth_time.min(),
+            time_offset=(
+                stars.birth_time.min() if not stars.is_empty()
+                else 0 | units.yr
+            ),
         )
 
         if not stars.is_empty():

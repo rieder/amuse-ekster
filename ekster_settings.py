@@ -155,7 +155,7 @@ class Settings:
         self.star_mscale = 100 | units.MSun
 
         self.timestep = 0.01 | units.Myr
-        self.timestep_bridge = 0.005 | units.Myr
+        self.timestep_bridge = 0.0025 | units.Myr
         self.epsilon_gas = 0.1 | units.parsec
         self.epsilon_stars = 0.1 | units.parsec
 

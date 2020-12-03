@@ -26,3 +26,7 @@ try:
     from amuse.community.phantom.interface import Phantom
 except ImportError:
     Phantom = None
+try:
+    from amuse.community.seba.interface import SeBa
+except ImportError:
+    SeBa = None

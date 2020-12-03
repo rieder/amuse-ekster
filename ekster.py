@@ -52,46 +52,6 @@ def new_argument_parser(settings):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-s',
-        dest='filename_stars',
-        default=settings.filename_stars,
-        help='file containing stars (optional) [%s]' % (
-            settings.filename_stars
-        ),
-    )
-    parser.add_argument(
-        '-i',
-        dest='filename_sinks',
-        default=settings.filename_sinks,
-        help='file containing sinks (optional) [%s]' % (
-            settings.filename_sinks
-        ),
-    )
-    parser.add_argument(
-        '-g',
-        dest='filename_gas',
-        default=settings.filename_gas,
-        help='file containing gas (optional) [%s]' % (
-            settings.filename_gas
-        ),
-    )
-    parser.add_argument(
-        '-r',
-        dest='filename_random',
-        default=settings.filename_random,
-        help='file containing random state (optional) [%s]' % (
-            settings.filename_random
-        ),
-    )
-    parser.add_argument(
-        '-d',
-        dest='rundir',
-        default=settings.rundir,
-        help='directory to store run in (optional) [%s]' % (
-            settings.rundir
-        ),
-    )
-    parser.add_argument(
         '-c',
         dest='settingfilename',
         default='settings.ini',
@@ -187,7 +147,10 @@ class ClusterInPotential(
                 (phantom_length**3 / (phantom_gg*phantom_mass))**0.5,
             )
             self.isothermal_mode = False if settings.ieos != 1 else True
-            gas_time_offset = gas.get_timestamp()
+            try:
+                gas_time_offset = gas.get_timestamp()
+            except AttributeError:
+                gas_time_offset = 0 | units.Myr
             if gas_time_offset is None:
                 gas_time_offset = 0 | units.yr
             self.gas_code = GasCode(
@@ -203,86 +166,94 @@ class ClusterInPotential(
             self.timestep_bridge = settings.timestep_bridge
             self.logger.info("Initialised Gas")
 
-        self.wind_particles = Particles()
-        self.wind = stellar_wind.new_stellar_wind(
-            self.gas_particles.mass.min(),
-            mode="heating",
-            # mode="accelerate",
-            # mode="simple",
-            r_max=0.1 | units.parsec,
-            derive_from_evolution=True,
-            target_gas=self.wind_particles,
-            timestep=self.timestep,
-        )
+        if settings.use_wind:
+            self.wind_particles = Particles()
+            self.wind = stellar_wind.new_stellar_wind(
+                self.gas_particles.mass.min(),
+                mode="heating",
+                # mode="accelerate",
+                # mode="simple",
+                r_max=0.1 | units.parsec,
+                derive_from_evolution=True,
+                target_gas=self.wind_particles,
+                timestep=self.timestep,
+            )
 
         # We need to be careful here - stellar evolution needs to re-calculate
         # all the stars unfortunately...
         # self.add_stars(stars)
-        if not stars.is_empty() and sinks.is_empty():
-            stars_time_offset = 0 | units.yr
-            if stars_time_offset is not None:
-                stars_time_offset = stars.get_timestamp()
-            elif sinks.get_timestamp() is not None:
+        try:
+            stars_time_offset = stars.get_timestamp()
+        except AttributeError:
+            stars_time_offset = None
+        if stars_time_offset is None:
+            try:
                 stars_time_offset = sinks.get_timestamp()
-            self.star_code = StellarDynamicsCode(
-                converter=converter_for_stars,
-                star_code=settings.star_code,
-                logger=self.logger,
-                redirection=settings.code_redirection,
-                time_offset=stars_time_offset,
-                stop_after_each_step=settings.stop_after_each_step,
-            )
-            self.sink_code = self.star_code
-            self.star_code.parameters.epsilon_squared = \
-                settings.epsilon_stars**2
-            evo_code = getattr(available_codes, settings.evo_code)
-            self.evo_code = StellarEvolutionCode(
-                evo_code=evo_code,
-                logger=self.logger,
-                # redirection=settings.code_redirection,
-                time_offset=stars.birth_time.min(),
-            )
+            except AttributeError:
+                stars_time_offset = None
+        if stars_time_offset is None:
+            stars_time_offset = 0 | units.yr
 
-            if not stars.is_empty():
-                self.star_particles.add_particles(stars)
+        self.star_code = StellarDynamicsCode(
+            converter=converter_for_stars,
+            star_code=settings.star_code,
+            logger=self.logger,
+            redirection=settings.code_redirection,
+            time_offset=stars_time_offset,
+            stop_after_each_step=settings.stop_after_each_step,
+        )
+        self.sink_code = self.star_code
+        self.star_code.parameters.epsilon_squared = \
+            settings.epsilon_stars**2
+        evo_code = getattr(available_codes, settings.evo_code)
+        self.evo_code = StellarEvolutionCode(
+            evo_code=evo_code,
+            logger=self.logger,
+            # redirection=settings.code_redirection,
+            time_offset=stars.birth_time.min(),
+        )
 
-                stars_with_original_mass = stars.copy()
-                if not hasattr(stars_with_original_mass, "birth_mass"):
-                    self.logger.info(
-                        "No birth mass recorded for stars, setting to current"
-                        " mass"
-                    )
-                    stars_with_original_mass.birth_mass = \
-                        stars_with_original_mass.mass
-                else:
-                    stars_with_original_mass.mass = \
-                        stars_with_original_mass.birth_mass
-                if not hasattr(stars_with_original_mass, "birth_time"):
-                    self.logger.info(
-                        "No birth time recorded for stars, setting to current"
-                        " time"
-                    )
-                    stars_with_original_mass.birth_time = 0 | units.Myr
-                epochs, indices = numpy.unique(
-                    stars_with_original_mass.birth_time,
-                    return_inverse=True,
+        if not stars.is_empty():
+            self.star_particles.add_particles(stars)
+
+            stars_with_original_mass = stars.copy()
+            if not hasattr(stars_with_original_mass, "birth_mass"):
+                self.logger.info(
+                    "No birth mass recorded for stars, setting to current"
+                    " mass"
                 )
+                stars_with_original_mass.birth_mass = \
+                    stars_with_original_mass.mass
+            else:
+                stars_with_original_mass.mass = \
+                    stars_with_original_mass.birth_mass
+            if not hasattr(stars_with_original_mass, "birth_time"):
+                self.logger.info(
+                    "No birth time recorded for stars, setting to current"
+                    " time"
+                )
+                stars_with_original_mass.birth_time = 0 | units.Myr
+            epochs, indices = numpy.unique(
+                stars_with_original_mass.birth_time,
+                return_inverse=True,
+            )
 
-                for i, time in enumerate(epochs):
-                    if time != epochs[0]:
-                        self.evo_code.evolve_model(time)
-                    self.evo_code.particles.add_particles(
-                        stars_with_original_mass[indices == i],
-                    )
-                self.evo_code.evolve_model(settings.model_time)
-                self.evo_code_stars = self.evo_code.particles
-                self.sync_from_evo_code()
+            for i, time in enumerate(epochs):
+                if time != epochs[0]:
+                    self.evo_code.evolve_model(time)
+                self.evo_code.particles.add_particles(
+                    stars_with_original_mass[indices == i],
+                )
+            self.evo_code.evolve_model(settings.model_time)
+            self.evo_code_stars = self.evo_code.particles
+            self.sync_from_evo_code()
 
-                self.star_code.particles.add_particles(stars)
+            self.star_code.particles.add_particles(stars)
+            if settings.use_wind:
                 self.wind.particles.add_particles(stars)
 
-            if not sinks.is_empty():
-                self.add_sinks(sinks)
+        if not sinks.is_empty():
+            self.add_sinks(sinks)
 
         if hasattr(spiral_potential, settings.Tide):
             Tide = getattr(spiral_potential, settings.Tide)
@@ -666,10 +637,13 @@ class ClusterInPotential(
                 # accreted later on and we don't want to duplicate its
                 # accretion.
                 new_sink = Particle()
-                new_sink.sink_number = (
-                    0 if self.sink_particles.is_empty()
-                    else max(self.sink_particles.sink_number)+1
-                )
+                last_sink_number = 0
+                if not self.sink_particles.is_empty():
+                    last_sink_number = max(self.sink_particles.sink_number)
+                if not new_sinks.is_empty():
+                    last_sink_number = max(new_sinks.sink_number)
+
+                new_sink.sink_number = last_sink_number + 1
                 new_sink.birth_time = self.model_time
                 new_sink.initialised = False
 
@@ -865,12 +839,14 @@ class ClusterInPotential(
             self.star_code.particles.add_particles(stars)
             # self.star_code.parameters_to_default(star_code=settings.star_code)
             # self.star_code.commit_particles()
-            self.wind.particles.add_particles(stars)
+            if settings.use_wind:
+                self.wind.particles.add_particles(stars)
 
     def remove_stars(self, stars):
         self.star_code.particles.remove_particles(stars)
         self.evo_code.particles.remove_particles(stars)
-        self.wind.particles.remove_particles(stars)
+        if settings.use_wind:
+            self.wind.particles.remove_particles(stars)
         self.star_particles.remove_particles(stars)
 
     def resolve_star_formation(
@@ -1043,6 +1019,8 @@ class ClusterInPotential(
     def evolve_model(self, end_time):
         "Evolve system to specified time"
         settings = self.settings
+        start_time = self.model_time
+        timestep = self.system.timestep
 
         # dmax = self.gas_code.parameters.stopping_condition_maximum_density
         Myr = units.Myr
@@ -1066,39 +1044,33 @@ class ClusterInPotential(
         print("Starting loop")
         time_unit = units.Myr
         print(
-            self.model_time.in_(time_unit),
+            start_time.in_(time_unit),
             end_time.in_(time_unit),
-            self.system.timestep.in_(time_unit),
+            timestep.in_(time_unit),
         )
         substep = 0
-        minimum_substeps = 1
-        while (
-                self.model_time < end_time
-                or (substep < minimum_substeps)
-        ):
+        number_of_steps = int(
+            0.5 +
+            (end_time - start_time) / timestep
+        )
+        while substep < number_of_steps:
             substep += 1
-            print("Substep %i" % substep)
+            evolve_to_time = start_time + substep*timestep
+            print("Substep %i/%i" % (substep, number_of_steps))
             if not self.star_particles.is_empty():
                 evo_timestep = self.evo_code.particles.time_step.min()
                 self.logger.info(
                     "Smallest evo timestep: %s", evo_timestep.in_(Myr)
                 )
 
-            print("Evolving to %s" % end_time.in_(Myr))
-            self.logger.info("Evolving to %s", end_time.in_(Myr))
+            print("Evolving to %s" % evolve_to_time.in_(Myr))
+            self.logger.info("Evolving to %s", evolve_to_time.in_(Myr))
             if not self.star_particles.is_empty():
                 self.logger.info("Stellar evolution...")
-                self.evo_code.evolve_model(end_time)
+                self.evo_code.evolve_model(evolve_to_time)
                 self.sync_from_evo_code()
 
             self.logger.info("System...")
-
-            print("Evolving system")
-            print("Gas state is ", self.gas_state)
-            print(
-                "Gas timestep = %s"
-                % self.gas_code.parameters.time_step.in_(units.Myr)
-            )
 
             if self.gas_state == "modified":
                 print("Gas modified, smaller step!")
@@ -1106,15 +1078,14 @@ class ClusterInPotential(
                 # shorter timesteps in the gas code.
                 # Since we don't want to shorten the Bridge timestep, need to
                 # be creative here...
-                system_dt = self.system.timestep
-                gas_dt = system_dt/2  # self.gas_code.parameters.time_step
+                gas_dt = timestep  # self.gas_code.parameters.time_step
                 substeps = 2**16
                 gas_small_dt = gas_dt / substeps
                 self.gas_code.parameters.time_step = gas_small_dt
 
                 self.sync_to_gas_code()
                 # Bridge kick 1
-                self.system.kick_codes(system_dt/2)
+                self.system.kick_codes(timestep/2)
 
                 # Drift gas with initially small and then increasingly long
                 # timestep
@@ -1130,12 +1101,12 @@ class ClusterInPotential(
 
                 # Bridge drift
                 self.system.drift_codes(
-                    self.system.time + self.system.timestep
+                    self.system.time + timestep
                 )
                 self.system.channels.copy()
-                self.system.time += self.system.timestep
+                self.system.time += timestep
                 # Bridge kick 2
-                self.system.kick_codes(system_dt/2)
+                self.system.kick_codes(timestep/2)
 
                 self.gas_code.parameters.time_step = gas_dt
                 self.gas_state = "clean"
@@ -1150,7 +1121,7 @@ class ClusterInPotential(
             )
             star_code = getattr(available_codes, settings.star_code)
             self.star_code.parameters_to_default(star_code=star_code)
-            self.system.evolve_model(end_time)
+            self.system.evolve_model(evolve_to_time)
             self.logger.info("Post system evolve")
             self.logger.info(
                 "Stellar code is at time %s", self.star_code.model_time
@@ -1161,12 +1132,9 @@ class ClusterInPotential(
 
             if settings.use_wind and not self.star_particles.is_empty():
                 self.sync_to_wind_code()
-                self.wind.evolve_model(end_time)
+                self.wind.evolve_model(evolve_to_time)
                 self.sync_from_wind_code()
 
-            # if self.wind.has_new_wind_particles():
-            #     wind_p = self.wind.create_wind_particles()
-            if not self.wind_particles.is_empty():
                 wind_p = self.wind_particles
                 print(
                     "\n\nAdding %i wind particles with <T> %s\n\n"
@@ -1175,7 +1143,7 @@ class ClusterInPotential(
                 self.logger.info(
                     "Adding %i wind particle(s) at t=%s, <T>=%s",
                     len(wind_p),
-                    end_time.in_(units.Myr),
+                    self.wind.model_time.in_(units.Myr),
                     u_to_temperature(wind_p.u).mean()
                 )
 
@@ -1190,14 +1158,7 @@ class ClusterInPotential(
                 self.add_gas(wind_p)
                 wind_p.remove_particles(wind_p)
 
-            print("number of gas particles: %i" % len(self.gas_particles))
-            if (
-                    self.gas_code.model_time
-                    < (end_time - self.system.timestep)
-            ):
-                print("******Evolving gas code a bit more")
-                self.gas_code.evolve_model(end_time)
-                self.sync_from_gas_code()
+                print("number of gas particles: %i" % len(self.gas_particles))
             print("Evolved system")
 
             if not self.sink_particles.is_empty():
@@ -1230,7 +1191,7 @@ class ClusterInPotential(
                 formed_stars = self.resolve_star_formation()
                 if formed_stars and self.star_code is available_codes.ph4:
                     self.star_code.zero_step_mode = True
-                    self.star_code.evolve_model(end_time)
+                    self.star_code.evolve_model(evolve_to_time)
                     self.star_code.zero_step_mode = False
                 print("Formed stars")
                 if not self.star_particles.is_empty():
@@ -1279,7 +1240,7 @@ class ClusterInPotential(
 
             self.logger.info(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s",
-                end_time.in_(units.Myr),
+                evolve_to_time.in_(units.Myr),
                 (self.model_time).in_(Myr),
                 (self.gas_code.model_time).in_(Myr),
                 (self.star_code.model_time).in_(Myr),
@@ -1287,7 +1248,7 @@ class ClusterInPotential(
             )
             print(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s" % (
-                    end_time.in_(units.Myr),
+                    evolve_to_time.in_(units.Myr),
                     (self.model_time).in_(Myr),
                     (self.gas_code.model_time).in_(Myr),
                     (self.star_code.model_time).in_(Myr),
@@ -1345,32 +1306,12 @@ def main(
 
     logger = logging.getLogger(__name__)
 
-    if args.filename_gas is not None:
-        filename_gas = args.filename_gas
-    else:
-        filename_gas = settings.filename_gas
-    if args.filename_stars is not None:
-        filename_stars = args.filename_stars
-    else:
-        filename_stars = settings.filename_stars
-    if args.filename_sinks is not None:
-        filename_sinks = args.filename_sinks
-    else:
-        filename_sinks = settings.filename_sinks
-    if args.filename_random is not None:
-        filename_random = args.filename_random
-    else:
-        filename_random = settings.filename_random
-    if args.rundir is not None:
-        rundir = args.rundir
-    else:
-        rundir = settings.rundir
-
+    rundir = settings.rundir
     if not os.path.exists(rundir):
         os.makedirs(rundir)
-    # TODO: get time stamp from gas, stars, or sinks
-    # Default for the initial spiral gas is 1.4874E+15 seconds
+    run_prefix = rundir + "/"
 
+    filename_random = settings.filename_random
     if filename_random is None or filename_random == "None":
         numpy.random.seed(seed)
     else:
@@ -1379,7 +1320,6 @@ def main(
         state_file.close()
         randomstate = pickle.loads(pickled_state)
         numpy.random.set_state(randomstate.get_state())
-    run_prefix = rundir + "/"
 
     logging_level = logging.INFO
     # logging_level = logging.DEBUG
@@ -1401,6 +1341,7 @@ def main(
         settings.gas_rscale,
     )
 
+    filename_stars = settings.filename_stars
     if filename_stars is not None and filename_stars != "None":
         stars = read_set_from_file(filename_stars, "amuse", close_file=True,)
         have_stars = True
@@ -1417,6 +1358,7 @@ def main(
         stars.x += 250 | units.pc
         stars.vx += 0.5 | units.kms
         # have_stars = False
+    filename_gas = settings.filename_gas
     if filename_gas is not None and filename_gas != "None":
         print("reading gas")
         gas = read_set_from_file(filename_gas, "amuse", close_file=True,)
@@ -1452,7 +1394,8 @@ def main(
             ))
             stars.x -= 2 | units.pc
             stars.birth_mass = stars.mass
-            stars.birth_time = 0 | units.Myr  # ??
+            stars.birth_time = 0 | units.Myr
+            stars.collection_attributes.timestamp = 0 | units.yr
             have_stars = True
         gas_density = 2e-18 | units.g * units.cm**-3
         increase_vol = 5
@@ -1464,8 +1407,10 @@ def main(
         gasconverter = nbody_system.nbody_to_si(Mgas, radius)
         gas = molecular_cloud(targetN=Ngas, convert_nbody=gasconverter).result
         gas.u = temperature_to_u(30 | units.K)
+        gas.collection_attributes.timestamp = 0 | units.yr
         have_gas = True
 
+    filename_sinks = settings.filename_sinks
     if filename_sinks != "None" and filename_sinks is not None:
         sinks = read_set_from_file(filename_sinks, "amuse", close_file=True,)
         have_sinks = True

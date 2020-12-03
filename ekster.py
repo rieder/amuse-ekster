@@ -917,10 +917,12 @@ class ClusterInPotential(
                 new_stars = form_stars_from_group(
                     group_index=i,
                     sink_particles=self.sink_particles,
+                    lower_mass_limit=settings.stars_lower_mass_limit,
+                    upper_mass_limit=settings.stars_upper_mass_limit,
                     local_sound_speed=self.gas_code.parameters.polyk.sqrt(),
                     logger=self.logger,
                     randomseed=numpy.random.randint(2**32-1),
-                    shrink_sinks=shrink_sinks
+                    shrink_sinks=shrink_sinks,
                 )
 
                 if new_stars is not None:
@@ -945,6 +947,12 @@ class ClusterInPotential(
                             executor.submit(
                                 form_stars,
                                 sink,
+                                lower_mass_limit=(
+                                    settings.stars_lower_mass_limit
+                                ),
+                                upper_mass_limit=(
+                                    settings.stars_upper_mass_limit
+                                ),
                                 local_sound_speed=local_sound_speed,
                                 logger=self.logger,
                                 randomseed=numpy.random.randint(2**32-1),
@@ -954,6 +962,12 @@ class ClusterInPotential(
                         results.append(
                             form_stars(
                                 sink,
+                                lower_mass_limit=(
+                                    settings.stars_lower_mass_limit
+                                ),
+                                upper_mass_limit=(
+                                    settings.stars_upper_mass_limit
+                                ),
                                 local_sound_speed=local_sound_speed,
                                 logger=self.logger,
                                 randomseed=numpy.random.randint(2**32-1),
@@ -1352,7 +1366,7 @@ def main(
         from amuse.ext.masc import new_star_cluster
         stars = new_star_cluster(
             number_of_stars=10,
-            initial_mass_function='kroupa',
+            initial_mass_function=settings.stars_initial_mass_funtion,
             effective_radius=3.0 | units.parsec,
         )
         # stars.mass = stars.mass
@@ -1384,18 +1398,19 @@ def main(
         if not have_stars:
             stars = new_star_cluster(
                 number_of_stars=2048,
-                initial_mass_function='kroupa',
-                lower_mass_limit=1.0 | units.MSun,
+                initial_mass_function=settings.stars_initial_mass_funtion,
+                lower_mass_limit=settings.stars_lower_mass_limit,
+                upper_mass_limit=settings.stars_upper_mass_limit,
                 effective_radius=2.0 | units.parsec,
             )
             stars.x += 4 | units.parsec
             stars.add_particles(new_star_cluster(
                 number_of_stars=2048,
-                initial_mass_function='kroupa',
-                lower_mass_limit=1.0 | units.MSun,
+                initial_mass_function=settings.stars_initial_mass_funtion,
+                lower_mass_limit=settings.stars_lower_mass_limit,
+                upper_mass_limit=settings.stars_upper_mass_limit,
                 effective_radius=2.0 | units.parsec,
             ))
-            stars.x -= 2 | units.pc
             stars.birth_mass = stars.mass
             stars.birth_time = 0 | units.Myr
             stars.collection_attributes.timestamp = 0 | units.yr

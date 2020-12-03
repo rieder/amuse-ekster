@@ -154,6 +154,10 @@ class Settings:
         self.star_rscale = 0.1 | units.parsec
         self.star_mscale = 100 | units.MSun
 
+        self.stars_initial_mass_funtion = "kroupa"
+        self.stars_upper_mass_limit = 100 | units.MSun
+        self.stars_lower_mass_limit = 0.1 | units.MSun
+
         self.timestep = 0.01 | units.Myr
         self.timestep_bridge = 0.0025 | units.Myr
         self.epsilon_gas = 0.1 | units.parsec

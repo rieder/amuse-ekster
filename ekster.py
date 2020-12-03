@@ -206,14 +206,14 @@ class ClusterInPotential(
         self.star_code.parameters.epsilon_squared = \
             settings.epsilon_stars**2
         evo_code = getattr(available_codes, settings.evo_code)
-        stars_time_offset = (
-            stars.birth_time.min() if not stars.is_empty() else 0 | units.yr
-        )
         self.evo_code = StellarEvolutionCode(
             evo_code=evo_code,
             logger=self.logger,
             # redirection=settings.code_redirection,
-            time_offset=stars_time_offset,
+            time_offset=(
+                stars.birth_time.min() if not stars.is_empty()
+                else 0 | units.yr
+            ),
         )
 
         if not stars.is_empty():

@@ -1566,7 +1566,7 @@ def main(
             settings.step = step
             settings.model_time = model.model_time
             ekster_settings.write_config(
-                settings, "resume-%04i.ini" % step, "resume"
+                settings, "%sresume-%04i.ini" % (run_prefix, step), "resume"
             )
             logger.info("Writing snapshots")
             print("Writing snapshots")

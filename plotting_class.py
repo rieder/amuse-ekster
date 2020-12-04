@@ -147,8 +147,8 @@ def make_temperature_map(
         settings=ekster_settings.Settings(),
 ):
     "Create a temperature map"
-    bins = settings.plot_bins,
-    width = settings.plot_width,
+    bins = settings.plot_bins
+    width = settings.plot_width
     logger.info("Creating temperature map for gas")
 
     mapper.parameters.target_x = offset_x

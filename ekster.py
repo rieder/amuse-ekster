@@ -1155,27 +1155,28 @@ class ClusterInPotential(
                 self.sync_from_wind_code()
 
                 wind_p = self.wind_particles
-                print(
-                    "\n\nAdding %i wind particles with <T> %s\n\n"
-                    % (len(wind_p), u_to_temperature(wind_p.u).mean())
-                )
-                self.logger.info(
-                    "Adding %i wind particle(s) at t=%s, <T>=%s",
-                    len(wind_p),
-                    self.wind.model_time.in_(units.Myr),
-                    u_to_temperature(wind_p.u).mean()
-                )
+                if not wind_p.is_empty():
+                    print(
+                        "\n\nAdding %i wind particles with <T> %s\n\n"
+                        % (len(wind_p), u_to_temperature(wind_p.u).mean())
+                    )
+                    self.logger.info(
+                        "Adding %i wind particle(s) at t=%s, <T>=%s",
+                        len(wind_p),
+                        self.wind.model_time.in_(units.Myr),
+                        u_to_temperature(wind_p.u).mean()
+                    )
 
-                # This initial guess for h_smooth is used by Phantom to
-                # determine the timestep bin this particle is in.
-                # Small value: short timestep.
-                # But also: too small value -> problem getting the density to
-                # converge...
-                # wind_p.h_smooth = 1 * (wind_p.mass/rhomax)**(1/3)
-                wind_p.h_smooth = 0.1 | units.pc
+                    # This initial guess for h_smooth is used by Phantom to
+                    # determine the timestep bin this particle is in.
+                    # Small value: short timestep.
+                    # But also: too small value -> problem getting the density
+                    # to converge...
+                    # wind_p.h_smooth = 1 * (wind_p.mass/rhomax)**(1/3)
+                    wind_p.h_smooth = 0.1 | units.pc
 
-                self.add_gas(wind_p)
-                wind_p.remove_particles(wind_p)
+                    self.add_gas(wind_p)
+                    wind_p.remove_particles(wind_p)
 
                 print("number of gas particles: %i" % len(self.gas_particles))
             print("Evolved system")

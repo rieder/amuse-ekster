@@ -146,6 +146,8 @@ class Settings:
         self.plot_zaxis = "z"
         self.plot_csinks = "red"
         self.plot_cstars = "white"
+        self.plot_density = True
+        self.plot_temperature = True
 
         # phantom_solarm = 1.9891e30 | units.kg
         # phantom_pc = 3.086e16 | units.m
@@ -202,7 +204,6 @@ class Settings:
         self.stop_after_each_step = False
 
         self.write_backups = True
-        self.use_wind = False
 
         # star_formation_method = "grouped"  # or "single"
         self.star_formation_method = "single"
@@ -216,3 +217,13 @@ class Settings:
 
         self.begin_time = 0 | units.Myr
         self.model_time = 0 | units.Myr
+
+        self.wind_enabled = False
+        self.wind_type = "heating"  # Or accelerate, simple
+        self.wind_r_max = 0.1 | units.pc
+
+        self.field_code_type = "tree"
+
+        # Stellar mass changes over their lifetime - always enabled when using
+        # stellar winds module!
+        self.evo_stars_lose_mass = False

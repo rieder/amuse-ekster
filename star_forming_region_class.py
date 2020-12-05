@@ -200,7 +200,7 @@ def assign_sink_group(
     number_of_groups = sink_particles.in_group.max()
 
     logger.info(
-        'Grouping parameters: radius %s, age %s, speed %',
+        'Grouping parameters: radius %s, age %s, speed %s',
         group_radius, group_age, group_speed
     )
 

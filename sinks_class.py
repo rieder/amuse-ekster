@@ -16,7 +16,7 @@ def should_a_sink_form(
         check_thermal=True,
         accretion_radius=0.1 | units.pc,
         logger=None,
-    ):
+):
     logger = logger or logging.getLogger(__name__)
     # Check if conditions for forming a sink are met
     # This applies to the ~50 SPH neighbour particles
@@ -157,7 +157,7 @@ def should_a_sink_form(
         flags.append(True)
         messages.append("forming")
         logger.info("All checks clear - forming a sink")
-    return flags, messages
+    return flags, messages, neighbours
 
 
 #

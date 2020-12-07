@@ -203,6 +203,9 @@ class ClusterInPotential(
         self.star_code.parameters.epsilon_squared = \
             settings.epsilon_stars**2
         evo_code = getattr(available_codes, settings.evo_code)
+        if not hasattr(stars, "birth_time"):
+            stars.birth_time = 0 | units.Myr
+            print("WARNING: stars did not have a birth time - using 0 Myr")
         self.evo_code = StellarEvolutionCode(
             evo_code=evo_code,
             logger=self.logger,
@@ -569,6 +572,12 @@ class ClusterInPotential(
         new_sinks = Particles()
         while not high_density_gas.is_empty():
             i = 0
+            print("Checking gas core %i (%i remain)" % (i, len(high_density_gas)))
+            self.logger.info(
+                "Checking gas core %i (%i remain)",
+                i,
+                len(high_density_gas),
+            )
             origin_gas = high_density_gas[i]
             form_sink = False
 
@@ -601,9 +610,8 @@ class ClusterInPotential(
                 form_sink = True
             else:
                 try:
-                    form_sink, not_forming_message = should_a_sink_form(
+                    form_sink, not_forming_message, neighbours = should_a_sink_form(
                         origin_gas.as_set(), self.gas_particles,
-                        sph=self.gas_code,
                         # check_thermal=self.isothermal_mode,
                         accretion_radius=settings.minimum_sink_radius,
                     )
@@ -634,7 +642,9 @@ class ClusterInPotential(
                     self.model_time,
                     not_forming_message,
                 )
+                high_density_neighbours = neighbours.get_intersecting_subset_in(high_density_gas)
                 high_density_gas.remove_particle(origin_gas)
+                high_density_gas.remove_particles(high_density_neighbours)
             else:  # try:
                 print("Forming a sink from particle %s" % origin_gas.key)
 
@@ -927,10 +937,10 @@ class ClusterInPotential(
                     randomseed=numpy.random.randint(2**32-1),
                     shrink_sinks=shrink_sinks,
                 )
-                new_stars.birth_time = self.model_time
 
                 if new_stars is not None:
                     formed_stars = True
+                    new_stars.birth_time = self.model_time
                     self.add_stars(new_stars)
                     stellar_mass_formed += new_stars.total_mass()
 

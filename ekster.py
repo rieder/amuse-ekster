@@ -603,6 +603,7 @@ class ClusterInPotential(
                 try:
                     form_sink, not_forming_message = should_a_sink_form(
                         origin_gas.as_set(), self.gas_particles,
+                        sph=self.gas_code,
                         # check_thermal=self.isothermal_mode,
                         accretion_radius=settings.minimum_sink_radius,
                     )
@@ -926,6 +927,7 @@ class ClusterInPotential(
                     randomseed=numpy.random.randint(2**32-1),
                     shrink_sinks=shrink_sinks,
                 )
+                new_stars.birth_time = self.model_time
 
                 if new_stars is not None:
                     formed_stars = True
@@ -1379,7 +1381,7 @@ def main(
         from amuse.ext.molecular_cloud import molecular_cloud
         gas_density = 2e-18 | units.g * units.cm**-3
         increase_vol = 5
-        Ngas = increase_vol**3 * 1000
+        Ngas = increase_vol**3 * 1000 * 10
         Mgas = increase_vol**3 * 1000 | units.MSun
         volume = Mgas / gas_density
         radius = (volume / (units.pi * 4/3))**(1/3)

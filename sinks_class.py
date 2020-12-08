@@ -140,7 +140,7 @@ def should_a_sink_form(
         flags.append(True)
         messages.append("forming")
         logger.info("All checks clear - forming a sink")
-    return flags, messages
+    return flags, messages, neighbours
 
 
 def accrete_gas(sink, gas):

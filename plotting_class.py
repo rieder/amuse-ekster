@@ -619,7 +619,7 @@ def new_argument_parser(settings):
         dest='w',
         default=settings.plot_width.value_in(units.pc),
         type=float,
-        help='Width in pc (%f)' % settings.plot_bins.value_in(units.pc),
+        help='Width in pc (%f)' % settings.plot_width.value_in(units.pc),
     )
     parser.add_argument(
         '--com',
@@ -672,7 +672,7 @@ def main():
     starsfilename = o.starsfilename
     sinksfilename = o.sinksfilename
     imagefilename = o.imagefilename
-    n = o.n
+    n = o.bins
     offset_x = o.x | units.pc
     offset_y = o.y | units.pc
     offset_z = o.z | units.pc
@@ -746,7 +746,7 @@ def main():
     # gasproperties = ["density"]
     for gasproperty in gasproperties:
         settings.plot_width = o.w | units.pc
-        settings.plot_bins = o.n
+        settings.plot_bins = o.bins
         figure, ax = plot_hydro_and_stars(
             time,
             stars=stars,

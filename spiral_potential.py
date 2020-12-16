@@ -354,7 +354,7 @@ class StrongSpiralArmsProfile:
         R2 = x**2 + y**2 + z**2
         R = R2**0.5
         spiral_value = (
-            tanh(A * (R_t - R).value_in(units.kpc)) + 1
+            (tanh(A * (R_t - R).value_in(units.kpc)) + 1)
             * basic_spiral_value
         )
         return spiral_value.in_(units.parsec**2 * units.Myr**-2)

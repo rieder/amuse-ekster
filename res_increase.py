@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+Program to increase the resolution of SPH particles in a snapshot.
+First developed by Thomas Bending (Bending et al. 2020, 2020MNRAS.495.1672B),
+modified for AMUSE by Steven Rieder.
+"""
 import sys
 import numpy
 

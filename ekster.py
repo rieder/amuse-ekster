@@ -327,20 +327,20 @@ class ClusterInPotential(
             )
             return result
 
-        to_gas_codes = []
+        to_gas_kickers = []
         if self.tidal_field:
-            to_gas_codes.append(self.tidal_field)
-        to_gas_codes.append(
+            to_gas_kickers.append(self.tidal_field)
+        to_gas_kickers.append(
             # self.star_code,
             new_field_code(
                 self.star_code,
                 mode=settings.field_code_type,
             )
         )
-        to_stars_codes = []
+        to_stars_kickers = []
         if self.tidal_field:
-            to_stars_codes.append(self.tidal_field)
-        to_stars_codes.append(
+            to_stars_kickers.append(self.tidal_field)
+        to_stars_kickers.append(
             # self.gas_code,
             new_field_code(
                 self.gas_code,
@@ -358,13 +358,13 @@ class ClusterInPotential(
         self.system.time = settings.model_time
         self.system.add_system(
             self.star_code,
-            partners=to_stars_codes,
+            partners=to_stars_kickers,
             do_sync=True,
             # zero_smoothing=True,  # for petar
         )
         self.system.add_system(
             self.gas_code,
-            partners=to_gas_codes,
+            partners=to_gas_kickers,
             do_sync=True,
             h_smooth_is_eps=True,
         )

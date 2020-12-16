@@ -132,38 +132,49 @@ def pos_shift(
     return relative_positions
 
 
-def main(
+def res_increase(
+    gas=None,
     recalculate_h_density=False,
+    seed=123,
+    make_cutout=False,
+    x_center=None,
+    y_center=None,
+    width=None,
+    res_increase_factor=85,
 ):
-    seed = 123
     numpy.random.seed(seed)
-    if len(sys.argv) > 2:
-        from amuse.io import read_set_from_file
-        filename = sys.argv[1]
-        res_increase_factor = int(sys.argv[2])
-        gas = read_set_from_file(filename, 'amuse')
-        if hasattr(gas, "itype"):
-            gas = gas[gas.itype == 1]
-            del gas.itype
-    else:
-        from amuse.ic.gasplummer import new_plummer_gas_model
-        converter = nbody_system.nbody_to_si(10000 | units.MSun, 10 | units.pc)
-        filename = "test"
-        gas = new_plummer_gas_model(10000, converter)
-        res_increase_factor = 85
-        sph = Fi(converter, mode="openmp")
-        gas_in_code = sph.gas_particles.add_particles(gas)
-        gas.h_smooth = gas_in_code.h_smooth
-        gas.density = gas_in_code.density
-        sph.stop()
-        write_set_to_file(gas, "old-%s" % filename, "amuse")
-        print("old gas created")
+    if gas is None:
+        if len(sys.argv) > 2:
+            from amuse.io import read_set_from_file
+            filename = sys.argv[1]
+            res_increase_factor = int(sys.argv[2])
+            gas = read_set_from_file(filename, 'amuse')
+            if hasattr(gas, "itype"):
+                gas = gas[gas.itype == 1]
+                del gas.itype
+        else:
+            from amuse.ic.gasplummer import new_plummer_gas_model
+            converter = nbody_system.nbody_to_si(
+                10000 | units.MSun, 10 | units.pc
+            )
+            filename = "test"
+            gas = new_plummer_gas_model(10000, converter)
+            res_increase_factor = 85
+            sph = Fi(converter, mode="openmp")
+            gas_in_code = sph.gas_particles.add_particles(gas)
+            gas.h_smooth = gas_in_code.h_smooth
+            gas.density = gas_in_code.density
+            sph.stop()
+            write_set_to_file(gas, "old-%s" % filename, "amuse")
+            print("old gas created")
 
-    make_cutout = True
     if make_cutout:
-        x_center = -1800 | units.pc
-        y_center = -1800 | units.pc
-        width = 600 | units.pc
+        if (
+            x_center is None
+            or y_center is None
+            or width is None
+        ):
+            raise Exception("Need to set x_center, y_center and width!")
         cutout = gas.sorted_by_attribute("x")
         cutout = cutout[cutout.x - x_center < width/2]
         cutout = cutout[cutout.x - x_center > -width/2]
@@ -189,7 +200,6 @@ def main(
         1 | units.kpc,
     )
 
-    print("Old gas done")
     new_gas = Particles(new_number_of_particles)
     # new_gas.h_smooth = gas.h_smooth
 
@@ -210,6 +220,7 @@ def main(
     number_of_particles = len(gas)
     starting_index = 0
     for r in range(random_samples):
+        print("%i / %i random sample done" % (r, random_samples))
         number_of_particles_remaining = len(gas)
         number_of_particles_in_sample = min(
             number_of_particles_remaining,
@@ -227,7 +238,7 @@ def main(
         theta = 2 * numpy.pi * numpy.random.random()
         phi = 2 * numpy.pi * numpy.random.random()
         relative_positions = rotated(relative_positions, phi, theta, psi)
-        print(len(gas_sample), len(new_gas_sample))
+        # print(len(gas_sample), len(new_gas_sample))
         for i in range(res_increase_factor):
             new_gas_sample[i::res_increase_factor].mass = (
                 gas_sample.mass / res_increase_factor
@@ -269,12 +280,20 @@ def main(
     # new_gas.density = new_gas_in_code.density
     # sph.stop()
 
-    write_set_to_file(new_gas, "new-%s" % filename, "amuse")
     print(
         "particles now have a mass of %s" % (new_gas[0].mass.in_(units.MSun))
     )
-    return
+    return new_gas
 
 
 if __name__ == "__main__":
-    main()
+    filename = sys.argv[1]
+    new_gas = res_increase(
+        recalculate_h_density=False,
+        seed=123,
+        make_cutout=True,
+        x_center=-1800 | units.pc,
+        y_center=-1800 | units.pc,
+        width=500 | units.pc,
+    )
+    write_set_to_file(new_gas, "new-%s" % filename, "amuse")

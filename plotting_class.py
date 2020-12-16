@@ -614,7 +614,7 @@ def new_argument_parser(settings):
         dest='w',
         default=settings.plot_width.value_in(units.pc),
         type=float,
-        help='Width in pc (%f)' % settings.plot_bins.value_in(units.pc),
+        help='Width in pc (%f)' % settings.plot_width.value_in(units.pc),
     )
     parser.add_argument(
         '--com',
@@ -667,7 +667,7 @@ def main():
     starsfilename = o.starsfilename
     sinksfilename = o.sinksfilename
     imagefilename = o.imagefilename
-    n = o.n
+    bins = o.bins
     offset_x = o.x | units.pc
     offset_y = o.y | units.pc
     offset_z = o.z | units.pc
@@ -677,7 +677,7 @@ def main():
     settings.plot_starscale = o.starscale
     settings.plot_width = w | units.pc
     settings.plot_image_size_scale = (
-        settings.plot_image_size_scale * (settings.plot_bins / n)
+        settings.plot_image_size_scale * (settings.plot_bins / bins)
     ) or settings.plot_image_size_scale
 
     stars = read_set_from_file(
@@ -700,6 +700,10 @@ def main():
         if not hasattr(gas, "u"):
             print("Setting temperature to %s" % default_temperature)
             gas.u = temperature_to_u(default_temperature)
+        elif gas.u.unit is units.K:
+            temp = gas.u
+            del gas.u
+            gas.u = temperature_to_u(temp)
     else:
         gas = Particles()
 
@@ -741,7 +745,7 @@ def main():
     # gasproperties = ["density"]
     for gasproperty in gasproperties:
         settings.plot_width = o.w | units.pc
-        settings.plot_bins = o.n
+        settings.plot_bins = o.bins
         figure, ax = plot_hydro_and_stars(
             time,
             stars=stars,

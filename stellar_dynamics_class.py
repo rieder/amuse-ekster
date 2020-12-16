@@ -201,25 +201,23 @@ class StellarDynamicsCode:
             # Force Hermite to sync to the exact time requested - see
             # force_sync for ph4
             param.end_time_accuracy_factor = 0
-        elif star_code is Pentacle:
-            # param.time_step = 0.5 * settings.timestep
-            param.time_step = 0.001 | units.Myr
         elif star_code is Petar:
             # Set the parameters explicitly to some default
-            param.theta = 0.3
+            param.theta = settings.stellar_dynamics_theta
             logger.info("Old r_out value: %s", param.r_out.in_(units.pc))
-            param.r_out = 0 | units.pc
-            param.ratio_r_cut = 0.1
+            param.r_out = settings.stellar_dynamics_r_out
+            param.ratio_r_cut = settings.stellar_dynamics_ratio_r_cut
             logger.info("Old r_bin value: %s", param.r_bin.in_(units.pc))
-            param.r_bin = 1 | units.RSun
+            param.r_bin = settings.stellar_dynamics_r_bin
             # param.r_search_min = 0 | units.pc
 
             # very small = technically disabled
-            param.r_search_min = 1 | units.RSun
+            param.r_search_min = settings.stellar_dynamics_r_search_min
 
-            param.dt_soft = self.unit_converter.to_si(
-                2**-8 | nbody_system.time
-            )
+            param.dt_soft = settings.stellar_dynamics_dt_soft
+            # param.dt_soft = self.unit_converter.to_si(
+            #     2**-8 | nbody_system.time
+            # )
             # settings.timestep_bridge / 4  # 0 | units.Myr
             # param.r_out = 10 * settings.epsilon_stars
 

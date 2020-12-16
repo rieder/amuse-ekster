@@ -215,6 +215,13 @@ class Settings:
         self.star_code = "Petar"
         self.code_redirection = "none"
 
+        self.stellar_dynamics_theta = 0.3
+        self.stellar_dynamics_r_out = 0 | units.pc
+        self.stellar_dynamics_ratio_r_cut = 0.1
+        self.stellar_dynamics_r_bin = 1 | units.RSun
+        self.stellar_dynamics_r_search_min = 1 | units.RSun
+        self.stellar_dynamics_dt_soft = 2**-8 * self.timestep
+
         self.begin_time = 0 | units.Myr
         self.model_time = 0 | units.Myr
 

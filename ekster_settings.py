@@ -146,6 +146,8 @@ class Settings:
         self.plot_zaxis = "z"
         self.plot_csinks = "red"
         self.plot_cstars = "white"
+        self.plot_density = True
+        self.plot_temperature = True
 
         # phantom_solarm = 1.9891e30 | units.kg
         # phantom_pc = 3.086e16 | units.m
@@ -153,6 +155,10 @@ class Settings:
         self.gas_mscale = 1.9891e30 | units.kg
         self.star_rscale = 0.1 | units.parsec
         self.star_mscale = 100 | units.MSun
+
+        self.stars_initial_mass_funtion = "kroupa"
+        self.stars_upper_mass_limit = 100 | units.MSun
+        self.stars_lower_mass_limit = 0.1 | units.MSun
 
         self.timestep = 0.01 | units.Myr
         self.timestep_bridge = 0.0025 | units.Myr
@@ -183,12 +189,12 @@ class Settings:
         # disks), 2 = SD93 cooling, 4 = molecular clouds cooling
         self.icooling = 0
 
-        # If self.Tide is "none", other tide parameters are ignored but should
+        # If self.tide is "none", other tide parameters are ignored but should
         # still exist!
-        self.Tide = "none"
+        self.tide = "none"
         self.tide_spiral_type = "none"
         self.tide_time_offset = 0 | units.Myr
-        # self.Tide = "TimeDependentSpiralArmsDiskModel"
+        # self.tide = "TimeDependentSpiralArmsDiskModel"
         # self.tide_spiral_type = "normal"
         # self.tide_time_offset = (5.0802 * 1.4874E+15 | units.s)
         # self.tide_spiral_type = "strong"
@@ -198,7 +204,6 @@ class Settings:
         self.stop_after_each_step = False
 
         self.write_backups = True
-        self.use_wind = False
 
         # star_formation_method = "grouped"  # or "single"
         self.star_formation_method = "single"
@@ -210,5 +215,22 @@ class Settings:
         self.star_code = "Petar"
         self.code_redirection = "none"
 
+        self.stellar_dynamics_theta = 0.3
+        self.stellar_dynamics_r_out = 0 | units.pc
+        self.stellar_dynamics_ratio_r_cut = 0.1
+        self.stellar_dynamics_r_bin = 1 | units.RSun
+        self.stellar_dynamics_r_search_min = 1 | units.RSun
+        self.stellar_dynamics_dt_soft = 2**-8 * self.timestep
+
         self.begin_time = 0 | units.Myr
         self.model_time = 0 | units.Myr
+
+        self.wind_enabled = False
+        self.wind_type = "heating"  # Or accelerate, simple
+        self.wind_r_max = 0.1 | units.pc
+
+        self.field_code_type = "tree"
+
+        # Stellar mass changes over their lifetime - always enabled when using
+        # stellar winds module!
+        self.evo_stars_lose_mass = False

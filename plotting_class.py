@@ -14,11 +14,6 @@ from amuse.io import read_set_from_file
 from amuse.units import units, constants, nbody_system
 from amuse.community.fi.interface import FiMap
 
-# from prepare_figure import single_frame
-# from prepare_figure import figure_frame, set_tickmarks
-# from distinct_colours import get_distinct
-# from mpl_toolkits.axes_grid1 import make_axes_locatable
-
 import ekster_settings
 
 
@@ -79,7 +74,7 @@ def make_column_density_map(
         x_axis="x",
         y_axis="y",
         z_axis="z",
-        settings=ekster_settings.Settings(),
+        settings=None,
 ):
     bins = settings.plot_bins
     width = settings.plot_width
@@ -144,11 +139,11 @@ def make_temperature_map(
         x_axis="x",
         y_axis="y",
         z_axis="z",
-        settings=ekster_settings.Settings(),
+        settings=None,
 ):
     "Create a temperature map"
-    bins = settings.plot_bins,
-    width = settings.plot_width,
+    bins = settings.plot_bins
+    width = settings.plot_width
     logger.info("Creating temperature map for gas")
 
     mapper.parameters.target_x = offset_x
@@ -193,7 +188,7 @@ def plot_hydro_and_stars(
         y_axis="y",
         z_axis="z",
         use_fresco=False,
-        settings=ekster_settings.Settings(),
+        settings=None,
 ):
     "Plot gas and stars"
     width = settings.plot_width
@@ -489,7 +484,7 @@ def plot_stars(
         alpha_sfe=0.02,
         stars_are_sinks=False,
         fig=None,
-        settings=ekster_settings.Settings(),
+        settings=None,
 ):
     "Plot stars, but still accept sph keyword for compatibility reasons"
     starscale = settings.plot_starscale
@@ -672,7 +667,7 @@ def main():
     starsfilename = o.starsfilename
     sinksfilename = o.sinksfilename
     imagefilename = o.imagefilename
-    n = o.bins
+    bins = o.bins
     offset_x = o.x | units.pc
     offset_y = o.y | units.pc
     offset_z = o.z | units.pc
@@ -682,7 +677,7 @@ def main():
     settings.plot_starscale = o.starscale
     settings.plot_width = w | units.pc
     settings.plot_image_size_scale = (
-        settings.plot_image_size_scale * (settings.plot_bins / n)
+        settings.plot_image_size_scale * (settings.plot_bins / bins)
     ) or settings.plot_image_size_scale
 
     stars = read_set_from_file(
@@ -705,6 +700,10 @@ def main():
         if not hasattr(gas, "u"):
             print("Setting temperature to %s" % default_temperature)
             gas.u = temperature_to_u(default_temperature)
+        elif gas.u.unit is units.K:
+            temp = gas.u
+            del gas.u
+            gas.u = temperature_to_u(temp)
     else:
         gas = Particles()
 

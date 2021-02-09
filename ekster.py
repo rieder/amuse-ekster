@@ -28,7 +28,10 @@ from stellar_dynamics_class import StellarDynamicsCode
 from stellar_evolution_class import StellarEvolutionCode
 from sinks_class import should_a_sink_form  # , sfe_to_density
 from plotting_class import plot_hydro_and_stars  # , plot_stars
-from plotting_class import u_to_temperature, temperature_to_u
+from plotting_class import (
+    u_to_temperature, temperature_to_u,
+    gas_mean_molecular_weight,
+)
 from star_forming_region_class import (
     form_stars,
     form_stars_from_group, assign_sink_group,
@@ -118,7 +121,7 @@ class ClusterInPotential(
         if star_converter is None:
             converter_for_stars = nbody_system.nbody_to_si(
                 settings.star_rscale,
-                settings.timestep,  # 1 nbody time == 1 timestep
+                settings.timestep_bridge,  # 1 nbody time == 1 timestep
             )
         else:
             converter_for_stars = star_converter
@@ -368,8 +371,7 @@ class ClusterInPotential(
             do_sync=True,
             h_smooth_is_eps=True,
         )
-        # self.gas_code.parameters.time_step = 0.025 * self.timestep
-        self.gas_code.parameters.time_step = self.timestep_bridge/2
+        self.gas_code.parameters.time_step = self.timestep_bridge
 
     def sync_from_gas_code(self):
         """
@@ -379,8 +381,13 @@ class ClusterInPotential(
             "x", "y", "z", "vx", "vy", "vz",
             "density", "h_smooth",
         ]
+        thermal_gas_attributes = [
+            "u", "h2ratio", "hi_abundance", "proton_abundance",
+            "electron_abundance", "co_abundance",
+        ]
         if not self.isothermal_mode:
-            from_gas_attributes.append("u")
+            for attribute in thermal_gas_attributes:
+                from_gas_attributes.append(attribute)
         from_dm_attributes = [
             "x", "y", "z", "vx", "vy", "vz",
         ]
@@ -687,7 +694,8 @@ class ClusterInPotential(
                 # probably this is misleading code...
                 if self.isothermal_mode:
                     new_sink.u = temperature_to_u(
-                        settings.isothermal_gas_temperature
+                        settings.isothermal_gas_temperature,
+                        gas_mean_molecular_weight=gas_mean_molecular_weight(0.5),
                     )
                 else:
                     new_sink.u = origin_gas.u
@@ -834,8 +842,9 @@ class ClusterInPotential(
         self.sink_particles.remove_particles(sinks)
 
     def add_gas(self, gas):
-        self.gas_code.gas_particles.add_particles(gas)
         self.gas_particles.add_particles(gas)
+        self.gas_code.gas_particles.add_particles(gas)
+        self.sync_from_gas_code()
         # print("Added gas - evolving for 10s")
         # self.gas_code.evolve_model(10 | units.s)
         # print("Done")
@@ -853,10 +862,11 @@ class ClusterInPotential(
             self.evo_code_stars = self.evo_code.particles.add_particles(stars)
             self.sync_from_evo_code()
             self.star_code.particles.add_particles(stars)
-            # self.star_code.parameters_to_default(star_code=settings.star_code)
-            # self.star_code.commit_particles()
             if settings.wind_enabled:
                 self.wind.particles.add_particles(stars)
+
+            # self.star_code.parameters_to_default(star_code=settings.star_code)
+            # self.star_code.commit_particles()
 
     def remove_stars(self, stars):
         self.star_code.particles.remove_particles(stars)
@@ -1170,13 +1180,19 @@ class ClusterInPotential(
                 if not wind_p.is_empty():
                     print(
                         "\n\nAdding %i wind particles with <T> %s\n\n"
-                        % (len(wind_p), u_to_temperature(wind_p.u).mean())
+                        % (len(wind_p), u_to_temperature(
+                            wind_p.u,
+                            gas_mean_molecular_weight=gas_mean_molecular_weight(0),
+                        ).mean())
                     )
                     self.logger.info(
                         "Adding %i wind particle(s) at t=%s, <T>=%s",
                         len(wind_p),
                         self.wind.model_time.in_(units.Myr),
-                        u_to_temperature(wind_p.u).mean()
+                        u_to_temperature(
+                            wind_p.u,
+                            gas_mean_molecular_weight=gas_mean_molecular_weight(0),
+                        ).mean()
                     )
 
                     # This initial guess for h_smooth is used by Phantom to
@@ -1380,9 +1396,20 @@ def main(
             if gas.u.in_base().unit is units.K:
                 temp = gas.u
                 del gas.u
-                gas.u = temperature_to_u(temp)
+                if hasattr(gas, 'h2ratio'):
+                    h2ratio = gas.h2ratio
+                else:
+                    # Assume cold gas by default - could base this on temperature though!
+                    h2ratio = 0.5
+                gas.u = temperature_to_u(
+                    temp,
+                    gas_mean_molecular_weight=gas_mean_molecular_weight(h2ratio),
+                )
         else:
-            u = temperature_to_u(settings.isothermal_gas_temperature)
+            u = temperature_to_u(
+                settings.isothermal_gas_temperature,
+                gas_mean_molecular_weight=gas_mean_molecular_weight(0.5),
+            )
             gas.u = u
     else:
         print(
@@ -1398,7 +1425,10 @@ def main(
         radius = increase_vol * radius
         gasconverter = nbody_system.nbody_to_si(Mgas, radius)
         gas = molecular_cloud(targetN=Ngas, convert_nbody=gasconverter).result
-        gas.u = temperature_to_u(30 | units.K)
+        gas.u = temperature_to_u(
+            30 | units.K,
+            gas_mean_molecular_weight=gas_mean_molecular_weight(0.5),
+        )
         gas.collection_attributes.timestamp = 0 | units.yr
 
     have_sinks = False
@@ -1565,7 +1595,13 @@ def main(
                 settings=settings,
             )
 
-        if settings.write_backups and step != starting_step:
+        if (
+            settings.write_backups
+            and (
+                step != starting_step
+                or starting_step == 0
+            )
+        ):
             if not model.gas_particles.is_empty():
                 settings.filename_gas = "%sgas-%04i.hdf5" % (run_prefix, step)
             if not model.star_particles.is_empty():

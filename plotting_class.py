@@ -5,6 +5,7 @@ Class for plotting stuff
 """
 import logging
 import numpy
+from numpy import pi
 
 from matplotlib import pyplot
 # import matplotlib.cm as cm

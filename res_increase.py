@@ -196,6 +196,9 @@ def res_increase(
         sph.stop()
         # boundary = test_cutout.h_smooth.max()
 
+    if res_increase_factor == 1:
+        return gas
+
     original_number_of_particles = len(gas)
     new_number_of_particles = (
         res_increase_factor * original_number_of_particles

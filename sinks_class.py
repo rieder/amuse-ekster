@@ -33,13 +33,6 @@ def should_a_sink_form(
         logger.info(
             "Checking if particle %s should form a sink", origin_gas.key
         )
-        if origin_gas.h_smooth > accretion_radius/2:
-            flags.append(False)
-            messages.append("smoothing length too large")
-            logger.info("No - smoothing length too large")
-            break
-        if len(gas) < 50:
-            return False, "not enough gas particles (this should never happen)"
         neighbour_radius = accretion_radius  # origin_gas.h_smooth * 5
         neighbours = gas[
             numpy.where(
@@ -47,6 +40,14 @@ def should_a_sink_form(
                 < neighbour_radius
             )
         ].copy()
+        if origin_gas.h_smooth > accretion_radius/2:
+            flags.append(False)
+            messages.append("smoothing length too large")
+            logger.info("No - smoothing length too large")
+            break
+        if len(gas) < 50:
+            return False, "not enough gas particles (this should never happen)"
+
         if len(neighbours) < 50:
             # return False, "not enough neighbours"
             flags.append(False)

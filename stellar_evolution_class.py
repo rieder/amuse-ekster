@@ -25,12 +25,14 @@ class StellarEvolutionCode:
             evo_code=SeBa,
             logger=None,
             time_offset=0 | units.Myr,
+            settings=None,
             **keyword_arguments
     ):
         self.typestr = "Evolution"
         self.namestr = evo_code.__name__
         self.logger = logger or logging.getLogger(__name__)
         self.__evo_code = evo_code
+        self.settings = settings
 
         if evo_code is SSE:
             self.code = SSE(

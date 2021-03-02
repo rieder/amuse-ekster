@@ -160,7 +160,6 @@ class ClusterInPotential(
                 settings=settings,
                 time_offset=gas_time_offset,
             )
-            # print(self.gas_code.parameters)
 
             print("****Adding gas****")
             self.add_gas(gas)
@@ -198,6 +197,7 @@ class ClusterInPotential(
             converter=converter_for_stars,
             star_code=settings.star_code,
             logger=self.logger,
+            settings=settings,
             redirection=settings.code_redirection,
             time_offset=stars_time_offset,
             stop_after_each_step=settings.stop_after_each_step,
@@ -212,6 +212,7 @@ class ClusterInPotential(
         self.evo_code = StellarEvolutionCode(
             evo_code=evo_code,
             logger=self.logger,
+            settings=settings,
             # redirection=settings.code_redirection,
             time_offset=(
                 stars.birth_time.min() if not stars.is_empty()
@@ -695,7 +696,7 @@ class ClusterInPotential(
                 if self.isothermal_mode:
                     new_sink.u = temperature_to_u(
                         settings.isothermal_gas_temperature,
-                        gas_mean_molecular_weight=gas_mean_molecular_weight(0.5),
+                        gmmw=gas_mean_molecular_weight(0.5),
                     )
                 else:
                     new_sink.u = origin_gas.u
@@ -1059,16 +1060,16 @@ class ClusterInPotential(
 
     def evolve_model(self, end_time):
         "Evolve system to specified time"
+        time_unit = units.Myr
         settings = self.settings
         start_time = self.model_time
         timestep = self.system.timestep
 
         # dmax = self.gas_code.parameters.stopping_condition_maximum_density
-        Myr = units.Myr
 
         self.logger.info(
             "Evolving to time %s",
-            end_time.in_(Myr),
+            end_time.in_(time_unit),
         )
         # self.model_to_evo_code.copy()
         # self.model_to_gas_code.copy()
@@ -1083,7 +1084,6 @@ class ClusterInPotential(
         # )
 
         print("Starting loop")
-        time_unit = units.Myr
         print(
             start_time.in_(time_unit),
             end_time.in_(time_unit),
@@ -1101,11 +1101,11 @@ class ClusterInPotential(
             if not self.star_particles.is_empty():
                 evo_timestep = self.evo_code.particles.time_step.min()
                 self.logger.info(
-                    "Smallest evo timestep: %s", evo_timestep.in_(Myr)
+                    "Smallest evo timestep: %s", evo_timestep.in_(time_unit)
                 )
 
-            print("Evolving to %s" % evolve_to_time.in_(Myr))
-            self.logger.info("Evolving to %s", evolve_to_time.in_(Myr))
+            print("Evolving to %s" % evolve_to_time.in_(time_unit))
+            self.logger.info("Evolving to %s", evolve_to_time.in_(time_unit))
             if not self.star_particles.is_empty():
                 self.logger.info("Stellar evolution...")
                 self.evo_code.evolve_model(evolve_to_time)
@@ -1182,7 +1182,7 @@ class ClusterInPotential(
                         "\n\nAdding %i wind particles with <T> %s\n\n"
                         % (len(wind_p), u_to_temperature(
                             wind_p.u,
-                            gas_mean_molecular_weight=gas_mean_molecular_weight(0),
+                            gmmw=gas_mean_molecular_weight(0),
                         ).mean())
                     )
                     self.logger.info(
@@ -1191,7 +1191,7 @@ class ClusterInPotential(
                         self.wind.model_time.in_(units.Myr),
                         u_to_temperature(
                             wind_p.u,
-                            gas_mean_molecular_weight=gas_mean_molecular_weight(0),
+                            gmmw=gas_mean_molecular_weight(0),
                         ).mean()
                     )
 
@@ -1272,11 +1272,11 @@ class ClusterInPotential(
 
             self.logger.info(
                 "Evo time is now %s",
-                self.evo_code.model_time.in_(Myr)
+                self.evo_code.model_time.in_(time_unit)
             )
             self.logger.info(
                 "Bridge time is now %s", (
-                    (self.model_time).in_(Myr)
+                    (self.model_time).in_(time_unit)
                 )
             )
             # self.evo_code_to_model.copy()
@@ -1288,19 +1288,19 @@ class ClusterInPotential(
 
             self.logger.info(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s",
-                evolve_to_time.in_(units.Myr),
-                (self.model_time).in_(Myr),
-                (self.gas_code.model_time).in_(Myr),
-                (self.star_code.model_time).in_(Myr),
-                (self.evo_code.model_time).in_(Myr),
+                evolve_to_time.in_(time_unit),
+                (self.model_time).in_(time_unit),
+                (self.gas_code.model_time).in_(time_unit),
+                (self.star_code.model_time).in_(time_unit),
+                (self.evo_code.model_time).in_(time_unit),
             )
             print(
                 "Time: end= %s bridge= %s gas= %s stars=%s evo=%s" % (
-                    evolve_to_time.in_(units.Myr),
-                    (self.model_time).in_(Myr),
-                    (self.gas_code.model_time).in_(Myr),
-                    (self.star_code.model_time).in_(Myr),
-                    (self.evo_code.model_time).in_(Myr),
+                    evolve_to_time.in_(time_unit),
+                    (self.model_time).in_(time_unit),
+                    (self.gas_code.model_time).in_(time_unit),
+                    (self.star_code.model_time).in_(time_unit),
+                    (self.evo_code.model_time).in_(time_unit),
                 )
             )
 
@@ -1403,12 +1403,12 @@ def main(
                     h2ratio = 0.5
                 gas.u = temperature_to_u(
                     temp,
-                    gas_mean_molecular_weight=gas_mean_molecular_weight(h2ratio),
+                    gmmw=gas_mean_molecular_weight(h2ratio),
                 )
         else:
             u = temperature_to_u(
                 settings.isothermal_gas_temperature,
-                gas_mean_molecular_weight=gas_mean_molecular_weight(0.5),
+                gmmw=gas_mean_molecular_weight(0.5),
             )
             gas.u = u
     else:
@@ -1427,7 +1427,7 @@ def main(
         gas = molecular_cloud(targetN=Ngas, convert_nbody=gasconverter).result
         gas.u = temperature_to_u(
             30 | units.K,
-            gas_mean_molecular_weight=gas_mean_molecular_weight(0.5),
+            gmmw=gas_mean_molecular_weight(0.5),
         )
         gas.collection_attributes.timestamp = 0 | units.yr
 

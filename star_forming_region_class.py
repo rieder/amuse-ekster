@@ -44,7 +44,7 @@ def generate_next_mass(
     if initial_mass_function == "kroupa":
         return new_kroupa_mass_distribution(
             number_of_stars,
-            mass_min=settings.stars_lower_mass_limit,
+            mass_min=lower_mass_limit,
             mass_max=upper_mass_limit,
         )
     else:
@@ -54,6 +54,7 @@ def generate_next_mass(
 
 def form_stars(
         sink,
+        initial_mass_function=settings.stars_initial_mass_funtion,
         lower_mass_limit=settings.stars_lower_mass_limit,
         upper_mass_limit=settings.stars_upper_mass_limit,
         local_sound_speed=0.2 | units.kms,
@@ -75,7 +76,11 @@ def form_stars(
     initialised = sink.initialised or False
     if not initialised:
         logger.debug("Initialising sink %i for star formation", sink.key)
-        next_mass = generate_next_mass()
+        next_mass = generate_next_mass(
+            initial_mass_function=initial_mass_function,
+            lower_mass_limit=lower_mass_limit,
+            upper_mass_limit=upper_mass_limit,
+        )
         # sink.next_number_of_stars = len(next_mass)
         # sink.next_total_mass = next_mass.sum()
         sink.next_primary_mass = next_mass[0]
@@ -362,7 +367,11 @@ def form_stars_from_group(
         number_of_sinks, group_index, group_mass.in_(units.MSun)
     )
 
-    next_mass = generate_next_mass()[0][0]
+    next_mass = generate_next_mass(
+        initial_mass_function=initial_mass_funtion,
+        lower_mass_limit=lower_mass_limit,
+        upper_mass_limit=upper_mass_limit,
+    )[0][0]
     try:
         # Within a group, group_next_primary_mass values are either
         # a mass, or 0 MSun. If all values are 0 MSun, this is a
@@ -630,7 +639,11 @@ def form_stars_from_group_older_version(
         "Group mass: %s", group_mass.in_(units.MSun)
     )
 
-    next_mass = generate_next_mass()[0][0]
+    next_mass = generate_next_mass(
+        initial_mass_function=initial_mass_funtion,
+        lower_mass_limit=lower_mass_limit,
+        upper_mass_limit=upper_mass_limit,
+    )[0][0]
     try:
         # Within a group, group_next_primary_mass values are either
         # a mass, or 0 MSun. If all values are 0 MSun, this is a

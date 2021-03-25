@@ -728,11 +728,8 @@ class ClusterInPotential(
                     / (4/3 * numpy.pi * new_sink.radius**3)
                 )
 
-                if accreted_gas.is_empty():
-                    self.logger.info("Empty gas so no sink")
-                    exit()
-                    high_density_gas.remove_particle(origin_gas)
-                else:
+                try:
+                    assert (not accreted_gas.is_empty())
                     self.logger.info(
                         "Number of accreted gas particles: %i",
                         len(accreted_gas)
@@ -771,6 +768,10 @@ class ClusterInPotential(
                     )
                     # except:
                     #     print("Could not add another sink")
+                except AssertionError:
+                    self.logger.warning("No gas accreted??")
+                    high_density_gas.remove_particle(origin_gas)
+                    warnings.warn("No gas accreted, is this correct??")
         self.add_sinks(new_sinks)
         self.gas_particles.synchronize_to(
             self.gas_code.gas_particles
@@ -1227,7 +1228,9 @@ class ClusterInPotential(
             if check_for_new_sinks:
                 print("Checking for new sinks")
                 n_sink = len(self.sink_particles)
-                self.resolve_sinks()
+                self.resolve_sinks(
+                    density_override_factor=settings.density_override_factor,
+                )
                 if len(self.sink_particles) == n_sink:
                     self.logger.info("No new sinks")
                     # check_for_new_sinks = False

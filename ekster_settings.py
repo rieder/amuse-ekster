@@ -168,6 +168,9 @@ class Settings:
         self.isothermal_gas_temperature = 30 | units.K
 
         self.density_threshold = 1e-18 | units.g * units.cm**-3
+        # Skip sink forming checks if this factor * density_threshold is
+        # reached
+        self.density_override_factor = 10
 
         # For combined-sinks method, use smallest length i.e. epsilon_stars
         # for single-sinks method, should be bigger probably

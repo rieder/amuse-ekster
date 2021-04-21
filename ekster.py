@@ -170,12 +170,13 @@ class ClusterInPotential(
         if settings.wind_enabled:
             self.wind_particles = Particles()
             self.wind = stellar_wind.new_stellar_wind(
-                self.gas_particles.mass.min(),
+                sph_particle_mass=self.gas_particles.mass.min(),
                 mode=settings.wind_type,
                 r_max=settings.wind_r_max,
                 derive_from_evolution=True,
                 target_gas=self.wind_particles,
                 timestep=self.timestep,
+                acceleration_function="rsquared",
             )
 
         # We need to be careful here - stellar evolution needs to re-calculate
@@ -332,6 +333,11 @@ class ClusterInPotential(
             return result
 
         to_gas_kickers = []
+        if (
+            settings.wind_enabled
+            and settings.wind_type == "accelerate"
+        ):
+            to_gas_kickers.append(self.wind)
         if self.tidal_field:
             to_gas_kickers.append(self.tidal_field)
         to_gas_kickers.append(
@@ -341,6 +347,7 @@ class ClusterInPotential(
                 mode=settings.field_code_type,
             )
         )
+
         to_stars_kickers = []
         if self.tidal_field:
             to_stars_kickers.append(self.tidal_field)

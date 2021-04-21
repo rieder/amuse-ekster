@@ -5,6 +5,7 @@ Class for plotting stuff
 """
 import logging
 import numpy
+from numpy import pi
 
 from matplotlib import pyplot
 # import matplotlib.cm as cm
@@ -19,19 +20,29 @@ import ekster_settings
 
 logger = logging.getLogger(__name__)
 
-gas_mean_molecular_weight = (
-            ((1.0)+0.4) / (0.1+(1.)) / 6.02214179e+23
-        ) | units.g
+
+def gas_mean_molecular_weight(h2ratio=1):
+    gmmw = (
+        (
+            2.0 * h2ratio
+            + (1. - 2. * h2ratio)
+            + 0.4
+        ) /
+        (
+            0.1 + h2ratio + (1. - 2. * h2ratio)
+        )
+    ) | units.amu
+    return gmmw
 
 
 def temperature_to_u(
         temperature,
         # gas_mean_molecular_weight=(2.33 / 6.02214179e+23) | units.g,
-        gas_mean_molecular_weight=gas_mean_molecular_weight,
+        gmmw=gas_mean_molecular_weight(),
 ):
     internal_energy = (
         3.0 * constants.kB * temperature
-        / (2.0 * gas_mean_molecular_weight)
+        / (2.0 * gmmw)
     )
     # Rg = (constants.kB * 6.02214076e23).value_in(units.erg * units.K**-1)
     # gmwvar = 1.2727272727
@@ -45,14 +56,14 @@ def temperature_to_u(
 
 def u_to_temperature(
         internal_energy,
-        gas_mean_molecular_weight=gas_mean_molecular_weight,
+        gmmw=gas_mean_molecular_weight(),
 ):
     # temperature = (
     #     internal_energy * (2.0 * gas_mean_molecular_weight)
     #     / (3.0 * constants.kB)
     # )
     temperature = (
-        2/3*internal_energy/(constants.kB/gas_mean_molecular_weight)
+        2/3*internal_energy/(constants.kB/gmmw)
     )
     # Rg = (constants.kB * 6.02214076e23).value_in(units.erg * units.K**-1)
     # gmwvar = 1.2727272727
@@ -155,7 +166,13 @@ def make_temperature_map(
     # positive y = up
     mapper.parameters.upvector = [0, 1, 0]  # y
 
-    temperature = u_to_temperature(gas.u)
+    temperature = u_to_temperature(
+        gas.u,
+        gmmw=(
+            gas_mean_molecular_weight(gas.h2ratio) if hasattr(gas, "h2ratio")
+            else gas_mean_molecular_weight()
+        ),
+    )
     mapper.particles.weight = temperature.value_in(weight_unit)
     temperature_map = mapper.image.pixel_value.transpose() | units.K
     mapper.particles.weight = 1

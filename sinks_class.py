@@ -47,6 +47,7 @@ def should_a_sink_form(
             break
         if len(gas) < 50:
             return False, "not enough gas particles (this should never happen)"
+
         if len(neighbours) < 50:
             # return False, "not enough neighbours"
             flags.append(False)

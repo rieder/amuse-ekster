@@ -8,11 +8,11 @@ from amuse.units import units
 from amuse.units.trigo import sin, cos, arccos, arctan
 
 
-def stellar_feedback(gas_, stars):
+def test_stellar_feedback(gas_, stars):
     # Extremely simplified stellar feedback onto gas
     gas = gas_.copy()
     mass_cutoff = 5 | units.MSun
-    rmax = 1000 | units.AU
+    rmax = 0.05 | units.pc
     massive_stars = stars.select(
         lambda m:
         m >= mass_cutoff,
@@ -32,7 +32,7 @@ def stellar_feedback(gas_, stars):
         # Something related to energy
         # (Slow) solar wind is about 400 km/s
         # (1 | units.AU) / self.feedback_timestep
-        base_velocity = (400 | units.kms)
+        base_velocity = (20 | units.kms)
         gas_near_star.vx += sin(theta) * cos(phi) * base_velocity
         gas_near_star.vy += sin(theta) * sin(phi) * base_velocity
         gas_near_star.vz += cos(theta) * base_velocity

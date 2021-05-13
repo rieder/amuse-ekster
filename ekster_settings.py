@@ -156,7 +156,7 @@ class Settings:
         self.star_rscale = 0.1 | units.parsec
         self.star_mscale = 100 | units.MSun
 
-        self.stars_initial_mass_funtion = "kroupa"
+        self.stars_initial_mass_function = "kroupa"
         self.stars_upper_mass_limit = 100 | units.MSun
         self.stars_lower_mass_limit = 0.1 | units.MSun
 

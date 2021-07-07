@@ -139,14 +139,15 @@ class ClusterInPotential(
             phantom_solarm = 1.9891e33 | units.g
             phantom_pc = 3.086e18 | units.cm
             phantom_gg = 6.672041e-8 | units.cm**3 * units.g**-1 * units.s**-2
-            phantom_length = 0.1 * phantom_pc
-            phantom_mass = 1.0 * phantom_solarm
+            phantom_mass = 1.0 | units.MSun
+            phantom_time = 60 * 60 * 24 * 365.25 * 1e6 | units.s
             phantom_converter = ConvertBetweenGenericAndSiUnits(
                 # Phantom uses CGS units internally, scaled with G=1
                 # So we need to make sure we use those same units here...
-                phantom_length,  # 0.1 pc
+                # Also, Phantom's value for G is not the same as AMUSE's...
+                (phantom_time**2 * phantom_gg * phantom_mass)**(1/3),
                 phantom_mass,  # 1.0 MSun
-                (phantom_length**3 / (phantom_gg*phantom_mass))**0.5,
+                phantom_time,  # 1 Julian Myr
             )
             self.isothermal_mode = False if settings.ieos != 1 else True
             try:
@@ -1121,49 +1122,7 @@ class ClusterInPotential(
 
             self.logger.info("System...")
 
-            if self.gas_state == "modified":
-                print("Gas modified, smaller step!")
-                # If new gas was added, as a precaution, we will switch to
-                # shorter timesteps in the gas code.
-                # Since we don't want to shorten the Bridge timestep, need to
-                # be creative here...
-                gas_dt = timestep  # self.gas_code.parameters.time_step
-                substeps = 2**16
-                gas_small_dt = gas_dt / substeps
-                self.gas_code.parameters.time_step = gas_small_dt
-
-                self.sync_to_gas_code()
-                # Bridge kick 1
-                self.system.kick_codes(timestep/2)
-
-                # Drift gas with initially small and then increasingly long
-                # timestep
-                self.gas_code.evolve_model(
-                    self.gas_code.model_time + gas_small_dt
-                )
-                while gas_dt - gas_small_dt > gas_dt / substeps:
-                    self.gas_code.parameters.time_step = gas_small_dt
-                    self.gas_code.evolve_model(
-                        self.gas_code.model_time + gas_small_dt
-                    )
-                    gas_small_dt = 2*gas_small_dt
-
-                # Bridge drift
-                self.system.drift_codes(
-                    self.system.time + timestep
-                )
-                self.system.channels.copy()
-                self.system.time += timestep
-                # Bridge kick 2
-                self.system.kick_codes(timestep/2)
-
-                self.gas_code.parameters.time_step = gas_dt
-                self.gas_state = "clean"
-                print("Setting gas state to ", self.gas_state)
-
-                # finally, continue
-            else:
-                self.sync_to_gas_code()
+            self.sync_to_gas_code()
             self.logger.info("Pre system evolve")
             self.logger.info(
                 "Stellar code is at time %s", self.star_code.model_time
@@ -1477,12 +1436,9 @@ def main(
             )
         )
         time = step * timestep
-        while model.model_time < time - (1 | units.day):
-            print(
-                "%s < %s, evolving model"
-                % (model.model_time, (time - (1 | units.day)))
-            )
-            model.evolve_model(time)
+
+        model.evolve_model(time)
+
         print(
             "Step %04i: evolved to %s" % (
                 step, model.model_time.in_(time_unit)

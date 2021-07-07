@@ -20,7 +20,7 @@ settings = ekster_settings.Settings()
 
 
 def generate_next_mass(
-        initial_mass_function=settings.stars_initial_mass_funtion,
+        initial_mass_function=settings.stars_initial_mass_function,
         lower_mass_limit=settings.stars_lower_mass_limit,
         upper_mass_limit=settings.stars_upper_mass_limit,
         binary_fraction=0,

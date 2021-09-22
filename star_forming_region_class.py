@@ -54,7 +54,7 @@ def generate_next_mass(
 
 def form_stars(
         sink,
-        initial_mass_function=settings.stars_initial_mass_funtion,
+        initial_mass_function=settings.stars_initial_mass_function,
         lower_mass_limit=settings.stars_lower_mass_limit,
         upper_mass_limit=settings.stars_upper_mass_limit,
         local_sound_speed=0.2 | units.kms,
@@ -104,7 +104,7 @@ def form_stars(
         stellar_mass=mass_left,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
-        initial_mass_function=settings.stars_initial_mass_funtion,
+        initial_mass_function=settings.stars_initial_mass_function,
     )
     number_of_stars = len(masses)
 
@@ -368,7 +368,7 @@ def form_stars_from_group(
     )
 
     next_mass = generate_next_mass(
-        initial_mass_function=initial_mass_funtion,
+        initial_mass_function=initial_mass_function,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
     )[0][0]
@@ -410,7 +410,7 @@ def form_stars_from_group(
         stellar_mass=mass_left,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
-        initial_mass_function=settings.stars_initial_mass_funtion
+        initial_mass_function=settings.stars_initial_mass_function
     )
     number_of_stars = len(masses)
 
@@ -640,7 +640,7 @@ def form_stars_from_group_older_version(
     )
 
     next_mass = generate_next_mass(
-        initial_mass_function=initial_mass_funtion,
+        initial_mass_function=initial_mass_function,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
     )[0][0]
@@ -681,7 +681,7 @@ def form_stars_from_group_older_version(
         stellar_mass=mass_left,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
-        initial_mass_function=settings.stars_initial_mass_funtion,
+        initial_mass_function=settings.stars_initial_mass_function,
     )
     number_of_stars = len(masses)
 

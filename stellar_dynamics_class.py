@@ -33,7 +33,6 @@ except ImportError:
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
-import ekster_settings
 import available_codes
 
 
@@ -51,9 +50,15 @@ class StellarDynamicsCode:
             time_offset=0 | nbody_system.time,
             stop_after_each_step=False,
             number_of_workers=8,
-            settings=ekster_settings.Settings(),
+            settings=None,
             **kwargs
     ):
+        self.__name__ = "StellarDynamics"
+        self.logger = logger or logging.getLogger(__name__)
+        if settings is None:
+            from ekster_settings import settings
+            print("WARNING: using default settings!")
+            logger.info("WARNING: using default settings!")
         self.settings = settings
         epsilon_squared = settings.epsilon_stars**2
         self.typestr = "Nbody"
@@ -62,8 +67,6 @@ class StellarDynamicsCode:
             self.namestr = self.star_code.__name__
         except AttributeError:
             self.namestr = "unknown name"
-        self.__name__ = "StellarDynamics"
-        self.logger = logger or logging.getLogger(__name__)
         self.handle_stopping_conditions = \
             handle_stopping_conditions
         self.__current_state = "stopped"

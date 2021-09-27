@@ -143,6 +143,8 @@ def res_increase(
     recalculate_h_density=False,
     seed=123,
     make_cutout=False,
+    make_circular_cutout=False,
+    circular_rmax=3000 | units.pc,
     x_center=None,
     y_center=None,
     width=None,
@@ -174,6 +176,17 @@ def res_increase(
             write_set_to_file(gas, "old-%s" % filename, "amuse")
             print("old gas created")
 
+    if make_circular_cutout:
+        r2 = gas.x**2 + gas.y**2
+        cutout = gas[r2 <= circular_rmax**2]
+        gas = cutout
+        converter = nbody_system.nbody_to_si(gas.total_mass(), width)
+        sph = Fi(converter, mode="openmp")
+        gas_in_code = sph.gas_particles.add_particles(gas)
+        gas.h_smooth = gas_in_code.h_smooth
+        gas.density = gas_in_code.density
+        sph.stop()
+
     if make_cutout:
         if (
             x_center is None
@@ -195,6 +208,9 @@ def res_increase(
         gas.density = gas_in_code.density
         sph.stop()
         # boundary = test_cutout.h_smooth.max()
+
+    if res_increase_factor == 1:
+        return gas
 
     original_number_of_particles = len(gas)
     new_number_of_particles = (

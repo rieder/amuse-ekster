@@ -13,14 +13,14 @@ from amuse.datamodel import Particle, Particles
 # from amuse.ic.plummer import new_plummer_model
 from amuse.ic.brokenimf import new_kroupa_mass_distribution
 from amuse.units.trigo import sin, cos
-from amuse.ext.masc import new_star_cluster
+from amuse.ext.masc.cluster import new_masses
 
 import ekster_settings
 settings = ekster_settings.Settings()
 
 
 def generate_next_mass(
-        initial_mass_function=settings.stars_initial_mass_funtion,
+        initial_mass_function=settings.stars_initial_mass_function,
         lower_mass_limit=settings.stars_lower_mass_limit,
         upper_mass_limit=settings.stars_upper_mass_limit,
         binary_fraction=0,
@@ -54,6 +54,7 @@ def generate_next_mass(
 
 def form_stars(
         sink,
+        initial_mass_function=settings.stars_initial_mass_function,
         lower_mass_limit=settings.stars_lower_mass_limit,
         upper_mass_limit=settings.stars_upper_mass_limit,
         local_sound_speed=0.2 | units.kms,
@@ -75,7 +76,11 @@ def form_stars(
     initialised = sink.initialised or False
     if not initialised:
         logger.debug("Initialising sink %i for star formation", sink.key)
-        next_mass = generate_next_mass()
+        next_mass = generate_next_mass(
+            initial_mass_function=initial_mass_function,
+            lower_mass_limit=lower_mass_limit,
+            upper_mass_limit=upper_mass_limit,
+        )
         # sink.next_number_of_stars = len(next_mass)
         # sink.next_total_mass = next_mass.sum()
         sink.next_primary_mass = next_mass[0]
@@ -95,12 +100,12 @@ def form_stars(
     # list is just one too many for the sink's mass.
 
     mass_left = sink.mass - sink.next_primary_mass
-    masses = new_star_cluster(
+    masses = new_masses(
         stellar_mass=mass_left,
-        initial_mass_function=settings.stars_initial_mass_funtion,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
-    ).mass
+        initial_mass_function=settings.stars_initial_mass_function,
+    )
     number_of_stars = len(masses)
 
     new_stars = Particles(number_of_stars)
@@ -363,8 +368,9 @@ def form_stars_from_group(
     )
 
     next_mass = generate_next_mass(
+        initial_mass_function=initial_mass_function,
         lower_mass_limit=lower_mass_limit,
-        upper_mass_limit=upper_mass_limit
+        upper_mass_limit=upper_mass_limit,
     )[0][0]
     try:
         # Within a group, group_next_primary_mass values are either
@@ -400,12 +406,12 @@ def form_stars_from_group(
 
     # Form stars from the leftover group sink mass
     mass_left = group_mass - next_mass
-    masses = new_star_cluster(
+    masses = new_masses(
         stellar_mass=mass_left,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
-        initial_mass_function=settings.stars_initial_mass_funtion
-    ).mass
+        initial_mass_function=settings.stars_initial_mass_function
+    )
     number_of_stars = len(masses)
 
     #logger.info(
@@ -573,5 +579,3 @@ def form_stars_from_group(
         #)
 
     return new_stars
-
-

@@ -156,7 +156,7 @@ class Settings:
         self.star_rscale = 0.1 | units.parsec
         self.star_mscale = 100 | units.MSun
 
-        self.stars_initial_mass_funtion = "kroupa"
+        self.stars_initial_mass_function = "kroupa"
         self.stars_upper_mass_limit = 100 | units.MSun
         self.stars_lower_mass_limit = 0.1 | units.MSun
 
@@ -168,6 +168,9 @@ class Settings:
         self.isothermal_gas_temperature = 30 | units.K
 
         self.density_threshold = 1e-18 | units.g * units.cm**-3
+        # Skip sink forming checks if this factor * density_threshold is
+        # reached
+        self.density_override_factor = 10
 
         # For combined-sinks method, use smallest length i.e. epsilon_stars
         # for single-sinks method, should be bigger probably

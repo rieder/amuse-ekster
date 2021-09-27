@@ -13,8 +13,6 @@ from basic_class import BasicCode
 # from sinks_class import accrete_gas  # , SinkParticles
 # from amuse.ext.sink import SinkParticles
 
-import ekster_settings
-
 
 def sfe_to_density(e_loc, alpha=0.02):
     "Calculate density needed for specified star formation efficiency"
@@ -39,20 +37,24 @@ class GasCode(BasicCode):
             logger=None,
             internal_star_formation=False,
             time_offset=0.0 | units.Myr,
-            settings=ekster_settings.Settings(),
+            settings=None,  # ekster_settings.Settings(),
             **keyword_arguments
     ):
         self.typestr = "Hydro"
         # self.namestr = sph_code.__name__
         self.__name__ = "GasCode"
         self.logger = logger or logging.getLogger(__name__)
+        if settings is None:
+            from ekster_settings import settings
+            print("WARNING: using default settings!")
+            logger.info("WARNING: using default settings!")
         self.internal_star_formation = internal_star_formation
         if converter is not None:
             self.unit_converter = converter
         else:
             self.unit_converter = nbody_system.nbody_to_si(
                 settings.gas_mscale,
-                settings.gas_rscale,
+                settings.timestep_bridge,
             )
         if time_offset is None:
             time_offset = 0. | units.Myr
@@ -85,7 +87,7 @@ class GasCode(BasicCode):
             # Maybe make these depend on the converter?
             self.parameters.periodic_box_size = \
                 100 * settings.gas_rscale
-            self.parameters.timestep = settings.timestep * 0.5
+            self.parameters.timestep = settings.timestep_bridge
             self.parameters.verbosity = 0
             self.parameters.integrate_entropy_flag = False
             self.parameters.stopping_condition_maximum_density = \
@@ -111,6 +113,7 @@ class GasCode(BasicCode):
             self.parameters.h_soft_sinkgas = settings.epsilon_gas
             self.parameters.h_soft_sinksink = settings.epsilon_gas
             self.parameters.h_acc = settings.h_acc
+            self.parameters.time_step = settings.timestep_bridge / 2
 
     def get_potential_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return potential at specified point"""
@@ -129,6 +132,9 @@ class GasCode(BasicCode):
         return self.code.get_hydro_state_at_point(
             eps, x, y, z, **keyword_arguments
         )
+
+    def commit_particles(self):
+        return self.code.commit_particles()
 
     @property
     def model_time(self):

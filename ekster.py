@@ -203,7 +203,6 @@ class ClusterInPotential(
             redirection=settings.code_redirection,
             time_offset=stars_time_offset,
             stop_after_each_step=settings.stop_after_each_step,
-            settings=settings
         )
         self.sink_code = self.star_code
         self.star_code.parameters.epsilon_squared = \

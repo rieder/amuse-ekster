@@ -27,6 +27,7 @@ from gas_class import GasCode
 from stellar_dynamics_class import StellarDynamicsCode
 from stellar_evolution_class import StellarEvolutionCode
 from sinks_class import should_a_sink_form  # , sfe_to_density
+from feedback_class import test_stellar_feedback, basic_stroemgren_volume_method
 from plotting_class import plot_hydro_and_stars  # , plot_stars
 from plotting_class import (
     u_to_temperature, temperature_to_u,
@@ -203,7 +204,6 @@ class ClusterInPotential(
             redirection=settings.code_redirection,
             time_offset=stars_time_offset,
             stop_after_each_step=settings.stop_after_each_step,
-            settings=settings
         )
         self.sink_code = self.star_code
         self.star_code.parameters.epsilon_squared = \
@@ -1066,7 +1066,17 @@ class ClusterInPotential(
 
     def stellar_feedback(self):
         # Deliberately not doing anything here yet
-        return
+        # self.gas_particles = test_stellar_feedback(
+        #     gas_=self.gas_particles,
+        #     stars=self.star_particles
+        # )
+        # print('Stellar feedback implemented.')
+
+        basic_stroemgren_volume_method(
+            gas_=self.gas_particles,
+            stars=self.star_particles
+        )
+
 
     def evolve_model(self, end_time):
         "Evolve system to specified time"

@@ -395,7 +395,7 @@ def form_stars_from_group(
         )
         group.group_next_primary_mass = next_mass
 
-    # logger.info("Next mass is %s", next_mass)
+    #logger.info("Next mass is %s", next_mass)
 
     if group_mass < next_mass:
         logger.info(

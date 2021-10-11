@@ -3,13 +3,12 @@
 """
 Feedback class
 """
-# import sys
-# sys.path.append('/Users/kliow/Amuse-env/lib/python3.7/site-packages/')
 import logging
 
 import numpy
 import pandas
-import igraph
+# import igraph
+import networkit
 from grispy import GriSPy
 from numba import njit, typed, types
 
@@ -60,7 +59,6 @@ def generate_network(
     stars,
     angle_threshold=numpy.pi/3,
     logger=None,
-    randomseed=None,
 ):
     """
     Create network that links the gas to the sources. Refer
@@ -92,10 +90,6 @@ def generate_network(
     """
     logger = logger or logging.getLogger(__name__)
 
-    if randomseed is not None:
-        logger.info("Setting random seed to %i", randomseed)
-        numpy.random.seed(randomseed)
-
     Ngas = len(gas)
     Nstars = len(stars)
     superset = ParticlesSuperset([gas, stars])
@@ -115,10 +109,15 @@ def generate_network(
 
     # Dictionary to contain Nstars of graphs
     graph_dict = {}
-    empty_graph = igraph.Graph(directed=True)
-    empty_graph.add_vertices(range(Ngas+Nstars))
+    # empty_graph = igraph.Graph(directed=True)
+    # empty_graph.add_vertices(range(Ngas+Nstars))
+    # for i in range(Nstars):
+    #     graph_dict[i] = empty_graph.copy()
+
     for i in range(Nstars):
-        graph_dict[i] = empty_graph.copy()
+        graph = networkit.Graph(Ngas+Nstars, directed=True)
+        graph_dict[i] = graph
+
 
     # Arrays to be returned
     i_a_dists_pc = numpy.zeros((Nstars, Ngas), numpy.float)
@@ -161,7 +160,8 @@ def generate_network(
 
             # if gas i is nearby star a, link to star a
             if (a + Ngas) in bubble_ind_i:
-                graph_dict[a].add_edge(i, a+Ngas)
+                # graph_dict[a].add_edge(i, a+Ngas)
+                graph_dict[a].addEdge(i, a+Ngas)
                 link_dists_pc[a, i] = i_a_dist
                 link_uvs[:, a, i] = i_a_uv
 
@@ -251,10 +251,14 @@ def generate_network(
                 selected_neighbour_ind = neighbour_ind[
                     selected_neighbour_ind_ind
                 ][0]
-                graph_dict[a].add_edge(i, selected_neighbour_ind)
+                # graph_dict[a].add_edge(i, selected_neighbour_ind)
+                graph_dict[a].addEdge(i, selected_neighbour_ind)
 
                 # If graph is not directed acyclic (a.k.a not a forest)
-                if not graph_dict[a].is_dag():
+                # if not graph_dict[a].is_dag():
+                if networkit.components.StronglyConnectedComponents(
+                    graph_dict[a]
+                ).run().numberOfComponents() < (Ngas + Nstars):
                     print(
                         f'({i}, {a}): Cycle with gas {selected_neighbour_ind}'
                     )
@@ -264,12 +268,22 @@ def generate_network(
                         selected_neighbour_ind,
                         ind_superset_dict[selected_neighbour_ind]
                     )
-                    graph_dict[a].delete_edges(
-                        graph_dict[a].get_eid(i, selected_neighbour_ind)
+                    # graph_dict[a].delete_edges(
+                    #     graph_dict[a].get_eid(i, selected_neighbour_ind)
+                    # )
+                    # predecessors_ind = graph_dict[a].neighborhood(
+                    #     i, order=8, mode='in', mindist=1
+                    # )
+
+                    graph_dict[a].removeEdge(i, selected_neighbour_ind)
+                    wcc = networkit.components.WeaklyConnectedComponents(
+                        graph_dict[a]
                     )
-                    predecessors_ind = graph_dict[a].neighborhood(
-                        i, order=8, mode='in', mindist=1
-                    )
+                    wcc.run()
+                    predecessors_ind = wcc.getComponents()[
+                        wcc.componentOfNode(i)
+                    ]
+                    predecessors_ind.remove(i)
                     continue
 
                 link_dists_pc[a, i] = i_neighbour_dist[
@@ -316,8 +330,15 @@ def create_path_dict(graph_dict, Ngas, Nstars):
         between i and a inclusive
     """
 
+    # normal_path_dict = {
+    #     (a, i):graph_dict[a].subcomponent(i, mode='out')
+    #     for i in range(Ngas) for a in range(Nstars)
+    # }
+
     normal_path_dict = {
-        (a, i):graph_dict[a].subcomponent(i, mode='out')
+        (a, i): [i] + networkit.distance.BidirectionalBFS(
+            graph_dict[a], i, a+Ngas
+        ).run().getPath() + [a+Ngas]
         for i in range(Ngas) for a in range(Nstars)
     }
     numba_path_dict = typed.Dict.empty(
@@ -470,17 +491,12 @@ def main_stellar_feedback(
     recombination_coefficient=3e-13|units.cm**3/units.s,
     temp_range=[10,10000]|units.K,
     logger=None,
-    randomseed=None,
     **keyword_arguments
 ):
     """
     Main stellar feedback routine.
     """
     logger = logger or logging.getLogger(__name__)
-
-    if randomseed is not None:
-        logger.info("Setting random seed to %i", randomseed)
-        numpy.random.seed(randomseed)
 
     # Choose only massive stars
     logger.info("Massive stars > %s", mass_cutoff)
@@ -496,7 +512,6 @@ def main_stellar_feedback(
         stars,
         angle_threshold=angle_threshold,
         logger=logger,
-        randomseed=randomseed,
     )
     graph_dict = network_result[0]
     i_a_dists_pc = network_result[1]
@@ -553,6 +568,7 @@ def main_stellar_feedback(
             "Count %i, error %s, delta_Nionised_gas %i",
             count, error, delta_Nionised_gas
         )
+        count += 1
 
     print("Feedback calculation done. Populating temperature...")
     logger.info("Feedback calculation done. Populating temperature...")
@@ -899,3 +915,4 @@ def basic_stroemgren_volume_method_old(
 
 
     return gas_particles
+

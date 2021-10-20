@@ -16,7 +16,9 @@ from amuse.units import units, constants
 from amuse.units.trigo import sin, cos, arccos, arctan
 from amuse.datamodel import Particle, Particles, ParticlesSuperset
 
-from plotting_class import gas_mean_molecular_weight, temperature_to_u
+from plotting_class import (
+    gas_mean_molecular_weight, temperature_to_u, u_to_temperature
+)
 import ekster_settings
 settings = ekster_settings.Settings()
 
@@ -78,11 +80,11 @@ def generate_network(
         igraph.Graph network
     i_a_dists_pc: (Nstars, Ngas) numpy.ndarray
         Distance of each gas-star pair in pc
-    i_a_uvs: (3, Nstars, Ngas) numpy.ndarray
+    i_a_uvs: (Nstars, Ngas, 3) numpy.ndarray
         Unit vector from gas of each gas-star pair
     link_dists_pc: (Nstars, Ngas) numpy.ndarray
         Distance of each gas to next linked gas/star in pc
-    link_uvs: (3, Nstars, Ngas) numpy.ndarray
+    link_uvs: (Nstars, Ngas, 3) numpy.ndarray
         Unit vector from gas to next linked gas/star
     i_a_density_gcm: (Ngas+Nstars) numpy.ndarray
         Density of gas and stars in g/cm**3. Density of
@@ -121,9 +123,9 @@ def generate_network(
 
     # Arrays to be returned
     i_a_dists_pc = numpy.zeros((Nstars, Ngas), numpy.float)
-    i_a_uvs = numpy.zeros((3, Nstars, Ngas), numpy.float)
+    i_a_uvs = numpy.zeros((Nstars, Ngas, 3), numpy.float)
     link_dists_pc = numpy.zeros((Nstars, Ngas), numpy.float)
-    link_uvs = numpy.zeros((3, Nstars, Ngas), numpy.float)
+    link_uvs = numpy.zeros((Nstars, Ngas, 3), numpy.float)
     i_a_density_gcm = numpy.zeros(Ngas+Nstars, numpy.float)
     i_a_density_gcm[:Ngas] = gas.density.value_in(units.g/units.cm**3)
 
@@ -148,7 +150,7 @@ def generate_network(
 
             # Save and to be returned for feedback calculation
             i_a_dists_pc[a, i] = i_a_dist
-            i_a_uvs[:, a, i] = i_a_uv
+            i_a_uvs[a, i] = i_a_uv
 
             # If there is temporary increase in neighbour list
             if temporary:
@@ -163,7 +165,7 @@ def generate_network(
                 # graph_dict[a].add_edge(i, a+Ngas)
                 graph_dict[a].addEdge(i, a+Ngas)
                 link_dists_pc[a, i] = i_a_dist
-                link_uvs[:, a, i] = i_a_uv
+                link_uvs[a, i] = i_a_uv
 
             # else, compute and link to the next gas
             else:
@@ -289,7 +291,7 @@ def generate_network(
                 link_dists_pc[a, i] = i_neighbour_dist[
                     selected_neighbour_ind_ind
                 ][0]
-                link_uvs[:, a, i] = i_neighbour_uv[
+                link_uvs[a, i] = i_neighbour_uv[
                     selected_neighbour_ind_ind[0]
                 ]
 
@@ -376,11 +378,11 @@ def one_feedback_iteration(
         between i and a inclusive
     i_a_dists_pc: (Nstars, Ngas) numpy.ndarray
         Distance of each gas-star pair in pc
-    i_a_uvs: (3, Nstars, Ngas) numpy.ndarray
+    i_a_uvs: (Nstars, Ngas, 3) numpy.ndarray
         Unit vector from gas of each gas-star pair
     link_dists_pc: (Nstars, Ngas) numpy.ndarray
         Distance of each gas to next linked gas/star in pc
-    link_uvs: (3, Nstars, Ngas) numpy.ndarray
+    link_uvs: (Nstars, Ngas, 3) numpy.ndarray
         Unit vector from gas to next linked gas/star
     i_a_density_gcm: (Ngas+Nstars) numpy.ndarray
         Density of gas and stars in g/cm**3. Density of
@@ -420,9 +422,11 @@ def one_feedback_iteration(
 
             # Calculate evaluation bin widths (delta r_i)
             i_a_dist = i_a_dists_pc[a, i]
-            i_a_uv = i_a_uvs[:, a].transpose()[i]
+            # i_a_uv = i_a_uvs[:, a].transpose()[i]
+            i_a_uv = i_a_uvs[a, i]
             link_dist = link_dists_pc[a][gas_indices]
-            link_uv = link_uvs[:, a].transpose()[gas_indices]
+            # link_uv = link_uvs[:, a].transpose()[gas_indices]
+            link_uv = link_uvs[a, i]
             dot_prod = link_uv.dot(i_a_uv)
             eval_bin_widths = link_dist * dot_prod
 
@@ -507,6 +511,13 @@ def main_stellar_feedback(
         "%i massive stars > %s", 
         len(stars), mass_cutoff
     )
+    gmmw = gas_mean_molecular_weight(0)
+    max_u = gas.u.max()
+    logger.info(
+        "Max gas temperature: %s",
+        u_to_temperature(max_u, gmmw=gmmw).in_(units.K)
+    )
+    
     Ngas = len(gas)
     Nstars = len(stars)
 
@@ -531,7 +542,7 @@ def main_stellar_feedback(
     logger.info("Calculating feedback...")
 
     photon_flux = (stars.luminosity/(13.6|units.eV)).value_in(units.s**-1)
-    molecular_mass = gas_mean_molecular_weight(0) / (1 | units.amu)
+    molecular_mass = gmmw / (1 | units.amu)
     recombination_coefficient = recombination_coefficient.value_in(
         units.cm**3 * units.s**-1
     )
@@ -582,7 +593,7 @@ def main_stellar_feedback(
     )
 
     internal_energies = temperature_to_u(
-        temperatures, gmmw=gas_mean_molecular_weight(0),
+        temperatures, gmmw=gmmw
     )
 
     gas.u = internal_energies

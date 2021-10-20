@@ -539,9 +539,9 @@ def main_stellar_feedback(
     Nionised_gas = 0
 
     error = 10000
-    delta_Nionised_gas = 10
+    delta_Nionised_gas = 10000
     count = 0
-    while error > 0.1 or delta_Nionised_gas > 10:
+    while error > 0.01 and delta_Nionised_gas > 2:
         f_ion_array, new_Nsources = one_feedback_iteration(
             numba_path_dict,
             i_a_dists_pc,

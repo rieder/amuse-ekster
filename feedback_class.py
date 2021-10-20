@@ -499,10 +499,13 @@ def main_stellar_feedback(
     logger = logger or logging.getLogger(__name__)
 
     # Choose only massive stars
-    logger.info("Massive stars > %s", mass_cutoff)
     stars = stars_.select_array(
         lambda x: x >= mass_cutoff,
         ["mass"]
+    )
+    logger.info(
+        "%i massive stars > %s", 
+        len(stars), mass_cutoff
     )
     Ngas = len(gas)
     Nstars = len(stars)

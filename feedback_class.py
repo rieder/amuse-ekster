@@ -509,7 +509,7 @@ def main_stellar_feedback_old(
         ["mass"]
     )
     logger.info(
-        "%i massive stars > %s",
+        "%i massive stars > %s", 
         len(stars), mass_cutoff
     )
     gmmw = gas_mean_molecular_weight(0)

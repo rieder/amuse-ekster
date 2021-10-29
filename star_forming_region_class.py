@@ -368,7 +368,7 @@ def form_stars_from_group(
     )
 
     next_mass = generate_next_mass(
-        initial_mass_function=initial_mass_function,
+        initial_mass_function=settings.stars_initial_mass_function,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
     )[0][0]
@@ -395,7 +395,7 @@ def form_stars_from_group(
         )
         group.group_next_primary_mass = next_mass
 
-    # logger.info("Next mass is %s", next_mass)
+    #logger.info("Next mass is %s", next_mass)
 
     if group_mass < next_mass:
         logger.info(
@@ -410,7 +410,8 @@ def form_stars_from_group(
         stellar_mass=mass_left,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
-        initial_mass_function=settings.stars_initial_mass_function
+        initial_mass_function=settings.stars_initial_mass_function,
+        exceed_mass=False,
     )
     number_of_stars = len(masses)
 
@@ -419,6 +420,14 @@ def form_stars_from_group(
     #    number_of_stars, group_index, number_of_sinks
     #)
 
+    if number_of_stars == 0:
+        logger.info("No stars created for this group")
+        return None
+
+    #logger.info('masses %s', masses)
+    #logger.info('masses shape %s', masses.shape)
+    #logger.info('next mass type %s', type(next_mass))
+
     new_stars = Particles(number_of_stars)
     new_stars.age = 0 | units.Myr
     new_stars[0].mass = next_mass
@@ -426,7 +435,7 @@ def form_stars_from_group(
     group.group_next_primary_mass = masses[-1]
     new_stars = new_stars.sorted_by_attribute("mass").reversed()
     new_stars.in_group = group_index
-    
+
     # Create placeholders for attributes of new_stars
     new_stars.position = [0, 0, 0] | units.pc
     new_stars.velocity = [0, 0, 0] | units.kms

@@ -431,15 +431,16 @@ def plot_hydro_and_stars(
 
         # For feedback benchmark test: Time dependence of IF radius
         # HIGHLY FRAGILE: USE WITH CARE
-        cs = 330 | units.ms
-        average_density = (1.47e-19 | units.g/units.cm**3)/(2.3 * 1.67e-27|units.kg)
-        alpha = 3e-13 |units.cm**3/units.s
-        QH = stars[0].luminosity / (13.6|units.eV)
-        R_st = ((3 * QH)/(4*numpy.pi*average_density**2*alpha))**(1.0/3)
-        R_IF = R_st * (1 + (7*cs*time)/(4*R_st))**(4/7)
-
-        circle = pyplot.Circle((0,0), R_IF.value_in(units.pc), fill=False, color='white',ls='--')
-        ax.add_patch(circle)
+        # if stars is not None:
+        #     cs = 330 | units.ms
+        #     average_density = (1.47e-19 | units.g/units.cm**3)/(2.3 * 1.67e-27|units.kg)
+        #     alpha = 3e-13 |units.cm**3/units.s
+        #     QH = stars[0].luminosity / (13.6|units.eV)
+        #     R_st = ((3 * QH)/(4*numpy.pi*average_density**2*alpha))**(1.0/3)
+        #     R_IF = R_st * (1 + (7*cs*time)/(4*R_st))**(4/7)
+        #
+        #     circle = pyplot.Circle((0,0), R_IF.value_in(units.pc), fill=False, color='white',ls='--')
+        #     ax.add_patch(circle)
 
 
         if stars is not None and use_fresco:

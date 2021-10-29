@@ -1077,13 +1077,15 @@ class ClusterInPotential(
         #    stars=self.star_particles
         #)
         
-        self.gas_particles = main_stellar_feedback(
-            gas=self.gas_particles,
-            stars_=self.star_particles,
-            temp_range=[settings.isothermal_gas_temperature,10000|units.K],
-            logger=self.logger,
-            randomseed=numpy.random.randint(2**32-1),
-        )
+
+        if not self.star_particles.is_empty():
+            self.gas_particles = main_stellar_feedback(
+                gas=self.gas_particles,
+                stars_=self.star_particles,
+                temp_range=[settings.isothermal_gas_temperature,10000|units.K],
+                logger=self.logger,
+                randomseed=numpy.random.randint(2**32-1),
+            )
 
 
 

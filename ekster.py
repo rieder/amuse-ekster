@@ -1061,12 +1061,6 @@ class ClusterInPotential(
             print("WARNING: mass not conserved in star formation!")
             self.logger.info("WARNING: mass not conserved in star formation!")
         self.star_code.evolve_model(self.star_code.model_time)
-        print('stars')
-        print(self.star_particles)
-        print('sinks')
-        print(self.sink_particles)
-        
-
         self.sync_to_star_code()
         return formed_stars
 

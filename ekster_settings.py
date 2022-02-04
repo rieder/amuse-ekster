@@ -237,3 +237,6 @@ class Settings:
         # Stellar mass changes over their lifetime - always enabled when using
         # stellar winds module!
         self.evo_stars_lose_mass = False
+
+        self.feedback_enabled = False
+        self.feedback_mass_threshold = 5 | units.MSun

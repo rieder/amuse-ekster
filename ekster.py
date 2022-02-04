@@ -24,7 +24,7 @@ from amuse.ext import stellar_wind
 from amuse.ext.sink import new_sink_particles
 
 from gas_class import GasCode
-from feedback_class import basic_stroemgren_volume_method_old, main_stellar_feedback
+from feedback_class import main_stellar_feedback
 from stellar_dynamics_class import StellarDynamicsCode
 from stellar_evolution_class import StellarEvolutionCode
 from sinks_class import should_a_sink_form  # , sfe_to_density
@@ -1061,6 +1061,12 @@ class ClusterInPotential(
             print("WARNING: mass not conserved in star formation!")
             self.logger.info("WARNING: mass not conserved in star formation!")
         self.star_code.evolve_model(self.star_code.model_time)
+        print('stars')
+        print(self.star_particles)
+        print('sinks')
+        print(self.sink_particles)
+        
+
         self.sync_to_star_code()
         return formed_stars
 
@@ -1078,15 +1084,19 @@ class ClusterInPotential(
         #)
         
 
-        if not self.star_particles.is_empty():
+        if settings.feedback_enabled and not self.star_particles.is_empty():
             self.gas_particles = main_stellar_feedback(
                 gas=self.gas_particles,
                 stars_=self.star_particles,
-                temp_range=[settings.isothermal_gas_temperature,10000|units.K],
+                time=self.model_time,
+                mass_cutoff=settings.feedback_mass_threshold,
+                temp_range=[
+                    settings.isothermal_gas_temperature.value_in(units.K),
+                    20000
+                ]|units.K,
                 logger=self.logger,
                 randomseed=numpy.random.randint(2**32-1),
             )
-
 
 
     def evolve_model(self, end_time):

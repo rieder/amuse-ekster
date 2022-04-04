@@ -31,7 +31,7 @@ class GasCode(BasicCode):
 
     def __init__(
             self,
-            sph_code=Phantom,
+            sph_code=Phantom,    
             # sph_code=Fi,
             converter=None,
             logger=None,
@@ -113,7 +113,7 @@ class GasCode(BasicCode):
             self.parameters.h_soft_sinkgas = settings.epsilon_gas
             self.parameters.h_soft_sinksink = settings.epsilon_gas
             self.parameters.h_acc = settings.h_acc
-            self.parameters.time_step = settings.timestep_bridge / 2
+            self.parameters.time_step = settings.timestep_bridge #/ 2
 
     def get_potential_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return potential at specified point"""

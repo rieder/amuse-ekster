@@ -272,9 +272,42 @@ def generate_network(
     angle_threshold=numpy.pi/3,
 ):
     """
-    gas_pos_pc: (Ngas, 3)
-    stars_pos_pc: (Nstars, 3)
-    gas_h_pc: (Ngas)
+    Generate the network by linking gas, similar to Dale
+    et al. (2007).
+
+    Parameters:
+    gas_pos_pc: (Ngas, 3) numpy.ndarray
+        Position of gas from the origin in pc
+    gas_h_pc: (Ngas,) numpy.ndarray
+        Smoothing length of gas in pc
+    stars_pos_pc: (Nstars, 3) numpy.ndarray
+        Position of stars from the origin in pc
+    superset_pos_pc: (Ngas+Nstars, 3) numpy.ndarray
+        Position of gas and stars from the origin in pc.
+        Stars start from the index Ngas.
+    bubble_dist: numba.typed.Dict
+        For each gas i with key i, the value is an array of
+        neighbour distances from gas i.
+    bubble_ind: numba.typed.Dict
+        For each gas i with key i, the value is an array of
+        neighbour indices of gas i.
+    tree: sklearn.neighbors.KDTree object
+        Training data to find neighbours.
+    i_a_dists_pc: (Nstars, Ngas) numpy.ndarray
+        Distance of each gas-star pair in pc
+    i_a_uvs: (Nstars, Ngas, 3) numpy.ndarray
+        Unit vector from gas of each gas-star pair
+    nearby_gas_marker: (Ngas,) numpy.ndarray
+        1 if the gas is nearby to any star; 0 otherwise.
+    angle_threshold: scalar, default = numpy.pi/3
+        If neighbouring gas of gas i is more than this
+        angle away from the line-of-sight line, redo
+        neighbour search for gas i with larger search
+        radius.
+
+    Returns:
+        X
+
     """
     Ngas = len(gas_pos_pc)
     Nstars = len(stars_pos_pc)
@@ -392,28 +425,14 @@ def generate_network(
                 i_neighbour_vector = (
                     target_position - gas_pos_pc[neighbour_ind]
                 )
-                # i_neighbour_uv = [
-                #     i_neighbour_vector[k]/i_neighbour_dist[k]
-                #     for k in range(len(neighbour_ind))
-                # ]
                 i_neighbour_uv = numpy.einsum(
                     "ij,i->ij", i_neighbour_vector, 1/i_neighbour_dist
                 )
-                # angle_to_LOS = numpy.array([
-                #     numpy.arccos(i_a_uv.dot(uvi)) for uvi in i_neighbour_uv
-                # ])
-                # min_angle = numpy.min(angle_to_LOS)
                 cos_angle_to_LOS = numpy.einsum(
                     "i,ji->j", i_a_uv, i_neighbour_uv
                 )
                 max_cos_angle = numpy.max(cos_angle_to_LOS)
                 if max_cos_angle < cos_angle_threshold:
-
-
-                # if min_angle > angle_threshold:
-                    # print(
-                    #     a, i, "Min angle", min_angle, ">", angle_threshold
-                    # )
                     new_search_radius += search_radius
                     new_bubble_dist_i, new_bubble_ind_i = search_neighbours_i(
                         tree,
@@ -475,19 +494,30 @@ def generate_network(
 
 @njit
 def create_path_dict_numba(numba_path_dict, network, Ngas, Nstars, nearby_gas_marker):
+    path_lengths = numpy.zeros((Nstars, Ngas), dtype=numpy.int16)
     for i in range(Ngas):
         if nearby_gas_marker[i] == 0:
             continue
 
         for a in range(Nstars):
+            incomplete_path = False
             key = (a, i)
             path = numpy.array([i], numpy.int64)
-            while i < Ngas:
-                j = network[a, i]
-                path = numpy.append(path, j)
-                i = j
+            k = i
+            while k < Ngas:
+                if k == -1:
+                    incomplete_path = True
+                    break
+                else:
+                    j = network[a, k]
+                    path = numpy.append(path, j)
+                    k = j
+            if incomplete_path:
+                path = numpy.array([numpy.int64(x) for x in range(0)])
             numba_path_dict[key] = path
-    return numba_path_dict
+            path_lengths[a, i] = len(path)
+
+    return numba_path_dict, path_lengths
 
 
 @njit
@@ -510,7 +540,7 @@ def one_feedback_iteration(
 
     Parameters:
     numba_path_dict: numba.typed.Dict
-        tuple(gas i, star a): numpy.array of nodes in
+        tuple(star a, gas i): numpy.array of nodes in
         between i and a inclusive
     i_a_dists_pc: (Nstars, Ngas) numpy.ndarray
         Distance of each gas-star pair in pc
@@ -544,11 +574,15 @@ def one_feedback_iteration(
     pc_to_cm = 3.086e18
 
     fluxes = numpy.zeros((Nstars, Ngas))
+    # fluxes_target = numpy.zeros((Nstars, Ngas))
     f_ion_array = numpy.zeros(Ngas)
 
     # To avoid division by 0
     refined_Nsources = Nsources.copy()
     refined_Nsources[refined_Nsources == 0] = 1
+
+    count_spiral = 0
+    cos_angle_threshold = numpy.cos(numpy.pi/3)
 
     for i in range(Ngas):
         # Skip non-closeby gas
@@ -558,6 +592,11 @@ def one_feedback_iteration(
         for a in range(Nstars):
             # Find all gas between gas i and star a
             gas_star_indices = numba_path_dict[(a, i)]
+
+            # Skip incomplete paths
+            if len(gas_star_indices) == 0:
+                continue
+
             gas_indices = gas_star_indices[:-1]
 
             # Calculate evaluation bin widths (delta r_i)
@@ -566,23 +605,32 @@ def one_feedback_iteration(
             i_a_uv = i_a_uvs[a, i]
             link_dist = link_dists_pc[a][gas_indices]
             # link_uv = link_uvs[:, a].transpose()[gas_indices]
-            link_uv = link_uvs[a, i]
-            dot_prod = link_uv.dot(i_a_uv)
+            link_uv = link_uvs[a][gas_indices]
+            dot_prod = numpy.array([
+                i_a_uv.dot(uvi) for uvi in link_uv
+            ])    # Having this + njit > einsum apparently
+            # dot_prod = link_uv.dot(i_a_uv)
             eval_bin_widths = link_dist * dot_prod
+
+            if dot_prod.any() < cos_angle_threshold:
+                count_spiral += 1
 
             # Calculate average evaluation density
             eval_dens = i_a_density_gcm[gas_star_indices]
-            average_eval_dens = [
+            average_eval_dens = numpy.array([
                 (eval_dens[i]+eval_dens[i+1]) / (2*molecular_mass)
                 for i in range(len(eval_dens) - 1)
-            ]
-            average_eval_dens = numpy.array(average_eval_dens)
+            ])
 
             # Calculate evaluation radii
             eval_radii = numpy.cumsum(eval_bin_widths[::-1])[::-1]
 
             # Find evaluation number of sources (Dale+11)
             eval_Nsources = refined_Nsources[gas_indices]
+
+            # Effectively reduce 50% of the contribution to
+            # the target gas particle
+            # eval_bin_widths[0] *= 0
 
             # Calculate flux on gas i
             to_be_summed = (
@@ -593,7 +641,7 @@ def one_feedback_iteration(
             )
             luminosity_integral = (
                 4 * numpy.pi * recombination_coefficient * numpy.sum(
-                    to_be_summed
+                    to_be_summed[1:]      # Removing target contribution
                 )
             ) * pc_to_cm**3
             flux = (
@@ -605,27 +653,54 @@ def one_feedback_iteration(
             if flux > 0:
                 fluxes[a, i] = flux
 
-                # Find the flux without gas i
-                lum_int_last = (
-                    4 * numpy.pi * recombination_coefficient * to_be_summed[-1]
-                ) * pc_to_cm**3
-                lum_int_wo_target = luminosity_integral - lum_int_last
-                if len(gas_indices) == 1:
-                    dist = eval_radii[-1] / 2
-                else:
-                    dist = eval_radii[-2]
-                flux_wo_target = (
-                    (photon_flux[a] - lum_int_wo_target)
-                    / (4 * numpy.pi * dist**2)
-                ) * pc_to_cm**-2
-                f_ion = flux_wo_target / flux
-                f_ion_array[i] = min(1.0, f_ion_array[i] + f_ion)
+                # lum_int_target = luminosity_integral + (
+                #     4 * numpy.pi * recombination_coefficient * to_be_summed[0]
+                # ) * pc_to_cm**3
+                # flux_target = (
+                #     (photon_flux[a] - lum_int_target)
+                #     / (4 * numpy.pi * i_a_dist**2)
+                # ) * pc_to_cm**-2
+                # if flux_target > 0:
+                #     fluxes_target[a, i] = flux_target
+
+
+                # # Find the flux without gas i
+                # lum_int_last = (
+                #     4 * numpy.pi * recombination_coefficient * to_be_summed[-1]
+                # ) * pc_to_cm**3
+                # lum_int_wo_target = luminosity_integral - lum_int_last
+                # if len(gas_indices) == 1:
+                #     dist = eval_radii[-1] / 2
+                # else:
+                #     dist = eval_radii[-2]
+                # flux_wo_target = (
+                #     (photon_flux[a] - lum_int_wo_target)
+                #     / (4 * numpy.pi * dist**2)
+                # ) * pc_to_cm**-2
+                # f_ion = flux_wo_target / flux
+                #f_ion_array[i] = min(1.0, f_ion_array[i] + f_ion)
+
+                # Set ionised gas fraction to 1
+                f_ion_array[i] = 1.0
+
+
                 # print(f_ion)
 
-    new_Nsources = [numpy.count_nonzero(fluxes[:, i]) for i in range(Ngas)]
-    new_Nsources = numpy.array(new_Nsources)
+    # # Calculate ionising fraction
+    # fluxes_target_sum = numpy.sum(fluxes_target, axis=0)
+    # fluxes_sum = numpy.sum(fluxes, axis=0)
+    # f_ion_array = numpy.divide(
+    #     fluxes_target_sum,
+    #     fluxes_sum,
+    #     out=numpy.zeros(Ngas),
+    #     where=fluxes_sum!=0.0
+    # )
 
-    return f_ion_array, new_Nsources, fluxes
+    new_Nsources = numpy.array(
+        [numpy.count_nonzero(fluxes[:, i]) for i in range(Ngas)]
+    )
+
+    return f_ion_array, new_Nsources, fluxes, count_spiral
 
 
 def main_stellar_feedback(
@@ -634,8 +709,10 @@ def main_stellar_feedback(
     time,
     mass_cutoff=5|units.MSun,
     angle_threshold=numpy.pi/3,
-    recombination_coefficient=3e-13|units.cm**3/units.s,
-    temp_range=[10,10000]|units.K,
+    recombination_coefficient=(2.7e-13|units.cm**3/units.s),
+    gmmw=1|units.amu,    #gas_mean_molecular_weight(0.5),
+    initial_gas_density=(5e-21|units.g/units.cm**3),
+    temp_range=[10,20000]|units.K,
     logger=None,
     **keyword_arguments
 ):
@@ -643,6 +720,9 @@ def main_stellar_feedback(
     Main stellar feedback scheme.
     """
     logger = logger or logging.getLogger(__name__)
+
+    if not hasattr(gas, "ionisation_state"):
+        gas.ionisation_state = 0
 
     logger.info("Most massive star %s", stars_.mass.value_in(units.MSun).max())
     # Choose only massive stars
@@ -660,31 +740,32 @@ def main_stellar_feedback(
         return gas
 
     # ONLY FOR STARBENCH TEST: FIX PHOTON FLUX
-    stars.luminosity = (1e49 * 13.6|units.eV * units.s**-1)
+    # stars.luminosity = (1e49 * 13.6|units.eV * units.s**-1)
 
-
-    # This has to be 1 amu
-    gmmw = 1 | units.amu
-    # gmmw = gas_mean_molecular_weight(0.5)
-    max_u = gas.u.max().in_(units.cm**2 / units.s**2)
+    temperatures = u_to_temperature(gas.u, gmmw=gmmw)
+    # max_u = gas.u.max().in_(units.cm**2 / units.s**2)
+    # logger.info(
+    #     "Max gas internal energy: %s",
+    #     max_u
+    # )
+    # logger.info(
+    #     "Max gas temperature: %s",
+    #     u_to_temperature(max_u, gmmw=gmmw).in_(units.K)
+    # )
+    # min_u = gas.u.min()
+    # logger.info(
+    #     "Min gas temperature: %s",
+    #     u_to_temperature(min_u, gmmw=gmmw).in_(units.K)
+    # )
     logger.info(
-        "Max gas internal energy: %s",
-        max_u
+        "Max/min temperature: %s %s",
+        temperatures.max().in_(units.K), temperatures.min().in_(units.K)
     )
 
-    logger.info(
-        "Max gas temperature: %s",
-        u_to_temperature(max_u, gmmw=gmmw).in_(units.K)
-    )
-
-    min_u = gas.u.min()
-    logger.info(
-        "Min gas temperature: %s",
-        u_to_temperature(min_u, gmmw=gmmw).in_(units.K)
-    )
-
-    threshold_u = temperature_to_u(0.999*temp_range[1], gmmw=gmmw)
-    if max_u >= threshold_u:
+    # if max_u >= threshold_u:
+    threshold_T = 0.99 * temp_range[1]
+    threshold_u = temperature_to_u(threshold_T, gmmw=gmmw)
+    if temperatures.max() >= threshold_T:
         hot_gas = gas.select_array(
             lambda x: x >= threshold_u, ['u']
         )
@@ -721,23 +802,22 @@ def main_stellar_feedback(
 
     # Use Stroemgren radii, Hosokawa-Inutsuka approximation
     # and Raga extension to estimate search radii
-    initial_rho = 5e-21 | units.g * units.cm**-3    #5e-21
-    initial_n = initial_rho / gmmw
-    recombination_coefficient = 2.7e-13 | units.cm**3 * units.s**-1
+    initial_n = initial_gas_density / gmmw
     photon_flux = (stars.luminosity/(13.6|units.eV))
     stroemgren_radii = (
         (3*photon_flux) / (4*numpy.pi*initial_n**2*recombination_coefficient)
     )**(1.0/3)
     c_sounds = numpy.sqrt(constants.kB * temp_range / gmmw)
+    ages = time - stars.birth_time
     hosokawa_inutsuka = (
         stroemgren_radii * (
-            1 + (7/4 * numpy.sqrt(4/3) * (c_sounds[1]*time)/stroemgren_radii)
+            1 + (7/4 * numpy.sqrt(4/3) * (c_sounds[1]*ages)/stroemgren_radii)
         )
     ).value_in(units.pc)
     stagnation_radii = (
         (c_sounds[1]/c_sounds[0])**(4/3) * stroemgren_radii
     ).value_in(units.pc)
-    dist_threshold_pc = 2 * numpy.array([
+    dist_threshold_pc = 1.4 * numpy.array([
         min(hosokawa_inutsuka[a], stagnation_radii[a]) for a in range(Nstars)
     ])
     dist_threshold_pc_average = numpy.mean(dist_threshold_pc)
@@ -769,7 +849,6 @@ def main_stellar_feedback(
         nearby_gas_marker,
     )
 
-    # WARNING! Two redundant arrays below
     print('Generating network...')
     logger.info('Generating network...')
     network, link_dists_pc, link_uvs, stat = (
@@ -797,9 +876,12 @@ def main_stellar_feedback(
         key_type=types.UniTuple(types.int64, 2),
         value_type=types.int64[:]
     )
-    numba_path_dict = create_path_dict_numba(
+    numba_path_dict, path_lengths = create_path_dict_numba(
         numba_path_dict, network, Ngas, Nstars, nearby_gas_marker
     )
+
+    # print(f"Average path length: {numpy.average(path_lengths[0])}")
+    # print(f"Longest path length: {path_lengths[0].max()}")
 
     print("Calculating feedback...")
     logger.info("Calculating feedback...")
@@ -817,7 +899,7 @@ def main_stellar_feedback(
     delta_Nionised_gas = 10000
     count = 0
     while error > 0.01 and delta_Nionised_gas > 2:
-        f_ion_array, new_Nsources, fluxes = one_feedback_iteration(
+        f_ion_array, new_Nsources, fluxes, count_spiral = one_feedback_iteration(
             numba_path_dict,
             i_a_dists_pc,
             i_a_uvs,
@@ -836,6 +918,10 @@ def main_stellar_feedback(
             "No. of ionised gas: %i --> %i",
             Nionised_gas, new_Nionised_gas
         )
+        logger.info(
+            "Number of spirals formed: %i",
+            count_spiral
+        )
 
         # Check for error
         delta_Nionised_gas = new_Nionised_gas - Nionised_gas
@@ -849,17 +935,44 @@ def main_stellar_feedback(
         )
         count += 1
 
+
+
+    # Probably no need to calculate f_ion_array since cooling is done in phantom
+    # We don't want to instantaneously decrease the temperature of previously hot gas
     print("Populating temperatures...")
     logger.info("Populating temperatures...")
-    temperatures = (
-        f_ion_array * (temp_range[1] - temp_range[0])
-        + temp_range[0]
+    hot_gas_indices = numpy.where(f_ion_array == 1)[0]
+    temperatures[hot_gas_indices] = temp_range[1]
+    # temperatures = (
+    #     f_ion_array * (temp_range[1] - temp_range[0])
+    #     + temp_range[0]
+    # )
+
+    # Check if neutralisation is needed for some hot gas
+    neutralisation_indices = numpy.where(
+        (gas.ionisation_state == 1) & (f_ion_array == 0)
+    )[0]
+    print(f'{len(neutralisation_indices)} hot gas will neutralise')
+    logger.info(
+        "%i hot gas will neutralise", len(neutralisation_indices)
     )
+    temperatures[neutralisation_indices] = (
+        0.9*(temp_range[1] - temp_range[0]) + temp_range[0]
+    ) # Then let phantom handles cooling
+
     internal_energies = temperature_to_u(
         temperatures, gmmw=gmmw
     )
     gas.u = internal_energies
     gas.h2ratio = 0
     gas.proton_abundance = f_ion_array
+    gas.ionisation_state = f_ion_array   # Assuming f_ion_array is binary
+
+    # df = pandas.DataFrame()
+    # df['dist'] = i_a_dists_pc[0]
+    # df['flux'] = fluxes[0]
+    # df.to_csv('flux.csv')
+    # exit()
+    #
 
     return gas

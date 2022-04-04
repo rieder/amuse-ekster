@@ -1079,6 +1079,10 @@ class ClusterInPotential(
         
 
         if settings.feedback_enabled and not self.star_particles.is_empty():
+
+            # STARBENCH
+            # self.star_particles.luminosity = (1e49 * 13.6|units.eV * units.s**-1)
+
             self.gas_particles = main_stellar_feedback(
                 gas=self.gas_particles,
                 stars_=self.star_particles,
@@ -1091,7 +1095,6 @@ class ClusterInPotential(
                 logger=self.logger,
                 randomseed=numpy.random.randint(2**32-1),
             )
-
 
     def evolve_model(self, end_time):
         "Evolve system to specified time"

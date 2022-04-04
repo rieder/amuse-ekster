@@ -16,3 +16,4 @@ runs/
 movies/
 scripts/
 .DS_Store
+__pycache__/

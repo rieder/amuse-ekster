@@ -91,6 +91,7 @@ def make_column_density_map(
     width = settings.plot_width
     mapper.parameters.target_x = offset_x
     mapper.parameters.target_y = offset_y
+    mapper.parameters.target_z = offset_z
     mapper.parameters.image_width = width
     mapper.parameters.image_size = [bins, bins]
     # positive x = up
@@ -159,12 +160,51 @@ def make_temperature_map(
 
     mapper.parameters.target_x = offset_x
     mapper.parameters.target_y = offset_y
+    mapper.parameters.target_z = offset_z
     mapper.parameters.image_width = width
     mapper.parameters.image_size = [bins, bins]
-    # positive z = top layer
-    mapper.parameters.projection_direction = [0, 0, -1]
+    # # positive z = top layer
+    # mapper.parameters.projection_direction = [0, 0, -1]
+    # # positive y = up
+    # mapper.parameters.upvector = [0, 1, 0]  # y
+
+    if y_axis == 'x':
+        mapper.parameters.upvector = [1, 0, 0]
+        if x_axis == 'y':
+            # negative z = top layer
+            mapper.parameters.projection_direction = [0, 0, 1]
+        elif x_axis == 'z':
+            # positive y = top layer
+            mapper.parameters.projection_direction = [0, -1, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
+
     # positive y = up
-    mapper.parameters.upvector = [0, 1, 0]  # y
+    if y_axis == 'y':
+        mapper.parameters.upvector = [0, 1, 0]
+        if x_axis == 'x':
+            # positive z = top layer
+            mapper.parameters.projection_direction = [0, 0, -1]
+        elif x_axis == 'z':
+            # negative x = top layer
+            mapper.parameters.projection_direction = [1, 0, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
+
+    # positive z = up
+    if y_axis == 'z':
+        mapper.parameters.upvector = [0, 0, 1]
+        if x_axis == 'x':
+            # negative y = top layer
+            mapper.parameters.projection_direction = [0, 1, 0]
+        elif x_axis == 'y':
+            # positive x = top layer
+            mapper.parameters.projection_direction = [-1, 0, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
 
     temperature = u_to_temperature(
         gas.u,
@@ -179,8 +219,8 @@ def make_temperature_map(
     count_map = mapper.image.pixel_value.transpose()
     mean_temperature_map = temperature_map / count_map
 
-    return mean_temperature_map
-
+    # return mean_temperature_map
+    return temperature_map
 
 def plot_hydro_and_stars(
         time,

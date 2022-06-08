@@ -173,12 +173,16 @@ class ClusterInPotential(
             self.wind = stellar_wind.new_stellar_wind(
                 sph_particle_mass=self.gas_particles.mass.min(),
                 mode=settings.wind_type,
+                timestep=self.timestep,
                 r_max=settings.wind_r_max,
                 derive_from_evolution=True,
+                tag_gas_source=True,
+                grid_type="regular",
+                rotate=True,
                 target_gas=self.wind_particles,
-                timestep=self.timestep,
-                acceleration_function="rsquared",
+                # acceleration_function="rsquared",
             )
+            self.wind.model_time = settings.model_time
 
         # We need to be careful here - stellar evolution needs to re-calculate
         # all the stars unfortunately...
@@ -290,7 +294,7 @@ class ClusterInPotential(
             print("Creating field tree code")
             result = code(
                 self.converter,
-                # redirection="none",
+                redirection="none",
                 mode="openmp",
             )
             result.parameters.epsilon_squared = max(
@@ -330,6 +334,7 @@ class ClusterInPotential(
             result = CalculateFieldForCodes(
                 new_field_gravity_code,
                 [code],
+                verbose=True,
             )
             return result
 
@@ -1119,6 +1124,7 @@ class ClusterInPotential(
                 self.logger.info("Stellar evolution...")
                 self.evo_code.evolve_model(evolve_to_time)
                 self.sync_from_evo_code()
+                self.sync_to_star_code()
 
             self.logger.info("System...")
 

@@ -89,6 +89,7 @@ def form_stars(
         # if sink.next_number_of_stars > 2:
         #     sink.next_tertiary_mass = next_mass[2]
         sink.initialised = True
+        logger.debug("...done")
     if sink.mass < sink.next_primary_mass:
         logger.debug(
             "Sink %i is not massive enough for the next star", sink.key
@@ -100,6 +101,7 @@ def form_stars(
     # list is just one too many for the sink's mass.
 
     mass_left = sink.mass - sink.next_primary_mass
+    logger.debug("Generating new masses")
     masses = new_masses(
         stellar_mass=mass_left,
         lower_mass_limit=lower_mass_limit,
@@ -107,6 +109,7 @@ def form_stars(
         initial_mass_function=settings.stars_initial_mass_function,
     )
     number_of_stars = len(masses)
+    logger.debug(f"... done, {number_of_stars} stars generated")
 
     new_stars = Particles(number_of_stars)
     new_stars.age = 0 | units.Myr
@@ -317,6 +320,7 @@ def assign_sink_group(
 def form_stars_from_group(
     group_index,
     sink_particles,
+    initial_mass_function=settings.stars_initial_mass_function,
     lower_mass_limit=settings.stars_lower_mass_limit,
     upper_mass_limit=settings.stars_upper_mass_limit,
     local_sound_speed=0.2 | units.kms,
@@ -410,7 +414,7 @@ def form_stars_from_group(
         stellar_mass=mass_left,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
-        initial_mass_function=settings.stars_initial_mass_function
+        initial_mass_function=initial_mass_function
     )
     number_of_stars = len(masses)
 

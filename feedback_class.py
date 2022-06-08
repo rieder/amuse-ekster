@@ -976,3 +976,4 @@ def main_stellar_feedback(
     #
 
     return gas
+

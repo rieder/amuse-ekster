@@ -7,10 +7,11 @@ Class for a star cluster embedded in a tidal field and a gaseous region
 import sys
 import os
 import logging
+import argparse
 import pickle
-import numpy
 import signal
 import concurrent.futures
+import numpy
 
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
 from amuse.units import units, nbody_system  # , constants
@@ -25,27 +26,27 @@ from amuse.ext import stellar_wind
 # from amuse.ext.masc import new_star_cluster
 from amuse.ext.sink import new_sink_particles
 
-from gas_class import GasCode
-from feedback_class import main_stellar_feedback
-from stellar_dynamics_class import StellarDynamicsCode
-from stellar_evolution_class import StellarEvolutionCode
-from sinks_class import should_a_sink_form  # , sfe_to_density
-from plotting_class import plot_hydro_and_stars  # , plot_stars
-from plotting_class import (
+from ekster._version import version
+from ekster.gas_class import GasCode
+from ekster.feedback_class import main_stellar_feedback
+from ekster.stellar_dynamics_class import StellarDynamicsCode
+from ekster.stellar_evolution_class import StellarEvolutionCode
+from ekster.sinks_class import should_a_sink_form  # , sfe_to_density
+from ekster.plotting_class import plot_hydro_and_stars  # , plot_stars
+from ekster.plotting_class import (
     u_to_temperature, temperature_to_u,
     gas_mean_molecular_weight,
 )
-from star_forming_region_class import (
+from ekster.star_forming_region_class import (
     form_stars,
     form_stars_from_group, assign_sink_group,
 )
-from bridge import (
+from ekster.bridge import (
     Bridge, CalculateFieldForCodes,
 )
-import spiral_potential
-
-import ekster_settings
-import available_codes
+from ekster import ekster_settings
+from ekster import spiral_potential
+from ekster import available_codes
 
 
 set_preferred_units(
@@ -55,7 +56,6 @@ set_preferred_units(
 
 def new_argument_parser(settings):
     "Parse command line arguments"
-    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-c',
@@ -1342,8 +1342,6 @@ def main(
         nsteps=None, settings=ekster_settings.Settings()
 ):
     "Simulate an embedded star cluster (sph + dynamics + evolution)"
-    from plotting_class import temperature_to_u
-    from _version import version
 
     if args.setup != "default":
         settings = ekster_settings.read_config(
@@ -1365,16 +1363,15 @@ def main(
     if filename_random is None or filename_random == "None":
         numpy.random.seed(seed)
     else:
-        state_file = open(filename_random, 'rb')
-        pickled_state = state_file.read()
-        state_file.close()
+        with open(filename_random, 'rb') as state_file:
+            pickled_state = state_file.read()
         randomstate = pickle.loads(pickled_state)
         numpy.random.set_state(randomstate.get_state())
 
     logging_level = logging.INFO
     # logging_level = logging.DEBUG
     logging.basicConfig(
-        filename="%sekster.log" % run_prefix,
+        filename=f"{run_prefix}ekster.log",
         level=logging_level,
         format='%(asctime)s - %(name)s - %(levelname)s: %(message)s',
         datefmt='%Y%m%d %H:%M:%S'
@@ -1401,7 +1398,8 @@ def main(
                 if hasattr(gas, 'h2ratio'):
                     h2ratio = gas.h2ratio
                 else:
-                    # Assume cold gas by default - could base this on temperature though!
+                    # Assume cold gas by default - could base this on
+                    # temperature though!
                     h2ratio = 0.5
                 gas.u = temperature_to_u(
                     temp,

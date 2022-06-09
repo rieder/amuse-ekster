@@ -4,13 +4,13 @@
 import logging
 import numpy
 
-from available_codes import Fi, Phantom
 # from amuse.datamodel import Particles, Particle
 from amuse.units import units, nbody_system, constants
 
-from basic_class import BasicCode
-# from plotting_class import plot_hydro_and_stars
-# from sinks_class import accrete_gas  # , SinkParticles
+from ekster.available_codes import Fi, Phantom
+from ekster.basic_class import BasicCode
+# from ekster.plotting_class import plot_hydro_and_stars
+# from ekster.sinks_class import accrete_gas  # , SinkParticles
 # from amuse.ext.sink import SinkParticles
 
 

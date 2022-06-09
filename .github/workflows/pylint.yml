@@ -16,7 +16,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        sudo apt-get install libopenmpi-dev openmpi-bin
+        sudo apt-get install build-essential gfortran python3-dev libopenmpi-dev openmpi-bin libgsl-dev cmake libfftw3-3 libfftw3-dev libgmp3-dev libmpfr6 libmpfr-dev libhdf5-serial-dev hdf5-tools libblas-dev liblapack-dev
         python -m pip install --upgrade pip
         pip install pylint
         pip install -r requirements.txt

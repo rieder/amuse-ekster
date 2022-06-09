@@ -331,15 +331,13 @@ def form_stars_from_group(
     **keyword_arguments
 ):
     """
-    Last reviwed on 27 Nov 2020.
-
     Form stars from specific group of sinks.
     """
     logger = logger or logging.getLogger(__name__)
-    #logger.info(
-    #    "Using form_stars_from_group on group %i",
-    #    group_index
-    #)
+    # logger.info(
+    #     "Using form_stars_from_group on group %i",
+    #     group_index
+    # )
     if randomseed is not None:
         logger.info("Setting random seed to %i", randomseed)
         numpy.random.seed(randomseed)

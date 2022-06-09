@@ -15,7 +15,7 @@ from amuse.io import read_set_from_file
 from amuse.units import units, constants, nbody_system
 from amuse.community.fi.interface import FiMap
 
-import ekster_settings
+from ekster import ekster_settings
 
 
 logger = logging.getLogger(__name__)
@@ -844,7 +844,7 @@ def main():
         )
         plot_cluster_locations = False
         if plot_cluster_locations:
-            from find_clusters import find_clusters
+            from ekster.find_clusters import find_clusters
             clusters = find_clusters(stars, convert_nbody=converter,)
             for cluster in clusters:
                 cluster_com = cluster.center_of_mass()

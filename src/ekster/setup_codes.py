@@ -5,7 +5,7 @@ Setup / create codes
 """
 from amuse.community.fastkick.interface import FastKick
 from amuse.units import units
-from bridge import CalculateFieldForCodes
+from ekster.bridge import CalculateFieldForCodes
 
 
 def new_field_gravity_code(

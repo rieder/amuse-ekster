@@ -16,9 +16,10 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
+        sudo apt-get install libopenmpi-dev openmpi-bin
         python -m pip install --upgrade pip
         pip install pylint
-        pip install amuse-framework amuse-petar amuse-seba amuse-fi amuse-phantom
+        pip install -r requirements.txt
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py')

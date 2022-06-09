@@ -1,32 +1,32 @@
 try:
-    from amuse.community.fi.interface import Fi
+    from amuse.community.fi import Fi
 except ImportError:
     Fi = None
 try:
-    from amuse.community.bhtree.interface import BHTree
+    from amuse.community.bhtree import Bhtree
 except ImportError:
-    BHTree = None
+    Bhtree = None
 try:
-    from amuse.community.fastkick.interface import FastKick
+    from amuse.community.fastkick import Fastkick
 except ImportError:
-    FastKick = None
+    Fastkick = None
 try:
-    from amuse.community.hermite.interface import Hermite
+    from amuse.community.hermite import Hermite
 except ImportError:
     Hermite = None
 try:
-    from amuse.community.ph4.interface import ph4
+    from amuse.community.ph4 import Ph4
 except ImportError:
-    ph4 = None
+    Ph4 = None
 try:
-    from amuse.community.petar.interface import Petar
+    from amuse.community.petar import Petar
 except ImportError:
     Petar = None
 try:
-    from amuse.community.phantom.interface import Phantom
+    from amuse.community.phantom import Phantom
 except ImportError:
     Phantom = None
 try:
-    from amuse.community.seba.interface import SeBa
+    from amuse.community.seba import Seba
 except ImportError:
-    SeBa = None
+    Seba = None

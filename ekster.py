@@ -9,6 +9,7 @@ import os
 import logging
 import pickle
 import numpy
+import signal
 import concurrent.futures
 
 from amuse.datamodel import ParticlesSuperset, Particles, Particle
@@ -18,6 +19,7 @@ from amuse.units.quantities import VectorQuantity
 
 from amuse.support.console import set_preferred_units
 from amuse.io import write_set_to_file
+from amuse.io import read_set_from_file
 
 from amuse.ext import stellar_wind
 # from amuse.ext.masc import new_star_cluster
@@ -632,26 +634,24 @@ class ClusterInPotential(
                 form_sink = True
             else:
                 try:
-                    form_sink, not_forming_message, neighbours = should_a_sink_form(
-                        origin_gas.as_set(), self.gas_particles,
-                        # check_thermal=self.isothermal_mode,
-                        accretion_radius=settings.minimum_sink_radius,
-                    )
+                    form_sink, not_forming_message, neighbours = \
+                        should_a_sink_form(
+                            origin_gas.as_set(), self.gas_particles,
+                            # check_thermal=self.isothermal_mode,
+                            accretion_radius=settings.minimum_sink_radius,
+                        )
                     form_sink = form_sink[0]
-                except TypeError as te:
-                    print(te)
+                except TypeError as type_error:
+                    print(type_error)
                     print(origin_gas)
                     form_sink = False
                     not_forming_message = \
                         "Something went wrong (TypeError)"
                     dump_file_id = numpy.random.randint(100000000)
                     key = origin_gas.key
-                    dumpfile = "dump-%08i-stars-key%i.hdf5" % (
-                        dump_file_id,
-                        key,
-                    )
+                    dumpfile = f"dump-{dump_file_id}-stars-key{key}.amuse"
                     if not dump_saved:
-                        print("saving gas dump to %s" % dumpfile)
+                        print(f"saving gas dump to {dumpfile}")
                         write_set_to_file(
                             self.gas_particles, dumpfile, "amuse",
                         )
@@ -664,11 +664,12 @@ class ClusterInPotential(
                     self.model_time,
                     not_forming_message,
                 )
-                high_density_neighbours = neighbours.get_intersecting_subset_in(high_density_gas)
+                high_density_neighbours = \
+                    neighbours.get_intersecting_subset_in(high_density_gas)
                 high_density_gas.remove_particle(origin_gas)
                 high_density_gas.remove_particles(high_density_neighbours)
             else:  # try:
-                print("Forming a sink from particle %s" % origin_gas.key)
+                print(f"Forming a sink from particle {origin_gas.key}")
 
                 # NOTE: we create a new sink core *without*
                 # removing/accreting the gas seed!  This is because it is
@@ -681,9 +682,9 @@ class ClusterInPotential(
                 if not new_sinks.is_empty():
                     last_sink_number = max(new_sinks.sink_number)
 
-                new_sink.sink_number = last_sink_number + 1
-                new_sink.birth_time = self.model_time
-                new_sink.initialised = False
+                setattr(new_sink, "sink_number", last_sink_number+1)
+                setattr(new_sink, "birth_time", self.model_time)
+                setattr(new_sink, "initialised", False)
 
                 # Should do accretion here, and calculate the radius from
                 # the average density, stopping when the jeans radius
@@ -700,7 +701,7 @@ class ClusterInPotential(
                 # )
 
                 # new_sink.radius = desired_sink_radius
-                new_sink.radius = minimum_sink_radius
+                setattr(new_sink, "radius", minimum_sink_radius)
                 # Average of accreted gas is better but for isothermal this
                 # is fine
                 # new_sink.u = origin_gas.u
@@ -708,20 +709,24 @@ class ClusterInPotential(
                 # NOTE: this gets overwritten when gas is accreted, so
                 # probably this is misleading code...
                 if self.isothermal_mode:
-                    new_sink.u = temperature_to_u(
-                        settings.isothermal_gas_temperature,
-                        gmmw=gas_mean_molecular_weight(0.5),
+                    setattr(
+                        new_sink, "u", temperature_to_u(
+                            settings.isothermal_gas_temperature,
+                            gmmw=gas_mean_molecular_weight(0.5),
+                        )
                     )
                 else:
-                    new_sink.u = origin_gas.u
+                    setattr(
+                        new_sink, "u", origin_gas.u
+                    )
                 # new_sink.u = 0 | units.kms**2
 
-                new_sink.accreted_mass = 0 | units.MSun
+                setattr(new_sink, "accreted_mass", 0 | units.MSun)
                 o_x, o_y, o_z = origin_gas.position
 
-                new_sink.position = origin_gas.position
-                new_sink.mass = origin_gas.mass  # 0 | units.MSun
-                new_sink.velocity = origin_gas.velocity
+                setattr(new_sink, "position", origin_gas.position)
+                setattr(new_sink, "mass", origin_gas.mass)  # 0 | units.MSun
+                setattr(new_sink, "velocity", origin_gas.velocity)
                 self.remove_gas(origin_gas.as_set())
                 if origin_gas in high_density_gas:
                     high_density_gas.remove_particle(origin_gas)
@@ -743,7 +748,7 @@ class ClusterInPotential(
                 )
 
                 try:
-                    assert (not accreted_gas.is_empty())
+                    assert not accreted_gas.is_empty()
                     self.logger.info(
                         "Number of accreted gas particles: %i",
                         len(accreted_gas)
@@ -785,7 +790,6 @@ class ClusterInPotential(
                 except AssertionError:
                     self.logger.warning("No gas accreted??")
                     high_density_gas.remove_particle(origin_gas)
-                    warnings.warn("No gas accreted, is this correct??")
         self.add_sinks(new_sinks)
         self.gas_particles.synchronize_to(
             self.gas_code.gas_particles
@@ -1077,16 +1081,12 @@ class ClusterInPotential(
         # )
         # print('Stellar feedback implemented.')
 
-        #self.gas_particles = basic_stroemgren_volume_method(
-        #    gas_=self.gas_particles,
-        #    stars=self.star_particles
-        #)
-        
-
         if settings.feedback_enabled and not self.star_particles.is_empty():
 
             # STARBENCH
-            # self.star_particles.luminosity = (1e49 * 13.6|units.eV * units.s**-1)
+            # self.star_particles.luminosity = (
+            #     1e49 * 13.6 | units.eV * units.s**-1
+            # )
 
             self.gas_particles = main_stellar_feedback(
                 gas=self.gas_particles,
@@ -1096,7 +1096,7 @@ class ClusterInPotential(
                 temp_range=[
                     settings.isothermal_gas_temperature.value_in(units.K),
                     20000
-                ]|units.K,
+                ] | units.K,
                 logger=self.logger,
                 randomseed=numpy.random.randint(2**32-1),
             )
@@ -1342,10 +1342,8 @@ def main(
         nsteps=None, settings=ekster_settings.Settings()
 ):
     "Simulate an embedded star cluster (sph + dynamics + evolution)"
-    from amuse.io import read_set_from_file
     from plotting_class import temperature_to_u
     from _version import version
-    import signal
 
     if args.setup != "default":
         settings = ekster_settings.read_config(
@@ -1475,52 +1473,41 @@ def main(
         model.evolve_model(time)
 
         print(
-            "Step %04i: evolved to %s" % (
-                step, model.model_time.in_(time_unit)
-            )
+            f"Step {step:04d}: evolved to "
+            f"{model.model_time.in_(time_unit)}"
         )
         print(
-            "Number of particles - gas: %i sinks: %i stars: %i" % (
-                len(model.gas_particles),
-                len(model.sink_particles),
-                len(model.star_particles),
-            )
+            f"Number of particles - gas: {len(model.gas_particles)} "
+            f"sinks: {len(model.sink_particles)} "
+            f"stars: {len(model.star_particles)} "
         )
         if not model.sink_particles.is_empty():
             print(
-                "Most massive sink: %s" % (
-                    model.sink_particles.mass.max().in_(units.MSun),
-                )
+                "Most massive sink: "
+                f"{model.sink_particles.mass.max().in_(units.MSun)}"
             )
             print(
-                "Sinks centre of mass: %s" % (
-                    model.sink_particles.center_of_mass().in_(units.parsec),
-                )
+                "Sinks centre of mass: "
+                f"{model.sink_particles.center_of_mass().in_(units.parsec)}"
             )
         if not model.star_particles.is_empty():
             print(
-                "Most massive star: %s" % (
-                    model.star_particles.mass.max().in_(units.MSun),
-                )
+                "Most massive star: "
+                f"{model.star_particles.mass.max().in_(units.MSun)}"
             )
             print(
-                "Stars centre of mass: %s" % (
-                    model.star_particles.center_of_mass().in_(units.parsec),
-                )
+                "Stars centre of mass: "
+                f"{model.star_particles.center_of_mass().in_(units.parsec)}"
             )
         print(
-            "Gas centre of mass: %s" % (
-                model.gas_particles.center_of_mass().in_(units.parsec),
-            )
+            "Gas centre of mass: "
+            f"{model.gas_particles.center_of_mass().in_(units.parsec)}"
         )
         dmax_now = model.gas_particles.density.max()
         dmax_stop = \
             model.gas_code.parameters.stopping_condition_maximum_density
         print(
-            "Maximum density / stopping density = %s" % (
-                dmax_now
-                / dmax_stop,
-            )
+            f"Maximum density / stopping density = {dmax_now / dmax_stop}"
         )
         logger.info("Max density: %s", dmax_now.in_(units.g * units.cm**-3))
         logger.info(
@@ -1554,16 +1541,16 @@ def main(
         offset_y_index = ["x", "y", "z"].index(settings.plot_yaxis)
         offset_z_index = ["x", "y", "z"].index(settings.plot_zaxis)
         if settings.plot_density:
-            plotname = "%sdensity-%04i.png" % (run_prefix, step)
+            plotname = f"{run_prefix}density-{step}.png"
             plot_hydro_and_stars(
                 model.model_time,
                 stars=model.star_particles,
                 sinks=model.sink_particles,
                 gas=model.gas_particles,
                 filename=plotname,
-                title="time = %06.2f %s" % (
-                    model.model_time.value_in(units.Myr),
-                    units.Myr,
+                title=(
+                    f"time = {model.model_time.value_in(units.Myr)}:06.2f "
+                    f"{units.Myr}"
                 ),
                 x_axis=settings.plot_xaxis,
                 y_axis=settings.plot_yaxis,
@@ -1575,7 +1562,7 @@ def main(
                 settings=settings,
             )
         if settings.plot_temperature and not settings.ieos == 1:
-            plotname = "%stemperature-%04i.png" % (run_prefix, step)
+            plotname = f"{run_prefix}temperature-{step:04d}.png"
             plot_hydro_and_stars(
                 model.model_time,
                 stars=model.star_particles,
@@ -1604,19 +1591,17 @@ def main(
             )
         ):
             if not model.gas_particles.is_empty():
-                settings.filename_gas = "%sgas-%04i.hdf5" % (run_prefix, step)
+                settings.filename_gas = f"{run_prefix}gas-{step:04d}.amuse"
             if not model.star_particles.is_empty():
-                settings.filename_stars = "%sstars-%04i.hdf5" % (
-                    run_prefix, step)
+                settings.filename_stars = f"{run_prefix}stars-{step:04d}.amuse"
             if not model.sink_particles.is_empty():
-                settings.filename_sinks = "%ssinks-%04i.hdf5" % (
-                    run_prefix, step)
+                settings.filename_sinks = f"{run_prefix}sinks-{step:04d}.amuse"
             settings.filename_random = \
-                "%srandomstate-%04i.pkl" % (run_prefix, step)
+                f"{run_prefix}randomstate-{step:04d}.pkl"
             settings.step = step
             settings.model_time = model.model_time
             ekster_settings.write_config(
-                settings, "%sresume-%04i.ini" % (run_prefix, step), "resume"
+                settings, f"{run_prefix}resume-{step:04d}.ini", "resume"
             )
             logger.info("Writing snapshots")
             print("Writing snapshots")
@@ -1677,6 +1662,5 @@ if __name__ == "__main__":
         ekster_settings.write_config(
             settings, args.settingfilename, args.setup
         )
-        exit()
+        sys.exit()
     model = main(args, settings=settings)
-

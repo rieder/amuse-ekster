@@ -414,7 +414,7 @@ def form_stars_from_group(
         stellar_mass=mass_left,
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
-        initial_mass_function=initial_mass_function
+        initial_mass_function=initial_mass_function,
         exceed_mass=False,
     )
     number_of_stars = len(masses)

@@ -16,10 +16,10 @@ from amuse.units.trigo import sin, cos, arccos, arctan
 from amuse.datamodel import Particle, Particles, ParticlesSuperset
 from amuse.io import write_set_to_file
 
-from plotting_class import (
+from ekster.plotting_class import (
     gas_mean_molecular_weight, temperature_to_u, u_to_temperature
 )
-import ekster_settings
+from ekster import ekster_settings
 settings = ekster_settings.Settings()
 
 
@@ -244,12 +244,12 @@ def search_predecessors(
     pred: numpy.ndarray
         Index of predecessors of gas i.
     """
-    pred = numpy.argwhere(network_a==i).flatten()
+    pred = numpy.argwhere(network_a == i).flatten()
     queue = pred.copy()
     while queue.size > 0 and max_count > 0:
         s = queue[0]
         queue = numpy.delete(queue, 0)
-        new_pred = numpy.argwhere(network_a==s).flatten()
+        new_pred = numpy.argwhere(network_a == s).flatten()
         for k in new_pred:
             if k not in pred:
                 pred = numpy.append(pred, k)
@@ -349,8 +349,8 @@ def generate_network(
         new_search_radius = search_radius
         while a < Nstars:
             # print(i, a, counter)
-            star_position = stars_pos_pc[a]
-            i_a_vector = target_position - star_position
+            # star_position = stars_pos_pc[a]
+            # i_a_vector = target_position - star_position
             i_a_dist = i_a_dists_pc[a, i]
             i_a_uv = i_a_uvs[a, i]
             # i_a_dist = numpy.sqrt(i_a_vector.dot(i_a_vector))
@@ -369,7 +369,7 @@ def generate_network(
                 bubble_ind_i = bubble_ind[i]
 
             # if gas i is nearby star a, link to star a
-            if (a + Ngas) in bubble_ind_i:
+            if a + Ngas in bubble_ind_i:
                 network[a, i] = a + Ngas
                 link_dists_pc[a, i] = i_a_dist
                 link_uvs[a, i] = i_a_uv
@@ -654,7 +654,8 @@ def one_feedback_iteration(
                 fluxes[a, i] = flux
 
                 # lum_int_target = luminosity_integral + (
-                #     4 * numpy.pi * recombination_coefficient * to_be_summed[0]
+                #     4 * numpy.pi * recombination_coefficient
+                #     * to_be_summed[0]
                 # ) * pc_to_cm**3
                 # flux_target = (
                 #     (photon_flux[a] - lum_int_target)
@@ -663,10 +664,10 @@ def one_feedback_iteration(
                 # if flux_target > 0:
                 #     fluxes_target[a, i] = flux_target
 
-
                 # # Find the flux without gas i
                 # lum_int_last = (
-                #     4 * numpy.pi * recombination_coefficient * to_be_summed[-1]
+                #     4 * numpy.pi * recombination_coefficient
+                #     * to_be_summed[-1]
                 # ) * pc_to_cm**3
                 # lum_int_wo_target = luminosity_integral - lum_int_last
                 # if len(gas_indices) == 1:
@@ -678,11 +679,10 @@ def one_feedback_iteration(
                 #     / (4 * numpy.pi * dist**2)
                 # ) * pc_to_cm**-2
                 # f_ion = flux_wo_target / flux
-                #f_ion_array[i] = min(1.0, f_ion_array[i] + f_ion)
+                # f_ion_array[i] = min(1.0, f_ion_array[i] + f_ion)
 
                 # Set ionised gas fraction to 1
                 f_ion_array[i] = 1.0
-
 
                 # print(f_ion)
 
@@ -707,12 +707,12 @@ def main_stellar_feedback(
     gas,
     stars_,
     time,
-    mass_cutoff=5|units.MSun,
+    mass_cutoff=5 | units.MSun,
     angle_threshold=numpy.pi/3,
-    recombination_coefficient=(2.7e-13|units.cm**3/units.s),
-    gmmw=1|units.amu,    #gas_mean_molecular_weight(0.5),
-    initial_gas_density=(5e-21|units.g/units.cm**3),
-    temp_range=[10,20000]|units.K,
+    recombination_coefficient=(2.7e-13 | units.cm**3/units.s),
+    gmmw=1 | units.amu,  # gas_mean_molecular_weight(0.5),
+    initial_gas_density=(5e-21 | units.g/units.cm**3),
+    temp_range=[10, 20000] | units.K,
     logger=None,
     **keyword_arguments
 ):
@@ -803,7 +803,7 @@ def main_stellar_feedback(
     # Use Stroemgren radii, Hosokawa-Inutsuka approximation
     # and Raga extension to estimate search radii
     initial_n = initial_gas_density / gmmw
-    photon_flux = (stars.luminosity/(13.6|units.eV))
+    photon_flux = (stars.luminosity/(13.6 | units.eV))
     stroemgren_radii = (
         (3*photon_flux) / (4*numpy.pi*initial_n**2*recombination_coefficient)
     )**(1.0/3)
@@ -885,7 +885,7 @@ def main_stellar_feedback(
 
     print("Calculating feedback...")
     logger.info("Calculating feedback...")
-    photon_flux = (stars.luminosity/(13.6|units.eV)).value_in(units.s**-1)
+    photon_flux = (stars.luminosity/(13.6 | units.eV)).value_in(units.s**-1)
     molecular_mass = gmmw / (1 | units.amu)
     recombination_coefficient = recombination_coefficient.value_in(
         units.cm**3 * units.s**-1
@@ -925,20 +925,24 @@ def main_stellar_feedback(
 
         # Check for error
         delta_Nionised_gas = new_Nionised_gas - Nionised_gas
-        if Nionised_gas > 0: error = delta_Nionised_gas / Nionised_gas
+        if Nionised_gas > 0:
+            error = delta_Nionised_gas / Nionised_gas
         Nsources = new_Nsources.copy()
         Nionised_gas = new_Nionised_gas
-        print(f'Count {count}, error = {error}, delta_Nionised_gas = {delta_Nionised_gas}')
+        print(
+            f"Count {count}, error = {error}, "
+            f"delta_Nionised_gas = {delta_Nionised_gas}"
+        )
         logger.info(
             "Count %i, error %s, delta_Nionised_gas %i",
             count, error, delta_Nionised_gas
         )
         count += 1
 
-
-
-    # Probably no need to calculate f_ion_array since cooling is done in phantom
-    # We don't want to instantaneously decrease the temperature of previously hot gas
+    # Probably no need to calculate f_ion_array since cooling is done in
+    # phantom
+    # We don't want to instantaneously decrease the temperature of previously
+    # hot gas
     print("Populating temperatures...")
     logger.info("Populating temperatures...")
     hot_gas_indices = numpy.where(f_ion_array == 1)[0]
@@ -958,7 +962,7 @@ def main_stellar_feedback(
     )
     temperatures[neutralisation_indices] = (
         0.9*(temp_range[1] - temp_range[0]) + temp_range[0]
-    ) # Then let phantom handles cooling
+    )  # Then let phantom handles cooling
 
     internal_energies = temperature_to_u(
         temperatures, gmmw=gmmw
@@ -976,4 +980,3 @@ def main_stellar_feedback(
     #
 
     return gas
-

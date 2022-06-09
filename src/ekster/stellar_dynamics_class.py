@@ -33,7 +33,8 @@ except ImportError:
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
-import available_codes
+from ekster import available_codes
+from ekster import ekster_settings
 
 
 class StellarDynamicsCode:
@@ -56,7 +57,8 @@ class StellarDynamicsCode:
         self.__name__ = "StellarDynamics"
         self.logger = logger or logging.getLogger(__name__)
         if settings is None:
-            from ekster_settings import settings
+            from ekster.ekster_settings import Settings
+            settings = Settings()
             print("WARNING: using default settings!")
             logger.info("WARNING: using default settings!")
         self.settings = settings

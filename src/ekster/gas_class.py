@@ -45,7 +45,8 @@ class GasCode(BasicCode):
         self.__name__ = "GasCode"
         self.logger = logger or logging.getLogger(__name__)
         if settings is None:
-            from ekster_settings import settings
+            from ekster.ekster_settings import Settings
+            settings = Settings()
             print("WARNING: using default settings!")
             logger.info("WARNING: using default settings!")
         self.internal_star_formation = internal_star_formation
@@ -262,7 +263,7 @@ def main():
     )
     numpy.random.seed(11)
     temperature = 30 | units.K
-    from plotting_class import temperature_to_u
+    from ekster.plotting_class import temperature_to_u
     u = temperature_to_u(temperature)
     gas = molecular_cloud(targetN=200000, convert_nbody=converter).result
     gas.u = u

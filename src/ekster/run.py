@@ -308,7 +308,7 @@ class ClusterInPotential(
             return result
 
         def new_field_direct_gravity_code(
-                code=available_codes.FastKick,
+                code=available_codes.Fastkick,
         ):
             "Create a new field direct code"
             print("Creating field direct code")
@@ -537,10 +537,12 @@ class ClusterInPotential(
     def particles(self):
         "Return all particles"
         return ParticlesSuperset(
-            self.star_particles,
-            self.dm_particles,
-            self.sink_particles,
-            self.gas_particles,
+            [
+                self.star_particles,
+                self.dm_particles,
+                self.sink_particles,
+                self.gas_particles,
+            ]
         )
 
     @property
@@ -1241,7 +1243,7 @@ class ClusterInPotential(
             if not self.sink_particles.is_empty():
                 print("Forming stars")
                 formed_stars = self.resolve_star_formation()
-                if formed_stars and self.star_code is available_codes.ph4:
+                if formed_stars and self.star_code is available_codes.Ph4:
                     self.star_code.zero_step_mode = True
                     self.star_code.evolve_model(evolve_to_time)
                     self.star_code.zero_step_mode = False

@@ -9,13 +9,13 @@ import logging
 import numpy
 
 from amuse.units import units  # , constants, nbody_system
-from amuse.datamodel import Particle, Particles
+from amuse.datamodel import Particles
 # from amuse.ic.plummer import new_plummer_model
 from amuse.ic.brokenimf import new_kroupa_mass_distribution
 from amuse.units.trigo import sin, cos
 from amuse.ext.masc.cluster import new_masses
 
-import ekster_settings
+from ekster import ekster_settings
 settings = ekster_settings.Settings()
 
 
@@ -47,9 +47,7 @@ def generate_next_mass(
             mass_min=lower_mass_limit,
             mass_max=upper_mass_limit,
         )
-    else:
-        raise NotImplemented("Not yet implented")
-    return False
+    raise NotImplementedError("Not yet implented")
 
 
 def form_stars(
@@ -109,7 +107,7 @@ def form_stars(
         initial_mass_function=initial_mass_function,
     )
     number_of_stars = len(masses)
-    logger.debug(f"... done, {number_of_stars} stars generated")
+    logger.debug("... done, %s stars generated", number_of_stars)
 
     new_stars = Particles(number_of_stars)
     new_stars.age = 0 | units.Myr
@@ -145,7 +143,8 @@ def form_stars(
     try:
         local_sound_speed = sink.u.sqrt()
     except AttributeError:
-        local_sound_speed = local_sound_speed
+        # local_sound_speed = local_sound_speed
+        pass
     # or (gamma * local_pressure / density).sqrt()
     velocity_magnitude = numpy.random.normal(
         # loc=0.0,  # <- since we already added the velocity of the sink
@@ -221,7 +220,7 @@ def assign_sink_group(
 
         # Check if this sink belongs to any existing groups. Must
         # pass all checks.
-        smallest_Etot = numpy.inf | units.J
+        smallest_total_energy = numpy.inf | units.J
         fail1 = fail2 = fail3 = fail4 = 0
         for i in range(number_of_groups):
             i += 1   # Change to one-based index
@@ -233,10 +232,10 @@ def assign_sink_group(
                 sink.position - group_i.center_of_mass()
             ).length()
             if distance_from_group_com > group_radius:
-                #logger.info(
-                #    'This sink is beyond group #%i (%s from COM)',
-                #    i, distance_from_group_com.in_(units.pc)
-                #)
+                # logger.info(
+                #     'This sink is beyond group #%i (%s from COM)',
+                #     i, distance_from_group_com.in_(units.pc)
+                # )
                 fail1 += 1
                 continue
 
@@ -246,46 +245,46 @@ def assign_sink_group(
                 sink.velocity - group_i.center_of_mass_velocity()
             ).length()
             if speed_from_group_com > group_speed:
-                #logger.info(
-                #    'Speed is %s away for COM speed of group #%i',
-                #    speed_from_group_com.in_(units.kms), i
-                #)
+                # logger.info(
+                #     'Speed is %s away for COM speed of group #%i',
+                #     speed_from_group_com.in_(units.kms), i
+                # )
                 fail2 += 1
                 continue
 
             # Check 3: see if 'the sink' is similar in age with the group
             age_difference = sink.birth_time - group_i.birth_time.min()
             if age_difference > group_age:
-                #logger.info(
-                #    'Age of this sink is not similar to group #%i '
-                #    '(different by %s)',
-                #    i, age_difference.in_(units.Myr)
-                #)
+                # logger.info(
+                #     'Age of this sink is not similar to group #%i '
+                #     '(different by %s)',
+                #     i, age_difference.in_(units.Myr)
+                # )
                 fail3 += 1
                 continue
 
             group_and_sink = group_i.copy()
             group_and_sink.add_particle(sink.copy())
-            Etot = (
+            total_energy = (
                 group_and_sink.kinetic_energy()
                 + group_and_sink.potential_energy()
             )
             # # Check: see if the total energy of the group plus this
             # # sink is less than 0.
-            # if Etot >= 0.0 | units.J:
+            # if total_energy >= 0.0 | units.J:
             #     logger.info(
-            #         'This sink is unbound to group #%i (Etot = %s)',
-            #         i, Etot.in_(units.erg)
+            #         'This sink is unbound to group #%i (total_energy = %s)',
+            #         i, total_energy.in_(units.erg)
             #     )
             #     continue
 
             # Check 4: see if this sink is the most bound to this
             # group
-            if Etot > smallest_Etot:
-                #logger.info(
-                #    'This sink is not the most bound to group #%i',
-                #    i
-                #)
+            if total_energy > smallest_total_energy:
+                # logger.info(
+                #     'This sink is not the most bound to group #%i',
+                #     i
+                # )
                 fail4 += 1
                 continue
 
@@ -294,7 +293,7 @@ def assign_sink_group(
                 "Sink %i passes all checks for group #%i",
                 sink.key, i
             )
-            smallest_Etot = Etot
+            smallest_total_energy = total_energy
             sink.in_group = i
 
         # If this sink is still unassigned to any of the groups,
@@ -302,8 +301,8 @@ def assign_sink_group(
         if sink.in_group == 0:
             sink.in_group = number_of_groups + 1
             logger.info(
-                'Failed to assign to any groups (%i %i %i %i), creating group #%i',
-                fail1, fail2, fail3, fail4, sink.in_group
+                "Failed to assign to any groups (%i %i %i %i), "
+                "creating group #%i", fail1, fail2, fail3, fail4, sink.in_group
             )
 
         sink.initialised = True
@@ -380,10 +379,10 @@ def form_stars_from_group(
         # new group. Else, only interested on the non-zero value. The
         # non-zero values are the same.
 
-        #logger.info(
-        #    'SANITY CHECK: group_next_primary_mass %s',
-        #    group.group_next_primary_mass
-        #)
+        # logger.info(
+        #     'SANITY CHECK: group_next_primary_mass %s',
+        #     group.group_next_primary_mass
+        # )
         if group.group_next_primary_mass.max() == 0 | units.MSun:
             logger.info('Initiate group #%i for star formation', group_index)
             group.group_next_primary_mass = next_mass
@@ -397,7 +396,7 @@ def form_stars_from_group(
         )
         group.group_next_primary_mass = next_mass
 
-    #logger.info("Next mass is %s", next_mass)
+    # logger.info("Next mass is %s", next_mass)
 
     if group_mass < next_mass:
         logger.info(
@@ -417,18 +416,18 @@ def form_stars_from_group(
     )
     number_of_stars = len(masses)
 
-    #logger.info(
-    #    "%i stars created in group #%i with %i sinks",
-    #    number_of_stars, group_index, number_of_sinks
-    #)
+    # logger.info(
+    #     "%i stars created in group #%i with %i sinks",
+    #     number_of_stars, group_index, number_of_sinks
+    # )
 
     if number_of_stars == 0:
         logger.info("No stars created for this group")
         return None
 
-    #logger.info('masses %s', masses)
-    #logger.info('masses shape %s', masses.shape)
-    #logger.info('next mass type %s', type(next_mass))
+    # logger.info('masses %s', masses)
+    # logger.info('masses shape %s', masses.shape)
+    # logger.info('next mass type %s', type(next_mass))
 
     new_stars = Particles(number_of_stars)
     new_stars.age = 0 | units.Myr
@@ -445,10 +444,10 @@ def form_stars_from_group(
     new_stars.star_forming_radius = 0 | units.pc
     new_stars.star_forming_u = local_sound_speed**2
 
-    #logger.info(
-    #    "Group's next primary mass is %s",
-    #    group.group_next_primary_mass[0]
-    #)
+    # logger.info(
+    #     "Group's next primary mass is %s",
+    #     group.group_next_primary_mass[0]
+    # )
 
     # Don't mess with the actual group sink particle set.
     star_forming_regions = group.copy()
@@ -465,7 +464,7 @@ def form_stars_from_group(
         probabilities.max(), probabilities.min()
     )
 
-    #logger.info("All probabilities: %s", probabilities)
+    # logger.info("All probabilities: %s", probabilities)
 
     # Create index list of star forming regions from probability list
     sample = numpy.random.choice(
@@ -530,7 +529,7 @@ def form_stars_from_group(
 
     dV = list(zip(*[vx, vy, vz])) | units.kms
 
-    #logger.info("Updating new stars...")
+    # logger.info("Updating new stars...")
     new_stars.position += dX
     new_stars.velocity += dV
 
@@ -540,37 +539,38 @@ def form_stars_from_group(
     # Remove sink mass according to the position of stars
     excess_star_mass = 0 | units.MSun
     for s in group:
-        #logger.info('Sink mass before reduction: %s', s.mass.in_(units.MSun))
+        # logger.info('Sink mass before reduction: %s', s.mass.in_(units.MSun))
         total_star_mass_nearby = (
             new_stars[new_stars.origin_cloud == s.key]
         ).total_mass()
 
         # To prevent sink mass becomes negative
+        # FIXME
         if s.mass > minimum_sink_mass:
             if (s.mass - total_star_mass_nearby) <= minimum_sink_mass:
                 excess_star_mass += (
                     total_star_mass_nearby - s.mass + minimum_sink_mass
                 )
-                #logger.info(
-                #    'Sink mass goes below %s; excess mass is now %s',
-                #    minimum_sink_mass.in_(units.MSun),
-                #    excess_star_mass.in_(units.MSun)
-                #)
+                # logger.info(
+                #     'Sink mass goes below %s; excess mass is now %s',
+                #     minimum_sink_mass.in_(units.MSun),
+                #     excess_star_mass.in_(units.MSun)
+                # )
                 s.mass = minimum_sink_mass
             else:
                 s.mass -= total_star_mass_nearby
         else:
             excess_star_mass += total_star_mass_nearby
-            #logger.info(
-            #    'Sink mass is already <= minimum mass allowed; '
-            #    'excess mass is now %s',
-            #    excess_star_mass.in_(units.MSun)
-            #)
+            # logger.info(
+            #     'Sink mass is already <= minimum mass allowed; '
+            #     'excess mass is now %s',
+            #     excess_star_mass.in_(units.MSun)
+            # )
 
-        #logger.info('Sink mass after reduction: %s', s.mass.in_(units.MSun))
+        # logger.info('Sink mass after reduction: %s', s.mass.in_(units.MSun))
 
     # Reduce all sinks in group equally with the excess star mass
-    #logger.info('Reducing all sink mass equally with excess star mass...')
+    # logger.info('Reducing all sink mass equally with excess star mass...')
     mass_ratio = 1 - excess_star_mass/group.total_mass()
     group.mass *= mass_ratio
 
@@ -584,9 +584,9 @@ def form_stars_from_group(
             (group.mass / group.initial_density)
             / (4/3 * numpy.pi)
         )**(1/3)
-        #logger.info(
-        #    "New radii: %s",
-        #    group.radius.in_(units.pc)
-        #)
+        # logger.info(
+        #     "New radii: %s",
+        #     group.radius.in_(units.pc)
+        # )
 
     return new_stars

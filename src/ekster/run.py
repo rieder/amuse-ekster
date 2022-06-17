@@ -114,10 +114,6 @@ class ClusterInPotential(
         self.gas_state = "clean"
         self.gas_particles = Particles()
         self.dm_particles = Particles()
-        # self.sink_particles = SinkParticles(
-        #     Particles(),
-        #     sink_radius=settings.minimum_sink_radius,
-        # )
         self.sink_particles = Particles()
         self.star_particles = Particles()
 
@@ -139,8 +135,8 @@ class ClusterInPotential(
                 converter_for_gas = gas_converter
             self.logger.info("Initialising Gas")
 
-            phantom_solarm = 1.9891e33 | units.g
-            phantom_pc = 3.086e18 | units.cm
+            # phantom_solarm = 1.9891e33 | units.g
+            # phantom_pc = 3.086e18 | units.cm
             phantom_gg = 6.672041e-8 | units.cm**3 * units.g**-1 * units.s**-2
             phantom_mass = 1.0 | units.MSun
             phantom_time = 60 * 60 * 24 * 365.25 * 1e6 | units.s
@@ -217,7 +213,8 @@ class ClusterInPotential(
         evo_code = getattr(available_codes, settings.evo_code)
         if not hasattr(stars, "birth_time"):
             stars.birth_time = 0 | units.Myr
-            print("WARNING: stars did not have a birth time - using 0 Myr")
+            if not stars.is_empty():
+                print("WARNING: stars did not have a birth time - using 0 Myr")
         self.evo_code = StellarEvolutionCode(
             evo_code=evo_code,
             logger=self.logger,
@@ -272,9 +269,9 @@ class ClusterInPotential(
             self.add_sinks(sinks)
 
         if hasattr(spiral_potential, settings.tide):
-            Tide = getattr(spiral_potential, settings.tide)
+            tidal_field = getattr(spiral_potential, settings.tide)
             self.logger.info("Using tidal field %s", settings.tide)
-            self.tidal_field = Tide(
+            self.tidal_field = tidal_field(
                 t_start=settings.model_time + settings.tide_time_offset,
                 spiral_type=settings.tide_spiral_type,
             )
@@ -572,7 +569,8 @@ class ClusterInPotential(
             )
         )
         maximum_density = (
-            self.gas_code.parameters.stopping_condition_maximum_density
+            settings.density_threshold
+            # self.gas_code.parameters.stopping_condition_maximum_density
         )
         high_density_gas = self.gas_particles.select_array(
             lambda density: density > maximum_density,
@@ -581,14 +579,13 @@ class ClusterInPotential(
 
         current_max_density = self.gas_particles.density.max()
         print(
-            "Max gas density: %s (%.3f critical)"
-            % (current_max_density, current_max_density/maximum_density),
+            f"Max gas density: {current_max_density} "
+            f"({current_max_density/maximum_density:.3f} critical)"
         )
         print(
-            "Number of gas particles above maximum density (%s): %i" % (
-                maximum_density.in_(units.g * units.cm**-3),
-                len(high_density_gas),
-            )
+            "Number of gas particles above maximum density "
+            f"({maximum_density.in_(units.g * units.cm**-3)}): "
+            f"{len(high_density_gas)}"
         )
         self.logger.info(
             "Number of gas particles above maximum density (%s): %i",
@@ -598,7 +595,7 @@ class ClusterInPotential(
         new_sinks = Particles()
         while not high_density_gas.is_empty():
             i = 0
-            print("Checking gas core %i (%i remain)" % (i, len(high_density_gas)))
+            print(f"Checking gas core {i} ({len(high_density_gas)} remain)")
             self.logger.info(
                 "Checking gas core %i (%i remain)",
                 i,
@@ -614,15 +611,15 @@ class ClusterInPotential(
                 origin_gas.density/maximum_density
                 > density_override_factor
             ):
+                unit_density = units.g * units.cm**-3
+                supercritical_density = (
+                    density_override_factor * maximum_density
+                )
                 print(
                     "Sink formation override: "
-                    "gas density is %s (> %s), forming sink" % (
-                        origin_gas.density.in_(units.g * units.cm**-3),
-                        (
-                            density_override_factor
-                            * maximum_density
-                        ).in_(units.g * units.cm**-3),
-                    )
+                    f"gas density is {origin_gas.density.in_(unit_density)} "
+                    f"(> {(supercritical_density).in_(unit_density)})"
+                    ", forming sink"
                 )
                 self.logger.info(
                     "Sink formation override: gas density is %s (> %s), "
@@ -658,7 +655,7 @@ class ClusterInPotential(
                             self.gas_particles, dumpfile, "amuse",
                         )
                         dump_saved = True
-                    exit()
+                    sys.exit()
             if not form_sink:
                 self.logger.info(
                     "Not forming a sink at t= %s - not meeting the"
@@ -724,7 +721,7 @@ class ClusterInPotential(
                 # new_sink.u = 0 | units.kms**2
 
                 setattr(new_sink, "accreted_mass", 0 | units.MSun)
-                o_x, o_y, o_z = origin_gas.position
+                # o_x, o_y, o_z = origin_gas.position
 
                 setattr(new_sink, "position", origin_gas.position)
                 setattr(new_sink, "mass", origin_gas.mass)  # 0 | units.MSun
@@ -1119,10 +1116,13 @@ class ClusterInPotential(
         # self.model_to_evo_code.copy()
         # self.model_to_gas_code.copy()
 
-        density_limit_detection = \
-            self.gas_code.stopping_conditions.density_limit_detection
-        # density_limit_detection.enable()
-        density_limit_detection.disable()
+        try:
+            density_limit_detection = \
+                self.gas_code.stopping_conditions.density_limit_detection
+            # density_limit_detection.enable()
+            density_limit_detection.disable()
+        except:
+            print("No support for density limit detection")
 
         # maximum_density = (
         #     self.gas_code.parameters.stopping_condition_maximum_density
@@ -1166,6 +1166,8 @@ class ClusterInPotential(
             )
             star_code = getattr(available_codes, settings.star_code)
             self.star_code.parameters_to_default(star_code=star_code)
+            self.gas_code.parameters.time_step = self.system.timestep
+            print(f"Gas code time step: {self.gas_code.parameters.time_step}")
             self.system.evolve_model(evolve_to_time)
             self.logger.info("Post system evolve")
             self.logger.info(
@@ -1328,9 +1330,13 @@ class ClusterInPotential(
         return potential
 
     @property
-    def model_time(self):
+    def time_model(self):
         "Return time of the system since starting this run"
         return self.system.model_time
+
+    @property
+    def model_time(self):
+        return self.time_model
 
     def stop(self):
         self.star_code.stop()
@@ -1418,9 +1424,9 @@ def main(
             "No gas read, generating standard initial conditions instead"
         )
         from amuse.ext.molecular_cloud import molecular_cloud
-        gas_density = 2e-18 | units.g * units.cm**-3
-        increase_vol = 5
-        Ngas = increase_vol**3 * 1000 * 10
+        gas_density = 2e-21 | units.g * units.cm**-3
+        increase_vol = 2
+        Ngas = increase_vol**3 * 1000 * 5
         Mgas = increase_vol**3 * 1000 | units.MSun
         volume = Mgas / gas_density
         radius = (volume / (units.pi * 4/3))**(1/3)
@@ -1461,12 +1467,10 @@ def main(
     for step in range(starting_step, final_step):
         time_unit = units.Myr
         print(
-            "MT: %s HT: %s GT: %s ET: %s" % (
-                model.model_time.in_(time_unit),
-                model.gas_code.model_time.in_(time_unit),
-                model.star_code.model_time.in_(time_unit),
-                model.evo_code.model_time.in_(time_unit),
-            )
+            f"MT: {model.model_time.in_(time_unit)} "
+            f"HT: {model.gas_code.model_time.in_(time_unit)} "
+            f"GT: {model.star_code.model_time.in_(time_unit)} "
+            f"ET: {model.evo_code.model_time.in_(time_unit)}"
         )
         time = step * timestep
 
@@ -1505,7 +1509,8 @@ def main(
         )
         dmax_now = model.gas_particles.density.max()
         dmax_stop = \
-            model.gas_code.parameters.stopping_condition_maximum_density
+            settings.density_threshold
+        #    model.gas_code.parameters.stopping_condition_maximum_density
         print(
             f"Maximum density / stopping density = {dmax_now / dmax_stop}"
         )
@@ -1531,17 +1536,17 @@ def main(
                 * model.star_particles.center_of_mass()
             )
         com = com / mtot
-        print("Centre of gas mass: %s" % com)
+        print(f"Centre of gas mass: {com}")
         if not model.star_particles.is_empty():
             print(
-                "Centre of stars mass: %s"
-                % model.star_particles.center_of_mass()
+                "Centre of stars mass: "
+                f"{model.star_particles.center_of_mass()}"
             )
         offset_x_index = ["x", "y", "z"].index(settings.plot_xaxis)
         offset_y_index = ["x", "y", "z"].index(settings.plot_yaxis)
         offset_z_index = ["x", "y", "z"].index(settings.plot_zaxis)
         if settings.plot_density:
-            plotname = f"{run_prefix}density-{step}.png"
+            plotname = f"{run_prefix}density-{step:04d}.png"
             plot_hydro_and_stars(
                 model.model_time,
                 stars=model.star_particles,
@@ -1549,7 +1554,7 @@ def main(
                 gas=model.gas_particles,
                 filename=plotname,
                 title=(
-                    f"time = {model.model_time.value_in(units.Myr)}:06.2f "
+                    f"time = {model.model_time.value_in(units.Myr):06.2d} "
                     f"{units.Myr}"
                 ),
                 x_axis=settings.plot_xaxis,
@@ -1569,9 +1574,9 @@ def main(
                 sinks=model.sink_particles,
                 gas=model.gas_particles,
                 filename=plotname,
-                title="time = %06.2f %s" % (
-                    model.model_time.value_in(units.Myr),
-                    units.Myr,
+                title=(
+                    f"time = {model.model_time.value_in(units.Myr):06.2d} "
+                    f"{units.Myr}",
                 ),
                 x_axis=settings.plot_xaxis,
                 y_axis=settings.plot_yaxis,

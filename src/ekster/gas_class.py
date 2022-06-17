@@ -6,8 +6,10 @@ import numpy
 
 # from amuse.datamodel import Particles, Particle
 from amuse.units import units, nbody_system, constants
+from amuse.datamodel import Particles
 
-from ekster.available_codes import Fi, Phantom
+from ekster import available_codes
+from ekster.available_codes import Fi, Phantom, Mizuki
 from ekster.basic_class import BasicCode
 # from ekster.plotting_class import plot_hydro_and_stars
 # from ekster.sinks_class import accrete_gas  # , SinkParticles
@@ -40,6 +42,14 @@ class GasCode(BasicCode):
             settings=None,  # ekster_settings.Settings(),
             **keyword_arguments
     ):
+        try:
+            sph_code_name = settings.sph_code
+            print(sph_code_name)
+            sph_code = getattr(available_codes, sph_code_name)
+        except:
+            print("Using legacy sph_code value")
+            exit()
+
         self.typestr = "Hydro"
         # self.namestr = sph_code.__name__
         self.__name__ = "GasCode"
@@ -93,6 +103,8 @@ class GasCode(BasicCode):
             self.parameters.integrate_entropy_flag = False
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
+        elif sph_code is Mizuki:
+            self.parameters.time_step = settings.timestep_bridge
         elif sph_code is Phantom:
             self.parameters.alpha = settings.alpha
             self.parameters.beta = settings.beta
@@ -155,12 +167,18 @@ class GasCode(BasicCode):
     @property
     def dm_particles(self):
         """Return all dm particles"""
-        return self.code.dm_particles
+        try:
+            return self.code.dm_particles
+        except:
+            return Particles()
 
     @property
     def sink_particles(self):
         """Return all sink particles"""
-        return self.code.sink_particles
+        try:
+            return self.code.sink_particles
+        except:
+            return Particles()
         # return self.code.dm_particles
 
     @property

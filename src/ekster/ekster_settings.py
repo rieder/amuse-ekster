@@ -214,8 +214,9 @@ class Settings:
         self.group_speed_mach = 5
         self.group_age = 0.1 | units.Myr
 
-        self.evo_code = "SeBa"
+        self.evo_code = "Seba"
         self.star_code = "Petar"
+        self.sph_code = "Phantom"
         self.code_redirection = "none"
 
         self.stellar_dynamics_theta = 0.3
@@ -229,7 +230,7 @@ class Settings:
         self.model_time = 0 | units.Myr
 
         self.wind_enabled = False
-        self.wind_type = "heating"  # Or accelerate, simple
+        self.wind_type = "heating"  # Or accelerate, or simple
         self.wind_r_max = 0.1 | units.pc
 
         self.field_code_type = "tree"

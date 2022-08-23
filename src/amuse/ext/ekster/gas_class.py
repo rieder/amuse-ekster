@@ -8,9 +8,9 @@ import numpy
 from amuse.units import units, nbody_system, constants
 from amuse.datamodel import Particles
 
-from ekster import available_codes
-from ekster.available_codes import Fi, Phantom, Mizuki
-from ekster.basic_class import BasicCode
+from amuse.ext.ekster import available_codes
+from amuse.ext.ekster.available_codes import Fi, Phantom, Mizuki
+from amuse.ext.ekster.basic_class import BasicCode
 # from ekster.plotting_class import plot_hydro_and_stars
 # from ekster.sinks_class import accrete_gas  # , SinkParticles
 # from amuse.ext.sink import SinkParticles

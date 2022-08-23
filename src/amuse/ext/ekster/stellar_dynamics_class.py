@@ -33,8 +33,8 @@ except ImportError:
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
-from ekster import available_codes
-from ekster import ekster_settings
+from amuse.ext.ekster import available_codes
+from amuse.ext.ekster import ekster_settings
 
 
 class StellarDynamicsCode:

@@ -15,7 +15,7 @@ from amuse.ic.brokenimf import new_kroupa_mass_distribution
 from amuse.units.trigo import sin, cos
 from amuse.ext.masc.cluster import new_masses
 
-from ekster import ekster_settings
+from amuse.ext.ekster import ekster_settings
 settings = ekster_settings.Settings()
 
 
@@ -42,6 +42,7 @@ def generate_next_mass(
         number_of_stars = 3
 
     if initial_mass_function == "kroupa":
+        print("Mass generating")
         return new_kroupa_mass_distribution(
             number_of_stars,
             mass_min=lower_mass_limit,
@@ -79,6 +80,7 @@ def form_stars(
             lower_mass_limit=lower_mass_limit,
             upper_mass_limit=upper_mass_limit,
         )
+        print(f"Next mass is {next_mass[0]}")
         # sink.next_number_of_stars = len(next_mass)
         # sink.next_total_mass = next_mass.sum()
         sink.next_primary_mass = next_mass[0]
@@ -373,6 +375,7 @@ def form_stars_from_group(
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
     )[0][0]
+    print(f"Next mass is {next_mass}")
     try:
         # Within a group, group_next_primary_mass values are either
         # a mass, or 0 MSun. If all values are 0 MSun, this is a

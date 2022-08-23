@@ -16,10 +16,10 @@ from amuse.units.trigo import sin, cos, arccos, arctan
 from amuse.datamodel import Particle, Particles, ParticlesSuperset
 from amuse.io import write_set_to_file
 
-from ekster.plotting_class import (
+from amuse.ext.ekster.plotting_class import (
     gas_mean_molecular_weight, temperature_to_u, u_to_temperature
 )
-from ekster import ekster_settings
+from amuse.ext.ekster import ekster_settings
 settings = ekster_settings.Settings()
 
 
@@ -743,6 +743,7 @@ def main_stellar_feedback(
     # stars.luminosity = (1e49 * 13.6|units.eV * units.s**-1)
 
     temperatures = u_to_temperature(gas.u, gmmw=gmmw)
+    temperatures_original = temperatures.copy()
     # max_u = gas.u.max().in_(units.cm**2 / units.s**2)
     # logger.info(
     #     "Max gas internal energy: %s",
@@ -763,16 +764,16 @@ def main_stellar_feedback(
     )
 
     # if max_u >= threshold_u:
-    threshold_T = 0.99 * temp_range[1]
-    threshold_u = temperature_to_u(threshold_T, gmmw=gmmw)
-    if temperatures.max() >= threshold_T:
+    threshold_temperature = 0.99 * temp_range[1]
+    threshold_u = temperature_to_u(threshold_temperature, gmmw=gmmw)
+    if temperatures.max() >= threshold_temperature:
         hot_gas = gas.select_array(
             lambda x: x >= threshold_u, ['u']
         )
         logger.info("%i hot gas", len(hot_gas))
 
-    Ngas = len(gas)
-    Nstars = len(stars)
+    number_of_gas = len(gas)
+    number_of_stars = len(stars)
     superset = ParticlesSuperset([gas, stars])
 
     # Numpy arrays for numba jitted-functions
@@ -818,7 +819,10 @@ def main_stellar_feedback(
         (c_sounds[1]/c_sounds[0])**(4/3) * stroemgren_radii
     ).value_in(units.pc)
     dist_threshold_pc = 1.4 * numpy.array([
-        min(hosokawa_inutsuka[a], stagnation_radii[a]) for a in range(Nstars)
+        min(
+            hosokawa_inutsuka[a],
+            stagnation_radii[a]
+        ) for a in range(number_of_stars)
     ])
     dist_threshold_pc_average = numpy.mean(dist_threshold_pc)
     # dist_threshold_pc = 2 * stroemgren_radii.value_in(units.pc)
@@ -834,9 +838,11 @@ def main_stellar_feedback(
         dist_threshold_pc
     )
 
-    Ngas_nearby = len(numpy.where(nearby_gas_marker == 1)[0])
-    print(f"{Ngas_nearby} nearby gas (out of {Ngas})")
-    logger.info("%i nearby gas (out of %i)", Ngas_nearby, Ngas)
+    number_of_gas_nearby = len(numpy.where(nearby_gas_marker == 1)[0])
+    print(f"{number_of_gas_nearby} nearby gas (out of {number_of_gas})")
+    logger.info(
+        "%i nearby gas (out of %i)", number_of_gas_nearby, number_of_gas
+    )
 
     print('Seaching neighbours...')
     logger.info('Searching neighbours...')
@@ -877,7 +883,8 @@ def main_stellar_feedback(
         value_type=types.int64[:]
     )
     numba_path_dict, path_lengths = create_path_dict_numba(
-        numba_path_dict, network, Ngas, Nstars, nearby_gas_marker
+        numba_path_dict, network, number_of_gas, number_of_stars,
+        nearby_gas_marker
     )
 
     # print(f"Average path length: {numpy.average(path_lengths[0])}")
@@ -890,16 +897,21 @@ def main_stellar_feedback(
     recombination_coefficient = recombination_coefficient.value_in(
         units.cm**3 * units.s**-1
     )
-    i_a_density_gcm = numpy.zeros(Ngas+Nstars, numpy.float64)
-    i_a_density_gcm[:Ngas] = gas.density.value_in(units.g/units.cm**3)
+    i_a_density_gcm = numpy.zeros(
+        number_of_gas+number_of_stars,
+        numpy.float64
+    )
+    i_a_density_gcm[:number_of_gas] = gas.density.value_in(units.g/units.cm**3)
 
-    Nsources = numpy.zeros(Ngas)
-    Nionised_gas = 0
+    number_of_sources = numpy.zeros(number_of_gas)
+    number_of_ionised_gas = 0
     error = 10000
-    delta_Nionised_gas = 10000
+    delta_number_of_ionised_gas = 10000
     count = 0
-    while error > 0.01 and delta_Nionised_gas > 2:
-        f_ion_array, new_Nsources, fluxes, count_spiral = one_feedback_iteration(
+    while error > 0.01 and delta_number_of_ionised_gas > 2:
+        (
+            f_ion_array, new_number_of_sources, fluxes, count_spiral,
+        ) = one_feedback_iteration(
             numba_path_dict,
             i_a_dists_pc,
             i_a_uvs,
@@ -907,16 +919,20 @@ def main_stellar_feedback(
             link_uvs,
             i_a_density_gcm,
             photon_flux,
-            Nsources,
+            number_of_sources,
             nearby_gas_marker,
             molecular_mass=molecular_mass,
             recombination_coefficient=recombination_coefficient,
         )
-        new_Nionised_gas = len(new_Nsources[new_Nsources > 0])
-        print(f'No. of ionised gas: {Nionised_gas} --> {new_Nionised_gas}')
+        new_number_of_ionised_gas = len(
+            new_number_of_sources[new_number_of_sources > 0]
+        )
+        print(
+            f'No. of ionised gas: {number_of_ionised_gas} --> '
+            f'{new_number_of_ionised_gas}')
         logger.info(
             "No. of ionised gas: %i --> %i",
-            Nionised_gas, new_Nionised_gas
+            number_of_ionised_gas, new_number_of_ionised_gas
         )
         logger.info(
             "Number of spirals formed: %i",
@@ -924,18 +940,20 @@ def main_stellar_feedback(
         )
 
         # Check for error
-        delta_Nionised_gas = new_Nionised_gas - Nionised_gas
-        if Nionised_gas > 0:
-            error = delta_Nionised_gas / Nionised_gas
-        Nsources = new_Nsources.copy()
-        Nionised_gas = new_Nionised_gas
+        delta_number_of_ionised_gas = (
+            new_number_of_ionised_gas - number_of_ionised_gas
+        )
+        if number_of_ionised_gas > 0:
+            error = delta_number_of_ionised_gas / number_of_ionised_gas
+        number_of_sources = new_number_of_sources.copy()
+        number_of_ionised_gas = new_number_of_ionised_gas
         print(
             f"Count {count}, error = {error}, "
-            f"delta_Nionised_gas = {delta_Nionised_gas}"
+            f"delta_number_of_ionised_gas = {delta_number_of_ionised_gas}"
         )
         logger.info(
-            "Count %i, error %s, delta_Nionised_gas %i",
-            count, error, delta_Nionised_gas
+            "Count %i, error %s, delta_number_of_ionised_gas %i",
+            count, error, delta_number_of_ionised_gas
         )
         count += 1
 
@@ -962,7 +980,14 @@ def main_stellar_feedback(
     )
     temperatures[neutralisation_indices] = (
         0.9*(temp_range[1] - temp_range[0]) + temp_range[0]
-    )  # Then let phantom handles cooling
+    )  # Then let phantom handle cooling
+
+    # Correction to make sure we are not cooling areas that are hot for other
+    # reasons.
+    temperatures = numpy.maximum(
+        temperatures_original.value_in(units.K),
+        temperatures.value_in(units.K),
+    ) | units.K
 
     internal_energies = temperature_to_u(
         temperatures, gmmw=gmmw

@@ -15,7 +15,7 @@ from amuse.io import read_set_from_file
 from amuse.units import units, constants, nbody_system
 from amuse.community.fi.interface import FiMap
 
-from ekster import ekster_settings
+from amuse.ext.ekster import ekster_settings
 
 
 logger = logging.getLogger(__name__)

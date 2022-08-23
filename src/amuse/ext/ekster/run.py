@@ -26,27 +26,27 @@ from amuse.ext import stellar_wind
 # from amuse.ext.masc import new_star_cluster
 from amuse.ext.sink import new_sink_particles
 
-from ekster._version import version
-from ekster.gas_class import GasCode
-from ekster.feedback_class import main_stellar_feedback
-from ekster.stellar_dynamics_class import StellarDynamicsCode
-from ekster.stellar_evolution_class import StellarEvolutionCode
-from ekster.sinks_class import should_a_sink_form  # , sfe_to_density
-from ekster.plotting_class import plot_hydro_and_stars  # , plot_stars
-from ekster.plotting_class import (
+from amuse.ext.ekster._version import version
+from amuse.ext.ekster.gas_class import GasCode
+from amuse.ext.ekster.feedback_class import main_stellar_feedback
+from amuse.ext.ekster.stellar_dynamics_class import StellarDynamicsCode
+from amuse.ext.ekster.stellar_evolution_class import StellarEvolutionCode
+from amuse.ext.ekster.sinks_class import should_a_sink_form  # , sfe_to_density
+from amuse.ext.ekster.plotting_class import plot_hydro_and_stars  # , plot_stars
+from amuse.ext.ekster.plotting_class import (
     u_to_temperature, temperature_to_u,
     gas_mean_molecular_weight,
 )
-from ekster.star_forming_region_class import (
+from amuse.ext.ekster.star_forming_region_class import (
     form_stars,
     form_stars_from_group, assign_sink_group,
 )
-from ekster.bridge import (
+from amuse.ext.ekster.bridge import (
     Bridge, CalculateFieldForCodes,
 )
-from ekster import ekster_settings
-from ekster import spiral_potential
-from ekster import available_codes
+from amuse.ext.ekster import ekster_settings
+from amuse.ext.ekster import spiral_potential
+from amuse.ext.ekster import available_codes
 
 
 set_preferred_units(
@@ -396,8 +396,8 @@ class ClusterInPotential(
             "density", "h_smooth",
         ]
         thermal_gas_attributes = [
-            "u", "h2ratio", "hi_abundance", "proton_abundance",
-            "electron_abundance", "co_abundance",
+            "u",  # "h2ratio", "hi_abundance", "proton_abundance",
+            # "electron_abundance", "co_abundance",
         ]
         if not self.isothermal_mode:
             for attribute in thermal_gas_attributes:
@@ -881,7 +881,7 @@ class ClusterInPotential(
             self.evo_code_stars = self.evo_code.particles.add_particles(stars)
             self.sync_from_evo_code()
             self.star_code.particles.add_particles(stars)
-            if settings.wind_enabled:
+            if self.settings.wind_enabled:
                 self.wind.particles.add_particles(stars)
 
             # self.star_code.parameters_to_default(star_code=settings.star_code)
@@ -952,6 +952,7 @@ class ClusterInPotential(
             number_of_groups = self.sink_particles.in_group.max()
             for i in range(number_of_groups):
                 i += 1   # Change to one-based index
+                print(f"Group {i} of {number_of_groups}")
                 self.logger.info(
                     "Processing group %i (out of %i)",
                     i, number_of_groups
@@ -984,7 +985,9 @@ class ClusterInPotential(
                     # self.logger.info("Processing sink %i, with mass %s",
                     # sink.sink_number, sink.mass)
                     self.logger.info("Processing sink %i", sink.key)
-                    local_sound_speed = self.gas_code.parameters.polyk.sqrt()
+                    # FIXME
+                    # local_sound_speed = self.gas_code.parameters.polyk.sqrt()
+                    local_sound_speed = 100 | units.kms
                     if multithread:
                         results.append(
                             executor.submit(
@@ -1080,7 +1083,7 @@ class ClusterInPotential(
         # )
         # print('Stellar feedback implemented.')
 
-        if settings.feedback_enabled and not self.star_particles.is_empty():
+        if self.settings.feedback_enabled and not self.star_particles.is_empty():
 
             # STARBENCH
             # self.star_particles.luminosity = (
@@ -1091,9 +1094,9 @@ class ClusterInPotential(
                 gas=self.gas_particles,
                 stars_=self.star_particles,
                 time=self.model_time,
-                mass_cutoff=settings.feedback_mass_threshold,
+                mass_cutoff=self.settings.feedback_mass_threshold,
                 temp_range=[
-                    settings.isothermal_gas_temperature.value_in(units.K),
+                    self.settings.isothermal_gas_temperature.value_in(units.K),
                     20000
                 ] | units.K,
                 logger=self.logger,
@@ -1184,21 +1187,19 @@ class ClusterInPotential(
 
                 wind_p = self.wind_particles
                 if not wind_p.is_empty():
+                    mean_wind_temperature = u_to_temperature(
+                        wind_p.u,
+                        gmmw=gas_mean_molecular_weight(0),
+                    ).mean()
                     print(
-                        "\n\nAdding %i wind particles with <T> %s\n\n"
-                        % (len(wind_p), u_to_temperature(
-                            wind_p.u,
-                            gmmw=gas_mean_molecular_weight(0),
-                        ).mean())
+                        f"\n\nAdding {len(wind_p)} wind particles with "
+                        f"<T> {mean_wind_temperature}\n\n"
                     )
                     self.logger.info(
                         "Adding %i wind particle(s) at t=%s, <T>=%s",
                         len(wind_p),
                         self.wind.model_time.in_(units.Myr),
-                        u_to_temperature(
-                            wind_p.u,
-                            gmmw=gas_mean_molecular_weight(0),
-                        ).mean()
+                        mean_wind_temperature
                     )
 
                     # This initial guess for h_smooth is used by Phantom to
@@ -1212,7 +1213,7 @@ class ClusterInPotential(
                     self.add_gas(wind_p)
                     wind_p.remove_particles(wind_p)
 
-                print("number of gas particles: %i" % len(self.gas_particles))
+                print(f"number of gas particles: {len(self.gas_particles)}")
             print("Evolved system")
 
             if not self.sink_particles.is_empty():
@@ -1424,7 +1425,7 @@ def main(
             "No gas read, generating standard initial conditions instead"
         )
         from amuse.ext.molecular_cloud import molecular_cloud
-        gas_density = 2e-21 | units.g * units.cm**-3
+        gas_density = 1e-20 | units.g * units.cm**-3
         increase_vol = 2
         Ngas = increase_vol**3 * 1000 * 5
         Mgas = increase_vol**3 * 1000 | units.MSun
@@ -1554,7 +1555,7 @@ def main(
                 gas=model.gas_particles,
                 filename=plotname,
                 title=(
-                    f"time = {model.model_time.value_in(units.Myr):06.2d} "
+                    f"time = {model.model_time.value_in(units.Myr):06.2f} "
                     f"{units.Myr}"
                 ),
                 x_axis=settings.plot_xaxis,
@@ -1575,7 +1576,7 @@ def main(
                 gas=model.gas_particles,
                 filename=plotname,
                 title=(
-                    f"time = {model.model_time.value_in(units.Myr):06.2d} "
+                    f"time = {model.model_time.value_in(units.Myr):06.2f} "
                     f"{units.Myr}",
                 ),
                 x_axis=settings.plot_xaxis,
@@ -1629,6 +1630,7 @@ def main(
                     append_to_file=False,
                     # version='2.0',
                     # return_working_copy=False,
+                    compression="gzip",
                     close_file=True,
                 )
             if not model.sink_particles.is_empty():
@@ -1642,6 +1644,7 @@ def main(
                     append_to_file=False,
                     # version='2.0',
                     # return_working_copy=False,
+                    compression="gzip",
                     close_file=True,
                 )
             if not model.star_particles.is_empty():
@@ -1655,6 +1658,7 @@ def main(
                     append_to_file=False,
                     # version='2.0',
                     # return_working_copy=False,
+                    compression="gzip",
                     close_file=True,
                 )
     return model

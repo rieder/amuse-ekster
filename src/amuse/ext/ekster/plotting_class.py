@@ -213,14 +213,17 @@ def make_temperature_map(
             else gas_mean_molecular_weight()
         ),
     )
-    mapper.particles.weight = temperature.value_in(weight_unit)
-    temperature_map = mapper.image.pixel_value.transpose() | units.K
     mapper.particles.weight = 1
     count_map = mapper.image.pixel_value.transpose()
-    mean_temperature_map = temperature_map / count_map
+    mapper.particles.weight = temperature.value_in(weight_unit)
+    temperature_map = mapper.image.pixel_value.transpose()  # | units.K
+    mean_temperature_map = numpy.nan_to_num(
+        temperature_map / count_map,
+        nan=0
+    ) | units.K
 
-    # return mean_temperature_map
-    return temperature_map
+    return mean_temperature_map
+    # return temperature_map
 
 def plot_hydro_and_stars(
         time,

@@ -107,6 +107,7 @@ def form_stars(
         lower_mass_limit=lower_mass_limit,
         upper_mass_limit=upper_mass_limit,
         initial_mass_function=initial_mass_function,
+        sort_by_mass=False,
     )
     number_of_stars = len(masses)
     logger.debug("... done, %s stars generated", number_of_stars)

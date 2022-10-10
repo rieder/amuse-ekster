@@ -28,10 +28,9 @@ from amuse.ext.sink import new_sink_particles
 
 from amuse.ext.ekster._version import version
 from amuse.ext.ekster.gas_class import GasCode
-try:
-    from amuse.ext.ekster.feedback_class import main_stellar_feedback, FEEDBACK_ENABLED
-except:
-    FEEDBACK_ENABLED = False
+FEEDBACK_ENABLED = False
+if FEEDBACK_ENABLED:
+    from amuse.ext.ekster.feedback_class import main_stellar_feedback
 from amuse.ext.ekster.stellar_dynamics_class import StellarDynamicsCode
 from amuse.ext.ekster.stellar_evolution_class import StellarEvolutionCode
 from amuse.ext.ekster.sinks_class import should_a_sink_form  # , sfe_to_density

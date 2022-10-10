@@ -6,15 +6,10 @@ Feedback class
 import logging
 
 import numpy
-try:
-    import pandas
-    # from grispy import GriSPy
-    from sklearn.neighbors import KDTree
-    from numba import njit, typed, types
-    FEEDBACK_ENABLED = True
-except:
-    FEEDBACK_ENABLED = False
-
+import pandas
+# from grispy import GriSPy
+from sklearn.neighbors import KDTree
+from numba import njit, typed, types
 
 from amuse.units import units, constants
 from amuse.units.trigo import sin, cos, arccos, arctan

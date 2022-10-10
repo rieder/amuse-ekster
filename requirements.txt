@@ -3,3 +3,4 @@ amuse-petar
 amuse-phantom
 amuse-fi
 amuse-seba
+matplotlib

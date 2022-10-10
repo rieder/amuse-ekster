@@ -487,7 +487,7 @@ def plot_hydro_and_stars(
 
 
         if stars is not None and use_fresco:
-            from amuse.ext.fresco.fresco import make_image
+            from amuse.plot.fresco import make_fresco_image
             converter = nbody_system.nbody_to_si(
                 stars.total_mass(),
                 width,
@@ -500,7 +500,7 @@ def plot_hydro_and_stars(
                 gas.x -= offset_x
                 gas.y -= offset_y
 
-            fresco_image, vmax = make_image(
+            fresco_image, vmax = make_fresco_image(
                 stars=stars,
                 gas=gas,
                 converter=converter,

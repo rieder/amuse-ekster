@@ -88,7 +88,7 @@ class GasCode(BasicCode):
         )
         self.code = sph_code(
             self.unit_converter,
-            redirection="none",
+            redirection=settings.code_redirection,
             **keyword_arguments
         )
         self.parameters = self.code.parameters

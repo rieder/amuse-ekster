@@ -10,12 +10,12 @@ url = 'https://github.com/rieder/ekster'
 install_requires = [
     'amuse-framework',
 ]
-setup_requires = []
 description = 'AMUSE-Ekster star formation simulations',
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 long_description_content_type = "text/markdown"
 
+setup_requires = []
 extensions = []
 
 all_data_files = []
@@ -51,7 +51,7 @@ except ImportError:
     version = False
     setup_requires += ['setuptools_scm',]
     use_scm_version = {
-        "root": ".",
+        "root": "../..",
         "relative_to": __file__,
         "write_to": "src/amuse/ext/ekster/version.py",
     }

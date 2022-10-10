@@ -402,6 +402,7 @@ def form_stars_from_group(
 
     # logger.info("Next mass is %s", next_mass)
 
+    print(f"group mass is {group_mass}, next mass is {next_mass}")
     if group_mass < next_mass:
         logger.info(
             "Group #%i is not massive enough for the next star %s",
@@ -411,6 +412,7 @@ def form_stars_from_group(
 
     # Form stars from the leftover group sink mass
     mass_left = group_mass - next_mass
+    print(f"mass left is {mass_left}")
     masses = new_masses(
         stellar_mass=mass_left,
         lower_mass_limit=lower_mass_limit,

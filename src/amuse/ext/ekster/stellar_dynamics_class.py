@@ -110,12 +110,14 @@ class StellarDynamicsCode:
             self,
             converter=None,
             star_code=Hermite,
-            redirection="null",
+            redirection=None,
             mode="cpu",
             number_of_workers=8,
             # handle_stopping_conditions=False,
             **kwargs
     ):
+        if redirection is None:
+            redirection = self.settings.code_redirection
         if hasattr(available_codes, star_code):
             star_code = getattr(available_codes, star_code)
         if star_code is ph4:
@@ -146,15 +148,13 @@ class StellarDynamicsCode:
         elif star_code is Pentacle:
             code = star_code(
                 converter,
-                # redirection=redirection,
-                redirection="none",
+                redirection=redirection,
             )
         elif star_code is Petar:
             code = star_code(
                 converter,
                 mode=mode,
-                # redirection=redirection,
-                redirection="none",
+                redirection=redirection,
                 # number_of_workers=number_of_workers,
                 **kwargs
             )

@@ -9,6 +9,11 @@ license_ = "Apache License 2.0"
 url = 'https://github.com/rieder/ekster'
 install_requires = [
     'amuse-framework',
+    'amuse-fi',
+    'amuse-phantom',
+    'amuse-petar',
+    'amuse-seba',
+    'matplotlib',
 ]
 description = 'AMUSE-Ekster star formation simulations',
 with open("README.md", "r", encoding="utf-8") as fh:

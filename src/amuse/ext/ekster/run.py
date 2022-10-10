@@ -28,7 +28,10 @@ from amuse.ext.sink import new_sink_particles
 
 from amuse.ext.ekster._version import version
 from amuse.ext.ekster.gas_class import GasCode
-from amuse.ext.ekster.feedback_class import main_stellar_feedback
+try:
+    from amuse.ext.ekster.feedback_class import main_stellar_feedback, FEEDBACK_ENABLED
+except:
+    FEEDBACK_ENABLED = False
 from amuse.ext.ekster.stellar_dynamics_class import StellarDynamicsCode
 from amuse.ext.ekster.stellar_evolution_class import StellarEvolutionCode
 from amuse.ext.ekster.sinks_class import should_a_sink_form  # , sfe_to_density
@@ -1083,7 +1086,11 @@ class ClusterInPotential(
         # )
         # print('Stellar feedback implemented.')
 
-        if self.settings.feedback_enabled and not self.star_particles.is_empty():
+        if (
+            FEEDBACK_ENABLED
+            and self.settings.feedback_enabled
+            and not self.star_particles.is_empty()
+        ):
 
             # STARBENCH
             # self.star_particles.luminosity = (

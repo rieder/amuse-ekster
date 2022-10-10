@@ -5,9 +5,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='ekster',
-    version='1.1.0',
-    description='Ekster star formation simulations',
+    name='amuse-ekster',
+    version='1.2.0b3',
+    description='AMUSE-Ekster star formation simulations',
     long_description=long_description,
     long_description_content_type="text/markdown",
     url='https://github.com/rieder/ekster',
@@ -18,6 +18,11 @@ setuptools.setup(
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.7",
     install_requires=[
+        'amuse-framework',
+        # 'amuse-phantom',
+        # 'amuse-petar',
+        # 'amuse-fi',
+        # 'amuse-seba',
     ],
     project_urls={
         "Bug Tracker": "https://github.com/rieder/ekster/issues",
@@ -38,5 +43,5 @@ setuptools.setup(
         'Programming Language :: Fortran',
         'Topic :: Scientific/Engineering :: Astronomy',
     ],
-    scripts=["bin/ekster.py", ],    
+    scripts=["bin/ekster.py", ],
 )

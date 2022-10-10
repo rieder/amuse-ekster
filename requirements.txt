@@ -1,9 +1,5 @@
 amuse-framework
-amuse-fi
-amuse-bhtree
-# amuse-fastkick
-# amuse-hermite
-# amuse-ph4
 amuse-petar
 amuse-phantom
+amuse-fi
 amuse-seba

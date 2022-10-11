@@ -6,8 +6,6 @@ Feedback class
 import logging
 
 import numpy
-import pandas
-# from grispy import GriSPy
 from sklearn.neighbors import KDTree
 from numba import njit, typed, types
 
@@ -996,12 +994,5 @@ def main_stellar_feedback(
     gas.h2ratio = 0
     gas.proton_abundance = f_ion_array
     gas.ionisation_state = f_ion_array   # Assuming f_ion_array is binary
-
-    # df = pandas.DataFrame()
-    # df['dist'] = i_a_dists_pc[0]
-    # df['flux'] = fluxes[0]
-    # df.to_csv('flux.csv')
-    # exit()
-    #
 
     return gas

@@ -11,8 +11,7 @@ from numba import njit, typed, types
 
 from amuse.units import units, constants
 from amuse.units.trigo import sin, cos, arccos, arctan
-from amuse.datamodel import Particle, Particles, ParticlesSuperset
-from amuse.io import write_set_to_file
+from amuse.datamodel import ParticlesSuperset
 
 from amuse.ext.ekster.plotting_class import (
     gas_mean_molecular_weight, temperature_to_u, u_to_temperature

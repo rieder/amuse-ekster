@@ -6,15 +6,12 @@ Feedback class
 import logging
 
 import numpy
-import pandas
-# from grispy import GriSPy
 from sklearn.neighbors import KDTree
 from numba import njit, typed, types
 
 from amuse.units import units, constants
 from amuse.units.trigo import sin, cos, arccos, arctan
-from amuse.datamodel import Particle, Particles, ParticlesSuperset
-from amuse.io import write_set_to_file
+from amuse.datamodel import ParticlesSuperset
 
 from amuse.ext.ekster.plotting_class import (
     gas_mean_molecular_weight, temperature_to_u, u_to_temperature
@@ -996,12 +993,5 @@ def main_stellar_feedback(
     gas.h2ratio = 0
     gas.proton_abundance = f_ion_array
     gas.ionisation_state = f_ion_array   # Assuming f_ion_array is binary
-
-    # df = pandas.DataFrame()
-    # df['dist'] = i_a_dists_pc[0]
-    # df['flux'] = fluxes[0]
-    # df.to_csv('flux.csv')
-    # exit()
-    #
 
     return gas

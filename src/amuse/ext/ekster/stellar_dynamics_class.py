@@ -33,7 +33,8 @@ except ImportError:
 from amuse.datamodel import Particles  # , Particle
 from amuse.units import units, nbody_system
 
-import available_codes
+from amuse.ext.ekster import available_codes
+from amuse.ext.ekster import ekster_settings
 
 
 class StellarDynamicsCode:
@@ -56,7 +57,8 @@ class StellarDynamicsCode:
         self.__name__ = "StellarDynamics"
         self.logger = logger or logging.getLogger(__name__)
         if settings is None:
-            from ekster_settings import settings
+            from ekster.ekster_settings import Settings
+            settings = Settings()
             print("WARNING: using default settings!")
             logger.info("WARNING: using default settings!")
         self.settings = settings
@@ -108,12 +110,14 @@ class StellarDynamicsCode:
             self,
             converter=None,
             star_code=Hermite,
-            redirection="null",
+            redirection=None,
             mode="cpu",
             number_of_workers=8,
             # handle_stopping_conditions=False,
             **kwargs
     ):
+        if redirection is None:
+            redirection = self.settings.code_redirection
         if hasattr(available_codes, star_code):
             star_code = getattr(available_codes, star_code)
         if star_code is ph4:
@@ -144,15 +148,13 @@ class StellarDynamicsCode:
         elif star_code is Pentacle:
             code = star_code(
                 converter,
-                # redirection=redirection,
-                redirection="none",
+                redirection=redirection,
             )
         elif star_code is Petar:
             code = star_code(
                 converter,
                 mode=mode,
-                # redirection=redirection,
-                redirection="none",
+                redirection=redirection,
                 # number_of_workers=number_of_workers,
                 **kwargs
             )

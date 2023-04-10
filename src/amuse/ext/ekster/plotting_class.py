@@ -15,7 +15,7 @@ from amuse.io import read_set_from_file
 from amuse.units import units, constants, nbody_system
 from amuse.community.fi.interface import FiMap
 
-import ekster_settings
+from amuse.ext.ekster import ekster_settings
 
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,7 @@ def make_column_density_map(
     width = settings.plot_width
     mapper.parameters.target_x = offset_x
     mapper.parameters.target_y = offset_y
+    mapper.parameters.target_z = offset_z
     mapper.parameters.image_width = width
     mapper.parameters.image_size = [bins, bins]
     # positive x = up
@@ -159,12 +160,51 @@ def make_temperature_map(
 
     mapper.parameters.target_x = offset_x
     mapper.parameters.target_y = offset_y
+    mapper.parameters.target_z = offset_z
     mapper.parameters.image_width = width
     mapper.parameters.image_size = [bins, bins]
-    # positive z = top layer
-    mapper.parameters.projection_direction = [0, 0, -1]
+    # # positive z = top layer
+    # mapper.parameters.projection_direction = [0, 0, -1]
+    # # positive y = up
+    # mapper.parameters.upvector = [0, 1, 0]  # y
+
+    if y_axis == 'x':
+        mapper.parameters.upvector = [1, 0, 0]
+        if x_axis == 'y':
+            # negative z = top layer
+            mapper.parameters.projection_direction = [0, 0, 1]
+        elif x_axis == 'z':
+            # positive y = top layer
+            mapper.parameters.projection_direction = [0, -1, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
+
     # positive y = up
-    mapper.parameters.upvector = [0, 1, 0]  # y
+    if y_axis == 'y':
+        mapper.parameters.upvector = [0, 1, 0]
+        if x_axis == 'x':
+            # positive z = top layer
+            mapper.parameters.projection_direction = [0, 0, -1]
+        elif x_axis == 'z':
+            # negative x = top layer
+            mapper.parameters.projection_direction = [1, 0, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
+
+    # positive z = up
+    if y_axis == 'z':
+        mapper.parameters.upvector = [0, 0, 1]
+        if x_axis == 'x':
+            # negative y = top layer
+            mapper.parameters.projection_direction = [0, 1, 0]
+        elif x_axis == 'y':
+            # positive x = top layer
+            mapper.parameters.projection_direction = [-1, 0, 0]
+        else:
+            print('Wrong input for x_axis or y_axis: please check!')
+            return None
 
     temperature = u_to_temperature(
         gas.u,
@@ -173,14 +213,17 @@ def make_temperature_map(
             else gas_mean_molecular_weight()
         ),
     )
-    mapper.particles.weight = temperature.value_in(weight_unit)
-    temperature_map = mapper.image.pixel_value.transpose() | units.K
     mapper.particles.weight = 1
     count_map = mapper.image.pixel_value.transpose()
-    mean_temperature_map = temperature_map / count_map
+    mapper.particles.weight = temperature.value_in(weight_unit)
+    temperature_map = mapper.image.pixel_value.transpose()  # | units.K
+    mean_temperature_map = numpy.nan_to_num(
+        temperature_map / count_map,
+        nan=0
+    ) | units.K
 
     return mean_temperature_map
-
+    # return temperature_map
 
 def plot_hydro_and_stars(
         time,
@@ -428,8 +471,23 @@ def plot_hydro_and_stars(
                     % stars.mass.max().in_(units.MSun)
                 )
 
+
+        # For feedback benchmark test: Time dependence of IF radius
+        # HIGHLY FRAGILE: USE WITH CARE
+        # if stars is not None:
+        #     cs = 330 | units.ms
+        #     average_density = (1.47e-19 | units.g/units.cm**3)/(2.3 * 1.67e-27|units.kg)
+        #     alpha = 3e-13 |units.cm**3/units.s
+        #     QH = stars[0].luminosity / (13.6|units.eV)
+        #     R_st = ((3 * QH)/(4*numpy.pi*average_density**2*alpha))**(1.0/3)
+        #     R_IF = R_st * (1 + (7*cs*time)/(4*R_st))**(4/7)
+        #
+        #     circle = pyplot.Circle((0,0), R_IF.value_in(units.pc), fill=False, color='white',ls='--')
+        #     ax.add_patch(circle)
+
+
         if stars is not None and use_fresco:
-            from amuse.ext.fresco.fresco import make_image
+            from amuse.plot.fresco import make_fresco_image
             converter = nbody_system.nbody_to_si(
                 stars.total_mass(),
                 width,
@@ -442,7 +500,7 @@ def plot_hydro_and_stars(
                 gas.x -= offset_x
                 gas.y -= offset_y
 
-            fresco_image, vmax = make_image(
+            fresco_image, vmax = make_fresco_image(
                 stars=stars,
                 gas=gas,
                 converter=converter,
@@ -789,7 +847,7 @@ def main():
         )
         plot_cluster_locations = False
         if plot_cluster_locations:
-            from find_clusters import find_clusters
+            from ekster.find_clusters import find_clusters
             clusters = find_clusters(stars, convert_nbody=converter,)
             for cluster in clusters:
                 cluster_com = cluster.center_of_mass()

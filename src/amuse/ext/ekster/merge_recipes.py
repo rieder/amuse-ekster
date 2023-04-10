@@ -14,9 +14,9 @@ def merge_two_stars(primary, secondary):
     colliders.add_particle(primary)
     colliders.add_particle(secondary)
     new_particle = Particle()
-    new_particle.mass = colliders.mass.sum()
-    new_particle.position = colliders.center_of_mass()
-    new_particle.velocity = colliders.center_of_mass_velocity()
+    setattr(new_particle, "mass", colliders.mass.sum())
+    setattr(new_particle, "position", colliders.center_of_mass())
+    setattr(new_particle, "velocity", colliders.center_of_mass_velocity())
 
     return new_particle
 
@@ -42,13 +42,15 @@ def form_new_star(
         x < jeans_radius,
         ["distance_to_core"]
     )
-    new_star.mass = dense_gas.mass.sum()
-    new_star.position = (
-        dense_gas.center_of_mass()
-        + densest_gas_particle.position
+    setattr(new_star, "mass", dense_gas.mass.sum())
+    setattr(
+        new_star, "position", (
+            dense_gas.center_of_mass()
+            + densest_gas_particle.position
+        )
     )
-    new_star.velocity = dense_gas.center_of_mass_velocity()
-    new_star.radius = jeans_radius
+    setattr(new_star, "velocity", dense_gas.center_of_mass_velocity())
+    setattr(new_star, "radius", jeans_radius)
     absorbed_gas = dense_gas
 
     return new_star, absorbed_gas

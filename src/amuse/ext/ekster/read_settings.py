@@ -44,5 +44,4 @@ def read_config(settings, filename, setup):
     config.read(filename)
     for setting in config[setup]:
         if hasattr(settings, setting):
-            setattr(settings, setting, config[setup][setting]
-
+            setattr(settings, setting, config[setup][setting])

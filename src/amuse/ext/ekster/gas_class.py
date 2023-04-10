@@ -4,13 +4,15 @@
 import logging
 import numpy
 
-from available_codes import Fi, Phantom
 # from amuse.datamodel import Particles, Particle
 from amuse.units import units, nbody_system, constants
+from amuse.datamodel import Particles
 
-from basic_class import BasicCode
-# from plotting_class import plot_hydro_and_stars
-# from sinks_class import accrete_gas  # , SinkParticles
+from amuse.ext.ekster import available_codes
+from amuse.ext.ekster.available_codes import Fi, Phantom, Mizuki
+from amuse.ext.ekster.basic_class import BasicCode
+# from ekster.plotting_class import plot_hydro_and_stars
+# from ekster.sinks_class import accrete_gas  # , SinkParticles
 # from amuse.ext.sink import SinkParticles
 
 
@@ -31,7 +33,7 @@ class GasCode(BasicCode):
 
     def __init__(
             self,
-            sph_code=Phantom,
+            sph_code=Phantom,    
             # sph_code=Fi,
             converter=None,
             logger=None,
@@ -40,12 +42,21 @@ class GasCode(BasicCode):
             settings=None,  # ekster_settings.Settings(),
             **keyword_arguments
     ):
+        try:
+            sph_code_name = settings.sph_code
+            print(sph_code_name)
+            sph_code = getattr(available_codes, sph_code_name)
+        except:
+            print("Using legacy sph_code value")
+            exit()
+
         self.typestr = "Hydro"
         # self.namestr = sph_code.__name__
         self.__name__ = "GasCode"
         self.logger = logger or logging.getLogger(__name__)
         if settings is None:
-            from ekster_settings import settings
+            from ekster.ekster_settings import Settings
+            settings = Settings()
             print("WARNING: using default settings!")
             logger.info("WARNING: using default settings!")
         self.internal_star_formation = internal_star_formation
@@ -77,7 +88,7 @@ class GasCode(BasicCode):
         )
         self.code = sph_code(
             self.unit_converter,
-            redirection="none",
+            redirection=settings.code_redirection,
             **keyword_arguments
         )
         self.parameters = self.code.parameters
@@ -92,6 +103,8 @@ class GasCode(BasicCode):
             self.parameters.integrate_entropy_flag = False
             self.parameters.stopping_condition_maximum_density = \
                 self.density_threshold
+        elif sph_code is Mizuki:
+            self.parameters.time_step = settings.timestep_bridge
         elif sph_code is Phantom:
             self.parameters.alpha = settings.alpha
             self.parameters.beta = settings.beta
@@ -113,7 +126,7 @@ class GasCode(BasicCode):
             self.parameters.h_soft_sinkgas = settings.epsilon_gas
             self.parameters.h_soft_sinksink = settings.epsilon_gas
             self.parameters.h_acc = settings.h_acc
-            self.parameters.time_step = settings.timestep_bridge / 2
+            self.parameters.time_step = settings.timestep_bridge #/ 2
 
     def get_potential_at_point(self, eps, x, y, z, **keyword_arguments):
         """Return potential at specified point"""
@@ -154,12 +167,18 @@ class GasCode(BasicCode):
     @property
     def dm_particles(self):
         """Return all dm particles"""
-        return self.code.dm_particles
+        try:
+            return self.code.dm_particles
+        except:
+            return Particles()
 
     @property
     def sink_particles(self):
         """Return all sink particles"""
-        return self.code.sink_particles
+        try:
+            return self.code.sink_particles
+        except:
+            return Particles()
         # return self.code.dm_particles
 
     @property
@@ -262,7 +281,7 @@ def main():
     )
     numpy.random.seed(11)
     temperature = 30 | units.K
-    from plotting_class import temperature_to_u
+    from ekster.plotting_class import temperature_to_u
     u = temperature_to_u(temperature)
     gas = molecular_cloud(targetN=200000, convert_nbody=converter).result
     gas.u = u

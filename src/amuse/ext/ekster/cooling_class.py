@@ -4,7 +4,6 @@
 Pelupessy et al. (in prep.) simple thermal model
 """
 
-import sys
 import numpy
 
 from amuse.units import units, constants

@@ -30,3 +30,7 @@ try:
     from amuse.community.seba import Seba
 except ImportError:
     Seba = None
+try:
+    from amuse.community.mizuki import Mizuki
+except ImportError:
+    Mizuki = None

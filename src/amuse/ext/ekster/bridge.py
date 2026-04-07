@@ -768,7 +768,9 @@ class Bridge(object):
         threads = []
 
         for x in self.codes:
-            logger.info("Thread %i will drift code %s", len(threads), x.code.__name__)
+            logger.info(
+                "Thread %i will drift code %s", len(threads), x.code.__name__
+            )
             offset = self.time_offsets[x]
             logger.info(
                 "Drifting %s (%s to %s)",

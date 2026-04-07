@@ -21,10 +21,10 @@ from amuse.ext.molecular_cloud import molecular_cloud
 
 from amuse.support.console import set_preferred_units
 
-from plotting_class import plot_hydro_and_stars, temperature_to_u, u_to_temperature
-from cooling_class import SimplifiedThermalModelEvolver  # , Cooling
-from star_forming_region_class import new_kroupa_mass_distribution
-import default_settings
+from ekster.plotting_class import plot_hydro_and_stars, temperature_to_u, u_to_temperature
+from ekster.cooling_class import SimplifiedThermalModelEvolver  # , Cooling
+from ekster.star_forming_region_class import new_kroupa_mass_distribution
+from ekster import ekster_settings
 
 
 COOLING = False
@@ -39,6 +39,7 @@ def determine_short_timestep(sph, gas, h_min=0.1 | units.parsec):
 
 
 def main():
+    settings = ekster_settings.Settings()
     numpy.random.seed(42)
     evo_headstart = 0.0 | units.Myr
     dt_base = 0.001 | units.Myr
@@ -137,7 +138,7 @@ def main():
 
     M = stars.total_mass() + Mgas
     R = stars.position.lengths().mean()
-    converter = nbody_system.nbody_to_si(M, R)
+    # converter = nbody_system.nbody_to_si(M, R)
     # exit()
     # gas = new_plummer_gas_model(Ngas, gasconverter)
     # gas = molecular_cloud(targetN=Ngas, convert_nbody=gasconverter).result
@@ -155,8 +156,8 @@ def main():
     evo = SeBa()
     # sph = Fi(converter, mode="openmp")
     phantomconverter = nbody_system.nbody_to_si(
-        default_settings.gas_rscale,
-        default_settings.gas_mscale,
+        settings.gas_rscale,
+        settings.gas_mscale,
     )
     sph = Phantom(phantomconverter, redirection="none")
     sph.parameters.ieos = 2
@@ -268,7 +269,6 @@ def main():
     )
     channel_stars_wind_to_code.copy()
 
-
     # reference_mu = 2.2 | units.amu
     gasvolume = (4./3.) * numpy.pi * (
         gas.position - gas.center_of_mass()
@@ -300,13 +300,13 @@ def main():
         sph,
         stars=stars,
         sinks=None,
-        L=20,
+        # L=20,
         # N=100,
         filename="phantom-coolthermalwindtestplot-%04i.png" % step,
         title="time = %06.2f %s" % (time.value_in(units.Myr), units.Myr),
         gasproperties=["density", "temperature"],
         # colorbar=True,
-        starscale=1,
+        # starscale=1,
         offset_x=com[0].value_in(units.parsec),
         offset_y=com[1].value_in(units.parsec),
         thickness=5 | units.parsec,
@@ -472,14 +472,14 @@ def main():
                 # stars=sph.dm_particles,
                 stars=stars,
                 sinks=None,
-                L=20,
+                # L=20,
                 # N=100,
                 # image_size_scale=10,
-                filename="phantom-coolthermalwindtestplot-%04i.png" % plotnr,  # int(step/plot_every),
+                filename=f"phantom-coolthermalwindtestplot-{plotnr:04i}.png",
                 title="time = %06.2f %s" % (time.value_in(units.Myr), units.Myr),
                 gasproperties=["density", "temperature"],
                 # colorbar=True,
-                starscale=1,
+                # starscale=1,
                 offset_x=com[0].value_in(units.parsec),
                 offset_y=com[1].value_in(units.parsec),
                 thickness=5 | units.parsec,
@@ -499,14 +499,14 @@ def main():
                 # stars=sph.dm_particles,
                 stars=stars,
                 sinks=None,
-                L=20,
+                # L=20,
                 # N=100,
                 # image_size_scale=10,
                 filename="phantom-coolthermalwindtestplot-%04i.png" % plotnr,  # int(step/plot_every),
                 title="time = %06.2f %s" % (time.value_in(units.Myr), units.Myr),
                 gasproperties=["density", "temperature"],
                 # colorbar=True,
-                starscale=1,
+                # starscale=1,
                 offset_x=com[0].value_in(units.parsec),
                 offset_y=com[1].value_in(units.parsec),
                 thickness=5 | units.parsec,

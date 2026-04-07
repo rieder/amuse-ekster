@@ -4,7 +4,6 @@
 Pelupessy et al. (in prep.) simple thermal model
 """
 
-import sys
 import numpy
 
 from amuse.units import units, constants
@@ -120,10 +119,7 @@ class SimplifiedThermalModelEvolver(SimplifiedThermalModel):
             if nrho+nu+ndu+nnu > 0:
                 print("nan detected in thermal evolution")
                 print(nrho, nu, ndu, nnu)
-                if sys.version[0] < 3:
-                    import cPickle as pickle
-                else:
-                    import pickle
+                import pickle
                 with open("cooling_dump", "w") as f:
                     pickle.dump((dt, rho, u, du_dt, new_u), f)
                 raise Exception("NaNs in thermal evolution")

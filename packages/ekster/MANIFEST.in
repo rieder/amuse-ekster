@@ -1,0 +1,5 @@
+include pyproject.toml
+
+recursive-include src
+recursive-exclude src *.pyc *.o *~ .pc ccache *.a *.swp *.egg-info .DS_Store
+

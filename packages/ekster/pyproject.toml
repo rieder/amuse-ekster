@@ -1,0 +1,4 @@
+[build-system]
+requires = ["setuptools>=42", "amuse-framework", "amuse-phantom", "amuse-petar", "amuse-fi", "amuse-seba"]
+# build-backend = "setuptools.build_meta"
+
